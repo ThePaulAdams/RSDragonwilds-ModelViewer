@@ -126,7 +126,7 @@ async function models() {
     const slug = n === 1 ? name : `${name}-${n}`;
     const folders = m.File.split('/').slice(0, -1).filter(s => !/^(RSDragonwilds|Content|Art|Env|Meshes|Mesh|Geometry)$/i.test(s));
     list.push({ slug, name, title: humanize(name), where: folders.slice(-2).map(humanize).join(' › '),
-      thumb: 'export/thumbs/' + m.File.replace(/\.glb$/i, '.webp') });
+      thumb: 'assets/thumbs/' + m.File.replace(/\.glb$/i, '.webp') });
   }
   return (catalog = { list, bySlug: new Map(list.map(x => [x.slug.toLowerCase(), x])) });
 }
@@ -170,10 +170,22 @@ async function sendPage(req, res, model) {
   res.end(req.method === 'HEAD' ? undefined : body);
 }
 
+// One log line per minute: request count and the busiest clients, to spot bulk downloaders in Railway's logs.
+const traffic = new Map();
+setInterval(() => {
+  if (!traffic.size) return;
+  const top = [...traffic].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${n} ${k}`).join(' | ');
+  console.log(`[traffic] ${[...traffic.values()].reduce((a, b) => a + b, 0)} requests in the last minute; top: ${top}`);
+  traffic.clear();
+}, 60000).unref();
+
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://x');
     const path = url.pathname;
+    const who = (req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+    const key = `${who} ${String(req.headers['user-agent'] || '').slice(0, 60)}`;
+    traffic.set(key, (traffic.get(key) || 0) + 1);
 
     if (path === '/healthz') return send(res, 200, 'ok');
 
@@ -244,17 +256,20 @@ createServer(async (req, res) => {
     }
 
     if (path === '/site-config.json') await previews();
-    if (path === '/site-config.json') return send(res, 200, JSON.stringify({ name: SITE_NAME, login: !!PASSWORD, thumbs: thumbsDir, hosted: true }), { 'Content-Type': 'application/json' });
+    if (path === '/site-config.json') return send(res, 200, JSON.stringify({ name: SITE_NAME, login: !!PASSWORD, thumbs: thumbsDir, assets: 'assets/', hosted: true }), { 'Content-Type': 'application/json' });
     if (path === '/' || path === '/index.html') return sendPage(req, res, null);
     if (path.startsWith('/model/')) {
       const model = (await models()).bySlug.get(decodeURIComponent(path.slice(7)).toLowerCase());
       if (!model) { res.writeHead(302, { Location: '/' }); return res.end(); }
       return sendPage(req, res, model);
     }
-    if (path === '/thumbs-list') {
+    // Old links: /export/... -> /assets/...
+    if (path.startsWith('/export/')) { res.writeHead(301, { Location: '/assets/' + path.slice(8) + url.search, 'Cache-Control': 'public, max-age=86400' }); return res.end(); }
+    // File listing only for a private (password) site, where the viewer may still draw and save previews.
+    if (path === '/thumbs-list' && PASSWORD) {
       return send(res, 200, await previews(), { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     }
-    if (path.startsWith('/export/')) {
+    if (path.startsWith('/assets/')) {
       const file = inside(DATA, path.slice(8));
       if (!file) return send(res, 400, 'Bad request');
       // Previews the viewer draws for models that don't have one yet.

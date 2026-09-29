@@ -296,7 +296,7 @@ async function loadManifest() {
   if (location.protocol === 'file:') return;
   let data;
   try {
-    const r = await fetch('export/models.json', { cache: 'no-store' });
+    const r = await fetch(DATA_BASE + 'models.json', { cache: 'no-store' });
     if (!r.ok) return;
     data = await r.json();
   } catch { return; }
@@ -307,8 +307,8 @@ async function loadManifest() {
     const objectPath = objectPathOf(e.ObjectPath || e.objectPath);
     const name = objectPath.split('/').pop().split('.')[0];
     const dir = objectPath.slice(0, objectPath.lastIndexOf('/'));
-    const url = 'export/' + file.split('/').map(encodeURIComponent).join('/');
-    const exportUrl = p => p ? 'export/' + p.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/') : null;
+    const url = DATA_BASE + file.split('/').map(encodeURIComponent).join('/');
+    const exportUrl = p => p ? DATA_BASE + p.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/') : null;
     const materials = (e.Materials || e.materials || []).map(x => ({
       name: x.Name || x.name || '',
       diffuse: exportUrl(x.BaseColor || x.baseColor),
@@ -595,18 +595,23 @@ thumbRenderer.setSize(160, 160);
 thumbRenderer.outputColorSpace = THREE.SRGBColorSpace;
 
 function thumbPath(m) { return m.url ? m.rel.replace(/\.(glb|gltf)$/i, '') + '.webp' : null; }
-function thumbUrl(m) { return 'export/' + thumbBase + '/' + thumbPath(m).split('/').map(encodeURIComponent).join('/'); }
+function thumbUrl(m) { return DATA_BASE + thumbBase + '/' + thumbPath(m).split('/').map(encodeURIComponent).join('/'); }
 
 // Hosted (server.js): smaller grid previews live in their own folder, and there is no export button.
 let siteConfig = {}, thumbBase = 'thumbs';
+let DATA_BASE = 'export/';   // where models.json and the model files are served (the hosted site uses assets/)
 async function loadSiteConfig() {
   try { const r = await fetch('site-config.json', { cache: 'no-store' }); if (r.ok) siteConfig = await r.json(); } catch {}
   thumbBase = siteConfig.thumbs || 'thumbs';
+  if (siteConfig.assets) DATA_BASE = siteConfig.assets;
   // Nothing personal (stars, export) on the hosted site until it has user accounts.
-  if (siteConfig.hosted) { document.body.classList.add('hosted'); document.getElementById('exportBtn').hidden = true; }
+  // The export button builds a file in the browser; the hosted site has no such feature at all.
+  if (siteConfig.hosted) { document.body.classList.add('hosted'); document.getElementById('exportBtn').remove(); }
 }
 
 async function loadSavedThumbs() {
+  // Hosted: every preview is uploaded by deploy.ps1, and the site offers no file listing.
+  if (siteConfig.hosted) { savedThumbs = { has: () => true, add() {} }; return; }
   try {
     const r = await fetch('thumbs-list', { cache: 'no-store' });
     if (r.ok) savedThumbs = new Set(await r.json());
@@ -799,7 +804,7 @@ document.getElementById('starBtn').onclick = () => {
   applyFilter();
   grid.scrollTop = scroll;
 };
-document.getElementById('exportBtn').onclick = () => {
+document.getElementById('exportBtn')?.addEventListener('click', () => {
   const list = [...starred].sort().map(p => ({ name: p.split('.').pop(), objectPath: p }));
   const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), objects: list }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -807,7 +812,7 @@ document.getElementById('exportBtn').onclick = () => {
   a.download = 'starred-objects.json';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-};
+});
 
 document.getElementById('backBtn').onclick = () => {
   // Opened straight from a shared link: there is no grid entry in history to go back to.

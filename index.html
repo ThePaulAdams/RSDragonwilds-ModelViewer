@@ -27,7 +27,7 @@
   #toolbar label { color: var(--muted); display: flex; gap: 4px; align-items: center; }
   #summary { color: var(--muted); font-size: 12px; }
   #grid { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; align-content: start; }
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); grid-auto-rows: max-content; gap: 8px; align-content: start; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
     overflow: hidden; position: relative; }
   .card.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }

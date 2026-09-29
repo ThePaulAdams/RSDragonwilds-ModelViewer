@@ -1,7 +1,7 @@
-# One-command model export for the Model Viewer.
-#   .\ModelViewer\export-models.ps1
+﻿# One-command model export for the Model Viewer.
+#   .\export-models.ps1
 # Finds the game, makes sure a Mappings.usmap exists (launching the game once with UE4SS if needed),
-# builds the exporter, exports every static mesh to ModelViewer\export, then opens the viewer.
+# builds the exporter, exports every static mesh to export\, then opens the viewer.
 param(
     [string]$GameRoot = "",           # ...\steamapps\common\RSDragonwilds (found automatically if empty)
     [string]$Aes = "",                # only needed if the paks turn out to be encrypted
@@ -12,7 +12,6 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $here = $PSScriptRoot
-$repo = Split-Path $here -Parent
 
 function Find-Game {
     $candidates = @("F:\Steam\steamapps\common\RSDragonwilds",
@@ -50,7 +49,7 @@ if (-not $usmap) {
     Write-Host "No Mappings.usmap yet. Installing the MappingsDumper helper mod..." -ForegroundColor Yellow
     $dst = Join-Path $mods "MappingsDumper"
     New-Item -ItemType Directory -Path $dst -Force | Out-Null
-    Copy-Item -Path (Join-Path $repo "MappingsDumper\*") -Destination $dst -Recurse -Force
+    Copy-Item -Path (Join-Path $here "MappingsDumper\*") -Destination $dst -Recurse -Force
     $modsTxt = Join-Path $mods "mods.txt"
     if ((Test-Path $modsTxt) -and -not (Select-String -Path $modsTxt -Pattern '^\s*MappingsDumper\s*:' -Quiet)) {
         Add-Content -Path $modsTxt -Value "MappingsDumper : 1"
@@ -94,7 +93,7 @@ if (-not $hasSdk) {
     $localDotnet = Join-Path $here "Exporter\.dotnet"
     $dotnet = Join-Path $localDotnet "dotnet.exe"
     if (-not (Test-Path $dotnet)) {
-        Write-Host "Installing the .NET 10 SDK into ModelViewer\Exporter\.dotnet ..." -ForegroundColor Yellow
+        Write-Host "Installing the .NET 10 SDK into Exporter\.dotnet ..." -ForegroundColor Yellow
         $installer = Join-Path $env:TEMP "dotnet-install.ps1"
         Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $installer -UseBasicParsing
         & $installer -Channel 10.0 -InstallDir $localDotnet -NoPath

@@ -1,4 +1,4 @@
-# Dragonwilds Model Viewer
+﻿# Dragonwilds Model Viewer
 
 A browser app for finding the game's 3D objects (castle walls, towers, furniture, props) so they can be picked for the toolkit's building features later. It is not a UE4SS mod and `deploy.ps1` does not touch it.
 
@@ -11,19 +11,19 @@ Nothing is uploaded. The page reads the files straight from your disk.
 In PowerShell, from the repo folder:
 
 ```powershell
-.\ModelViewer\export-models.ps1
+.\export-models.ps1
 ```
 
 That one command:
 1. Finds the game through Steam.
 2. Makes sure a `Mappings.usmap` exists. If not, it installs the small `MappingsDumper` UE4SS mod, starts the game, waits for the mod to write the file, then closes the game again.
-3. Installs the .NET 10 SDK into `ModelViewer\Exporter\.dotnet` if you don't have it (no admin needed).
-4. Builds `ModelViewer\Exporter` (a small CUE4Parse tool) and exports every `SM_*` static mesh, with textures, to `ModelViewer\export`. Running it again resumes where it stopped.
+3. Installs the .NET 10 SDK into `Exporter\.dotnet` if you don't have it (no admin needed).
+4. Builds `Exporter` (a small CUE4Parse tool) and exports every `SM_*` static mesh, with textures, to `export`. Running it again resumes where it stopped.
 5. Opens the viewer at `http://localhost:8765`, which loads the export by itself.
 
-Options: `-Include Base_Building,Castle` exports only paths containing those words, `-Limit 50` does a quick test, `-NoTextures` is faster and smaller, `-Aes 0x...` is for encrypted paks, and `-GameRoot` sets the game folder if it isn't found. To reopen the viewer later without exporting, run `.\ModelViewer\view.ps1`.
+Options: `-Include Base_Building,Castle` exports only paths containing those words, `-Limit 50` does a quick test, `-NoTextures` is faster and smaller, `-Aes 0x...` is for encrypted paks, and `-GameRoot` sets the game folder if it isn't found. To reopen the viewer later without exporting, run `.\view.ps1`.
 
-Previews are drawn once and saved as small images in `ModelViewer\export\thumbs`. The first time you open the viewer it builds the missing ones in the background (what's on screen goes first, and the button at the top shows how many are left). After that the grid loads instantly.
+Previews are drawn once and saved as small images in `export\thumbs`. The first time you open the viewer it builds the missing ones in the background (what's on screen goes first, and the button at the top shows how many are left). After that the grid loads instantly.
 
 ## Manual route: export with FModel
 

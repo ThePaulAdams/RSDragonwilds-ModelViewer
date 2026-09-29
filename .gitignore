@@ -1,0 +1,6 @@
+﻿# Exporter output and build files (game content: never commit)
+export/
+Exporter/bin/
+Exporter/obj/
+Exporter/.dotnet/
+*.log

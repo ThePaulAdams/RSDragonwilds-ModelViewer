@@ -12,7 +12,7 @@ import { dirname, join, normalize, sep, extname } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 
-const SITE_NAME = process.env.SITE_NAME || 'Relic Atlas';
+const SITE_NAME = process.env.SITE_NAME || 'Ashenfallen';
 const PASSWORD = process.env.SITE_PASSWORD || '';
 const UPLOAD_TOKEN = process.env.UPLOAD_TOKEN || '';
 const CLOSED = !!process.env.SITE_CLOSED;
@@ -104,6 +104,10 @@ createServer(async (req, res) => {
 
     if (path === '/healthz') return send(res, 200, 'ok');
 
+    // www.example.com -> example.com
+    const host = req.headers.host || '';
+    if (host.startsWith('www.')) { res.writeHead(301, { Location: 'https://' + host.slice(4) + req.url }); return res.end(); }
+
     // Data upload (deploy.ps1), authenticated by UPLOAD_TOKEN.
     if (path.startsWith('/_data/')) {
       if (!bearer(req)) return send(res, 401, 'Unauthorized');
@@ -171,8 +175,9 @@ createServer(async (req, res) => {
         await receive(req, file);
         return send(res, 204, '');
       }
-      // models.json changes with each upload; everything else is cached for a day, then revalidated by ETag.
-      return sendFile(req, res, file, file.endsWith('models.json') ? 'no-cache' : 'public, max-age=86400');
+      // models.json changes with each upload. Models, textures and previews keep their path for life, so browsers
+      // and Cloudflare may cache them for a year (a replaced file needs a Cloudflare cache purge).
+      return sendFile(req, res, file, file.endsWith('models.json') ? 'no-cache' : 'public, max-age=31536000, immutable');
     }
     send(res, 404, 'Not found');
   } catch (e) {

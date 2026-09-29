@@ -40,8 +40,6 @@ if (-not (Test-Path $tokenFile)) {
     Write-Host "Setting the upload token on the Railway service..." -ForegroundColor Yellow
     railway variables --set "UPLOAD_TOKEN=$(Get-Content $tokenFile -Raw)" | Out-Null
     if ($LASTEXITCODE -ne 0) { Remove-Item $tokenFile; Write-Error "Could not set UPLOAD_TOKEN. Is this folder linked (railway link)?" }
-    Write-Host "Waiting for the site to restart with it..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 60
 }
 
 # ---- 3. Upload what changed ----
@@ -50,6 +48,17 @@ if (-not $Url) {
     $Url = @($domain.domains, $domain.domain, $domain) | Where-Object { $_ -is [string] -and $_ -match '\.' } | Select-Object -First 1
     if (-not $Url) { Write-Error "Could not find the site address. Pass -Url https://<your-site>." }
     if ($Url -notmatch '^https?://') { $Url = "https://$Url" }
+}
+# The site restarts when UPLOAD_TOKEN changes; wait until it accepts the token.
+$auth = @{ Authorization = "Bearer $((Get-Content $tokenFile -Raw).Trim())" }
+$deadline = (Get-Date).AddMinutes(8)
+while ($true) {
+    try { Invoke-WebRequest "$Url/_data/list" -Headers $auth -UseBasicParsing -TimeoutSec 20 | Out-Null; break }
+    catch {
+        if ((Get-Date) -gt $deadline) { Write-Error "The site at $Url did not accept the upload token. Check the Railway deploy logs." }
+        Write-Host "Waiting for the site to be ready..." -ForegroundColor DarkGray
+        Start-Sleep -Seconds 15
+    }
 }
 Write-Host "Uploading to $Url ..." -ForegroundColor Yellow
 & $dotnet $exporter sync $web $Url $tokenFile

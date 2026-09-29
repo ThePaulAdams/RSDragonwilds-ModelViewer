@@ -19,6 +19,7 @@
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
+  body.hosted .personal { display: none !important; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
     font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
   button, select, input { font: inherit; color: var(--text); background: var(--panel2);
@@ -127,7 +128,7 @@
           <option value="SM_">Static meshes (SM_)</option>
           <option value="SK_">Skeletal meshes (SK_)</option>
         </select>
-        <label><input type="checkbox" id="starOnly"> Starred only</label>
+        <label class="personal"><input type="checkbox" id="starOnly"> Starred only</label>
       </div>
       <div id="chips"></div>
       <div id="summary">No folder loaded.</div>
@@ -139,7 +140,7 @@
     <div id="view">
       <button id="backBtn">&larr; Back</button>
       <div id="spinner" hidden></div>
-      <div id="hint" hidden><span><b>Drag</b> to rotate &middot; <b>Scroll</b> or pinch to zoom &middot; <b>Right-drag</b> to pan &middot; <b>Star</b> to save favourites</span><button id="hintOk">Got it</button></div>
+      <div id="hint" hidden><span><b>Drag</b> to rotate &middot; <b>Scroll</b> or pinch to zoom &middot; <b>Right-drag</b> to pan <span class="personal"> &middot; <b>Star</b> to save favourites</span></span><button id="hintOk">Got it</button></div>
       <div id="empty"><div>
         <p><strong class="siteName"></strong></p>
         <p>Export the game's meshes with FModel as glTF, then click <em>Open export folder</em> and pick the folder FModel wrote to. See ModelViewer/README.md for the steps.</p>
@@ -153,7 +154,7 @@
       <div class="meta" id="infoMeta"></div>
       <div class="row">
         <button id="copyBtn">Copy object path</button>
-        <button id="starBtn">Star</button>
+        <button id="starBtn" class="personal">Star</button>
         <button id="wireBtn">Wireframe</button>
         <button id="resetBtn">Reset camera</button>
       </div>
@@ -409,7 +410,7 @@ function applyFilter() {
     (!starOnly || starred.has(m.objectPath)) &&
     words.every(w => m.search.includes(w)));
   document.getElementById('summary').textContent = models.length
-    ? `${filtered.length} of ${models.length} models, ${starred.size} starred`
+    ? `${filtered.length} of ${models.length} models` + (siteConfig.hosted ? '' : `, ${starred.size} starred`)
     : 'No models found in that folder. Pick the folder FModel exported to.';
   grid.innerHTML = '';
   shown = 0;
@@ -452,7 +453,7 @@ function makeCard(m) {
   name.textContent = m.name;
   card.append(img, name);
   if (starred.has(m.objectPath)) {
-    const s = document.createElement('div'); s.className = 'star'; s.textContent = '★'; card.appendChild(s);
+    const s = document.createElement('div'); s.className = 'star personal'; s.textContent = '★'; card.appendChild(s);
   }
   card.onclick = () => {
     grid.querySelectorAll('.card.sel').forEach(c => c.classList.remove('sel'));
@@ -601,7 +602,8 @@ let siteConfig = {}, thumbBase = 'thumbs';
 async function loadSiteConfig() {
   try { const r = await fetch('site-config.json', { cache: 'no-store' }); if (r.ok) siteConfig = await r.json(); } catch {}
   thumbBase = siteConfig.thumbs || 'thumbs';
-  if (siteConfig.hosted) document.getElementById('exportBtn').hidden = true;
+  // Nothing personal (stars, export) on the hosted site until it has user accounts.
+  if (siteConfig.hosted) { document.body.classList.add('hosted'); document.getElementById('exportBtn').hidden = true; }
 }
 
 async function loadSavedThumbs() {

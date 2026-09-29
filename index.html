@@ -3,7 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ashenfallen</title>
+<base href="/">
+<!--seo--><title>Ashenfallen</title>
+<meta name="description" content="Search and explore thousands of 3D models from RuneScape: Dragonwilds in your browser. Fan-made, not affiliated with Jagex.">
+<!--/seo-->
+<meta name="theme-color" content="#14161a">
+<link rel="icon" href="/favicon.ico?v=1" sizes="48x48">
+<link rel="icon" href="/favicon-32.png?v=1" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=1">
+<link rel="manifest" href="/site.webmanifest">
 <style>
   :root {
     --bg: #14161a; --panel: #1c1f25; --panel2: #23272f; --line: #2f343d;
@@ -97,6 +105,7 @@
 </script>
 </head>
 <body>
+<!--seo-list-->
 <div id="app">
   <div id="left">
     <div id="toolbar">
@@ -291,6 +300,7 @@ async function loadManifest() {
     data = await r.json();
   } catch { return; }
   const list = data.Models || data.models || [];
+  const taken = new Map();
   models = list.map(e => {
     const file = (e.File || e.file).replace(/\\/g, '/');
     const objectPath = objectPathOf(e.ObjectPath || e.objectPath);
@@ -305,13 +315,16 @@ async function loadManifest() {
       color: x.Color || x.color || null,
       masked: !!(x.Masked || x.masked),
     }));
-    return { url, rel: file, name, dir, objectPath, materials, size: e.Size || e.size || 0, search: objectPath.toLowerCase() };
+    // Page address /model/<name>; the same rule as server.js (a repeated name gets -2, -3, ...).
+    const n = (taken.get(name) || 0) + 1; taken.set(name, n);
+    const slug = n === 1 ? name : name + '-' + n;
+    return { url, rel: file, name, slug, dir, objectPath, materials, size: e.Size || e.size || 0, search: objectPath.toLowerCase() };
   });
   models.sort((a, b) => a.objectPath.localeCompare(b.objectPath));
   for (const m of models) m.category = categoryOf(m);
   // Browsing a ready-made export: the folder picker isn't needed.
   document.getElementById('openBtn').hidden = true;
-  fetch('site-config.json').then(r => r.ok ? r.json() : {}).then(c => { document.getElementById('logout').hidden = !c.login; }, () => {});
+  document.getElementById('logout').hidden = !siteConfig.login;
   buildFolderList();
   buildChips();
   thumbCache.clear();
@@ -320,7 +333,9 @@ async function loadManifest() {
   empty.innerHTML = '<p><strong></strong></p><p>' + models.length.toLocaleString() +
     ' models. Search, pick a category, or click any preview to open it in 3D.</p>';
   empty.querySelector('strong').textContent = SITE_NAME;
-  openFromHash();
+  const q = new URLSearchParams(location.search).get('q');
+  if (q) { searchEl.value = q; applyFilter(); }
+  openFromLocation();
 }
 
 function buildChips() {
@@ -338,15 +353,18 @@ function buildChips() {
   }
 }
 
-// Shareable links: #<object path> opens that model.
-function openFromHash() {
+// Shareable links: /model/<name> on the hosted site, #<object path> anywhere.
+const modelHref = m => siteConfig.hosted ? '/model/' + encodeURIComponent(m.slug) : '#' + encodeURI(m.objectPath);
+function openFromLocation() {
+  const slug = location.pathname.startsWith('/model/') ? decodeURIComponent(location.pathname.slice(7)).toLowerCase() : '';
   const p = decodeURIComponent(location.hash.slice(1));
-  if (!p) { document.body.classList.remove('viewing'); return; }
-  const m = models.find(x => x.objectPath === p);
+  const m = slug ? models.find(x => x.slug.toLowerCase() === slug) : p ? models.find(x => x.objectPath === p) : null;
+  if (!m) { document.body.classList.remove('viewing'); document.title = SITE_NAME; return; }
   if (m && m !== selected) select(m, true);
   else if (m) document.body.classList.add('viewing');
 }
-window.addEventListener('hashchange', openFromHash);
+window.addEventListener('hashchange', openFromLocation);
+window.addEventListener('popstate', openFromLocation);
 
 function buildFolderList() {
   // Offer every folder level (up to 5 deep) that contains models, with counts.
@@ -421,8 +439,14 @@ function makeCard(m) {
   card.title = m.objectPath;
   const img = document.createElement('img');
   img.className = 'thumb';
-  img.alt = '';
+  img.alt = m.name + ' 3D model preview';
+  img.loading = 'lazy';
   img.onload = () => img.classList.add('loaded');
+  // A preview can fail while the server wakes from sleep; try again a few times before giving up.
+  img.onerror = () => {
+    const tries = (img._tries = (img._tries || 0) + 1);
+    if (tries <= 3 && img.src.startsWith(location.origin)) setTimeout(() => { img.src = img.src.split('?')[0] + '?retry=' + tries; }, 1500 * tries);
+  };
   const name = document.createElement('div');
   name.className = 'name';
   name.textContent = m.name;
@@ -570,7 +594,15 @@ thumbRenderer.setSize(160, 160);
 thumbRenderer.outputColorSpace = THREE.SRGBColorSpace;
 
 function thumbPath(m) { return m.url ? m.rel.replace(/\.(glb|gltf)$/i, '') + '.webp' : null; }
-function thumbUrl(m) { return 'export/thumbs/' + thumbPath(m).split('/').map(encodeURIComponent).join('/'); }
+function thumbUrl(m) { return 'export/' + thumbBase + '/' + thumbPath(m).split('/').map(encodeURIComponent).join('/'); }
+
+// Hosted (server.js): smaller grid previews live in their own folder, and there is no export button.
+let siteConfig = {}, thumbBase = 'thumbs';
+async function loadSiteConfig() {
+  try { const r = await fetch('site-config.json', { cache: 'no-store' }); if (r.ok) siteConfig = await r.json(); } catch {}
+  thumbBase = siteConfig.thumbs || 'thumbs';
+  if (siteConfig.hosted) document.getElementById('exportBtn').hidden = true;
+}
 
 async function loadSavedThumbs() {
   try {
@@ -693,7 +725,8 @@ async function select(m, fromHash) {
   const token = ++loadToken;
   document.body.classList.add('viewing');
   // Each opened model gets its own link (and a history entry, so Back returns to the grid on phones).
-  if (!fromHash && m.url) { history.pushState(null, '', '#' + encodeURI(m.objectPath)); pushedView = true; }
+  if (!fromHash && m.url) { history.pushState(null, '', modelHref(m)); pushedView = true; }
+  document.title = m.name + ' | ' + SITE_NAME;
   if (fromHash) {
     const card = [...grid.children].find(c => c._model === m);
     grid.querySelectorAll('.card.sel').forEach(c => c.classList.remove('sel'));
@@ -776,8 +809,8 @@ document.getElementById('exportBtn').onclick = () => {
 
 document.getElementById('backBtn').onclick = () => {
   // Opened straight from a shared link: there is no grid entry in history to go back to.
-  if (location.hash && pushedView) history.back();
-  else { history.replaceState(null, '', location.pathname + location.search); document.body.classList.remove('viewing'); }
+  if (pushedView) history.back();
+  else { history.replaceState(null, '', siteConfig.hosted ? '/' : location.pathname + location.search); openFromLocation(); }
 };
 
 // Short controls hint, shown the first time a model is opened on this browser.
@@ -809,7 +842,7 @@ document.getElementById('supportClose').onclick = () => { document.getElementByI
 document.getElementById('support').onclick = e => { if (e.target.id === 'support') e.target.hidden = true; };
 
 // Previews that aren't saved yet are built in the background (what's on screen always goes first).
-loadSavedThumbs().then(loadManifest).then(() => {
+loadSiteConfig().then(loadSavedThumbs).then(loadManifest).then(() => {
   const missing = savedThumbs && models.some(m => m.url && !savedThumbs.has(thumbPath(m)));
   document.getElementById('buildThumbsBtn').hidden = !missing;
   if (missing) document.getElementById('buildThumbsBtn').click();

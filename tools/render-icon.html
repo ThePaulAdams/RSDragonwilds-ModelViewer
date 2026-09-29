@@ -1,0 +1,61 @@
+<!doctype html>
+<!-- Renders one model to a transparent 512px image for the site icon (served by view.ps1):
+     http://localhost:8765/tools/render-icon.html?model=SM_Trophy_Plaque_GreenDragon&yaw=35&pitch=10
+     The result is saved to export/thumbs/_icon.webp; deploy tools turn it into favicon files. -->
+<meta charset="utf-8"><title>Icon render</title>
+<body style="margin:0;background:#333"><canvas id="c" width="512" height="512"></canvas><pre id="log"></pre>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search);
+const name = q.get('model') || 'SM_Trophy_Plaque_GreenDragon';
+const yaw = THREE.MathUtils.degToRad(+(q.get('yaw') ?? 35)), pitch = THREE.MathUtils.degToRad(+(q.get('pitch') ?? 10));
+const log = s => { document.getElementById('log').textContent += s + '\n'; };
+const url = p => '../export/' + p.split('/').map(encodeURIComponent).join('/');
+
+const entry = (await (await fetch('../export/models.json')).json()).Models.find(m => m.File.split('/').pop() === name + '.glb');
+if (!entry) throw log('model not found: ' + name);
+const obj = (await new GLTFLoader().loadAsync(url(entry.File))).scene;
+const loader = new THREE.TextureLoader();
+const tex = async (p, srgb) => { if (!p) return null; const t = await loader.loadAsync(url(p)); t.flipY = false; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
+const mats = [];
+obj.traverse(o => { if (o.isMesh) for (const m of [o.material].flat()) if (!mats.includes(m)) mats.push(m); });
+await Promise.all(mats.map(async (mat, i) => {
+  mat.vertexColors = false; mat.metalness = 0; mat.roughness = 0.8; mat.side = THREE.DoubleSide;
+  const e = entry.Materials?.find(x => x.Name === mat.name) || entry.Materials?.[i];
+  if (!e) return;
+  const [map, normal] = await Promise.all([tex(e.BaseColor, true), tex(e.Normal, false)]);
+  if (map) { mat.map = map; mat.color.set(0xffffff); } else if (e.Color) mat.color.set('#' + e.Color);
+  if (normal) mat.normalMap = normal;
+  if (e.Masked) mat.alphaTest = 0.33;
+  mat.needsUpdate = true;
+}));
+
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x404050, 2.4));
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(2, 3, 4); scene.add(key);
+scene.add(obj);
+const box = new THREE.Box3().setFromObject(obj), center = box.getCenter(new THREE.Vector3());
+const sphere = box.getBoundingSphere(new THREE.Sphere());
+const cam = new THREE.PerspectiveCamera(30, 1, 0.01, 1000);
+// The plaque faces +X in Unreal space after export; aim from the front, then turn by yaw/pitch.
+const front = new THREE.Vector3(+(q.get('fx') ?? 1), 0, +(q.get('fz') ?? 0)).normalize();
+const dir = front.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+dir.y = Math.sin(pitch); dir.normalize();
+const dist = sphere.radius / Math.sin(THREE.MathUtils.degToRad(cam.fov / 2)) * +(q.get('zoom') ?? 0.82);
+cam.position.copy(center).addScaledVector(dir, dist); cam.lookAt(center);
+cam.near = dist / 100; cam.far = dist * 10; cam.updateProjectionMatrix();
+
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.outputColorSpace = THREE.SRGBColorSpace;
+r.setClearColor(0x000000, 0);
+r.render(scene, cam);
+if (q.get('save') === '1') {
+  const blob = await new Promise(res => r.domElement.toBlob(res, 'image/webp', 1));
+  const s = await fetch('../export/thumbs/_icon.webp', { method: 'PUT', body: blob });
+  log('saved: ' + s.status);
+}
+log('done');
+</script>

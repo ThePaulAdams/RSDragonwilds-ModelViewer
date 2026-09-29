@@ -1,4 +1,4 @@
-﻿// Exports every static mesh in RuneScape: Dragonwilds' pak files to glTF (.glb) for the Model Viewer,
+// Exports every static mesh in RuneScape: Dragonwilds' pak files to glTF (.glb) for the Model Viewer,
 // and writes models.json, the manifest the viewer loads on its own.
 using System.Text.Json;
 using CUE4Parse.Compression;
@@ -15,6 +15,7 @@ using CUE4Parse_Conversion.Options;
 using CUE4Parse_Conversion.Writers.UEFormat.Enums;
 
 if (args.Length > 0 && args[0] == "web") return WebTools.Build(args[1..]);
+if (args.Length > 0 && args[0] == "icons") return WebTools.Icons(args[1..]);
 if (args.Length > 0 && args[0] == "sync") return await WebTools.Sync(args[1..]);
 
 var opt = Options.Parse(args);

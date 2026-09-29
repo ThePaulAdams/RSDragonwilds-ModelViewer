@@ -30,10 +30,11 @@ static class WebTools
                         mat[key] = Path.ChangeExtension(png, ".webp");
                     }
         }
+        // Grid previews are re-encoded small (128px, quality 60); they only ever show as thumbnails.
         var thumbs = Path.Combine(src, "thumbs");
-        if (Directory.Exists(thumbs))
-            copies.AddRange(Directory.EnumerateFiles(thumbs, "*.webp", SearchOption.AllDirectories)
-                .Select(f => Path.GetRelativePath(src, f).Replace('\\', '/')));
+        var previews = Directory.Exists(thumbs)
+            ? Directory.EnumerateFiles(thumbs, "*.webp", SearchOption.AllDirectories).Select(f => Path.GetRelativePath(src, f).Replace('\\', '/')).ToList()
+            : [];
 
         int copied = 0, converted = 0, failed = 0;
         foreach (var rel in copies)
@@ -45,19 +46,21 @@ static class WebTools
             File.Copy(from, to, true);
             copied++;
         }
-        Parallel.ForEach(textures, rel =>
+        var jobs = textures.Select(rel => (Rel: rel, Out: Path.ChangeExtension(rel, ".webp"), Max: max, Quality: 82))
+            .Concat(previews.Select(rel => (Rel: rel, Out: "thumbs-small" + rel["thumbs".Length..], Max: 128, Quality: 60)));
+        Parallel.ForEach(jobs, job =>
         {
-            var (from, to) = (Path.Combine(src, rel), Path.Combine(dst, Path.ChangeExtension(rel, ".webp")));
+            var (rel, from, to) = (job.Rel, Path.Combine(src, job.Rel), Path.Combine(dst, job.Out));
             if (!File.Exists(from) || File.Exists(to)) return;
             try
             {
                 using var bmp = SKBitmap.Decode(from) ?? throw new Exception("could not decode");
-                var scale = Math.Min(1.0, (double)max / Math.Max(bmp.Width, bmp.Height));
+                var scale = Math.Min(1.0, (double)job.Max / Math.Max(bmp.Width, bmp.Height));
                 using var sized = scale < 1
                     ? bmp.Resize(new SKImageInfo(Math.Max(1, (int)(bmp.Width * scale)), Math.Max(1, (int)(bmp.Height * scale))), SKFilterQuality.High)
                     : null;
                 using var img = SKImage.FromBitmap(sized ?? bmp);
-                using var data = img.Encode(SKEncodedImageFormat.Webp, 82) ?? throw new Exception("could not encode");
+                using var data = img.Encode(SKEncodedImageFormat.Webp, job.Quality) ?? throw new Exception("could not encode");
                 Directory.CreateDirectory(Path.GetDirectoryName(to)!);
                 File.WriteAllBytes(to + ".tmp", data.ToArray());
                 File.Move(to + ".tmp", to, true);
@@ -72,6 +75,80 @@ static class WebTools
         File.WriteAllText(Path.Combine(dst, "models.json"), manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         var size = Directory.EnumerateFiles(dst, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
         Console.WriteLine($"Web copy: {copied} file(s) copied, {converted} texture(s) converted, {failed} failed. {size / 1048576.0:F0} MB in {dst}");
+        return 0;
+    }
+
+    // icons <render.webp> <out dir>: site icons from a transparent render (tools/render-icon.html).
+    public static int Icons(string[] args)
+    {
+        if (args.Length < 2) { Console.WriteLine("Usage: ModelExporter icons <render.webp> <out dir>"); return 1; }
+        using var src = SKBitmap.Decode(args[0]) ?? throw new Exception("could not decode " + args[0]);
+        Directory.CreateDirectory(args[1]);
+        // Crop to the visible pixels, then centre on a square with a little margin.
+        int x0 = src.Width, y0 = src.Height, x1 = -1, y1 = -1;
+        for (var y = 0; y < src.Height; y++)
+            for (var x = 0; x < src.Width; x++)
+                if (src.GetPixel(x, y).Alpha > 8) { x0 = Math.Min(x0, x); y0 = Math.Min(y0, y); x1 = Math.Max(x1, x); y1 = Math.Max(y1, y); }
+        if (x1 < 0) throw new Exception("the render is empty");
+        var side = (int)(Math.Max(x1 - x0, y1 - y0) * 1.06) + 1;
+        using var square = new SKBitmap(side, side, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using (var c = new SKCanvas(square))
+        {
+            c.Clear(SKColors.Transparent);
+            var crop = new SKRect(x0, y0, x1 + 1, y1 + 1);
+            c.DrawBitmap(src, crop, SKRect.Create((side - crop.Width) / 2, (side - crop.Height) / 2, crop.Width, crop.Height));
+        }
+        byte[] Png(int size, SKColor? background = null)
+        {
+            using var surface = SKSurface.Create(new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul));
+            surface.Canvas.Clear(background ?? SKColors.Transparent);
+            var inset = background == null ? 0 : size * 0.08f;   // touch icons get a little breathing room
+            using var paint = new SKPaint { FilterQuality = SKFilterQuality.High, IsAntialias = true };
+            surface.Canvas.DrawBitmap(square, SKRect.Create(inset, inset, size - 2 * inset, size - 2 * inset), paint);
+            using var img = surface.Snapshot();
+            return img.Encode(SKEncodedImageFormat.Png, 100).ToArray();
+        }
+        var bg = new SKColor(0x14, 0x16, 0x1a);
+        File.WriteAllBytes(Path.Combine(args[1], "favicon-32.png"), Png(32));
+        File.WriteAllBytes(Path.Combine(args[1], "apple-touch-icon.png"), Png(180, bg));
+        File.WriteAllBytes(Path.Combine(args[1], "icon-192.png"), Png(192, bg));
+        File.WriteAllBytes(Path.Combine(args[1], "icon-512.png"), Png(512, bg));
+        // .ico holding PNG images (16, 32, 48).
+        var images = new[] { 16, 32, 48 }.Select(s => (Size: s, Data: Png(s))).ToList();
+        using var ico = new BinaryWriter(File.Create(Path.Combine(args[1], "favicon.ico")));
+        ico.Write((short)0); ico.Write((short)1); ico.Write((short)images.Count);
+        var offset = 6 + 16 * images.Count;
+        foreach (var (size, data) in images)
+        {
+            ico.Write((byte)size); ico.Write((byte)size); ico.Write((byte)0); ico.Write((byte)0);
+            ico.Write((short)1); ico.Write((short)32); ico.Write(data.Length); ico.Write(offset);
+            offset += data.Length;
+        }
+        foreach (var (_, data) in images) ico.Write(data);
+
+        // 1200x630 share image for link previews (Discord, social sites).
+        using (var surface = SKSurface.Create(new SKImageInfo(1200, 630)))
+        {
+            var c = surface.Canvas;
+            using (var bgPaint = new SKPaint { Shader = SKShader.CreateLinearGradient(new SKPoint(0, 0), new SKPoint(1200, 630),
+                       [new SKColor(0x1c, 0x20, 0x29), new SKColor(0x0f, 0x11, 0x15)], SKShaderTileMode.Clamp) })
+                c.DrawRect(0, 0, 1200, 630, bgPaint);
+            using (var paint = new SKPaint { FilterQuality = SKFilterQuality.High, IsAntialias = true })
+                c.DrawBitmap(square, SKRect.Create(660, 65, 500, 500), paint);
+            using var title = new SKPaint { Color = new SKColor(0xe0, 0xb6, 0x4a), IsAntialias = true, TextSize = 104,
+                Typeface = SKTypeface.FromFamilyName("Segoe UI", SKFontStyle.Bold) };
+            using var text = new SKPaint { Color = new SKColor(0xe6, 0xe6, 0xe6), IsAntialias = true, TextSize = 40,
+                Typeface = SKTypeface.FromFamilyName("Segoe UI") };
+            using var small = new SKPaint { Color = new SKColor(0x9a, 0xa3, 0xae), IsAntialias = true, TextSize = 26,
+                Typeface = SKTypeface.FromFamilyName("Segoe UI") };
+            c.DrawText("Ashenfallen", 70, 270, title);
+            c.DrawText("Browse 3,600+ 3D models from", 72, 345, text);
+            c.DrawText("RuneScape: Dragonwilds", 72, 395, text);
+            c.DrawText("Fan-made. Not affiliated with Jagex.", 72, 540, small);
+            using var img = surface.Snapshot();
+            File.WriteAllBytes(Path.Combine(args[1], "og.png"), img.Encode(SKEncodedImageFormat.Png, 100).ToArray());
+        }
+        Console.WriteLine($"Icons written to {args[1]}");
         return 0;
     }
 

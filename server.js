@@ -75,6 +75,8 @@ async function sendFile(req, res, file, cache) {
   createReadStream(file).pipe(res);
 }
 function send(res, code, text, headers = {}) {
+  // Errors must not be cached (Cloudflare would keep serving a 404 after the file appears).
+  if (code >= 400) headers = { 'Cache-Control': 'no-store', ...headers };
   res.writeHead(code, { 'Content-Type': 'text/plain; charset=utf-8', ...headers });
   res.end(text);
 }

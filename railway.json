@@ -1,0 +1,12 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": { "builder": "RAILPACK", "watchPatterns": ["server.js", "index.html", "package.json", "railway.json"] },
+  "deploy": {
+    "startCommand": "node server.js",
+    "healthcheckPath": "/healthz",
+    "numReplicas": 1,
+    "sleepApplication": true,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}

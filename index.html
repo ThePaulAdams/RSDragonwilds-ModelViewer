@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dragonwilds Model Viewer</title>
+<title>Relic Atlas</title>
 <style>
   :root {
     --bg: #14161a; --panel: #1c1f25; --panel2: #23272f; --line: #2f343d;
@@ -47,9 +47,46 @@
   #info code { color: var(--accent2); word-break: break-all; font-size: 12px; }
   #info .meta { color: var(--muted); font-size: 12px; }
   #info .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  #brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #brand h1 { margin: 0; font-size: 17px; letter-spacing: .4px; }
+  #brand h1 span { color: var(--accent); }
+  #brand a { color: var(--muted); font-size: 12px; text-decoration: none; }
+  #brand a:hover { color: var(--text); }
+  #chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; background: var(--panel2); color: var(--muted); }
+  .chip.on { background: var(--accent); color: #1a1a1a; border-color: var(--accent); font-weight: 600; }
+  .chip small { opacity: .7; margin-left: 3px; }
+  /* Placeholder shimmer until a preview arrives. */
+  .card .thumb:not(.loaded) { background: linear-gradient(100deg, #15181d 30%, #1f232a 50%, #15181d 70%) 0 0 / 300% 100%;
+    animation: shimmer 1.4s linear infinite; }
+  .card .thumb.loaded { animation: none; }
+  @keyframes shimmer { to { background-position: -150% 0; } }
+  #spinner { position: absolute; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px;
+    border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; pointer-events: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #hint { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); background: rgba(20, 22, 26, .92);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--muted);
+    display: flex; gap: 12px; align-items: center; max-width: calc(100% - 32px); }
+  #hint b { color: var(--text); font-weight: 600; }
+  #backBtn { display: none; position: absolute; left: 10px; top: 10px; z-index: 2; }
+  #brand .links { display: flex; gap: 12px; align-items: center; }
+  #footer { padding: 6px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; background: var(--panel); }
+  #footer a { color: var(--muted); }
+  #support { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: grid; place-items: center; padding: 16px; z-index: 10; }
+  #support > div { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px; max-width: 380px; text-align: center; }
+  #support h2 { margin: 0 0 8px; font-size: 19px; }
+  #support p { margin: 0 0 18px; color: var(--muted); }
+  #support .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  #support a.primary { background: var(--accent); color: #1a1a1a; border-radius: 6px; padding: 8px 14px; font-weight: 600; text-decoration: none; }
   @media (max-width: 800px) {
-    #app { grid-template-columns: 1fr; grid-template-rows: minmax(0, 55fr) minmax(0, 45fr); }
-    #left { border-right: 0; border-bottom: 1px solid var(--line); min-height: 0; }
+    /* Phones: the grid fills the screen; opening a model shows the 3D view with a Back button. */
+    #app { grid-template-columns: 1fr; }
+    #left { border-right: 0; }
+    body:not(.viewing) #right { display: none; }
+    body.viewing #left { display: none; }
+    #backBtn { display: block; }
+    #grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+    #info .row button { flex: 1; }
   }
 </style>
 <script type="importmap">
@@ -63,6 +100,8 @@
 <div id="app">
   <div id="left">
     <div id="toolbar">
+      <div id="brand"><h1>&#9670; <span id="siteName"></span></h1>
+        <div class="links"><a href="https://ko-fi.com/paulbuilds" target="_blank" rel="noopener">&#9749; Support on Ko-fi</a><a id="logout" href="/logout" hidden>Log out</a></div></div>
       <div class="row">
         <button class="primary" id="openBtn">Open export folder</button>
         <input type="file" id="dirInput" webkitdirectory directory multiple hidden>
@@ -81,14 +120,19 @@
         </select>
         <label><input type="checkbox" id="starOnly"> Starred only</label>
       </div>
+      <div id="chips"></div>
       <div id="summary">No folder loaded.</div>
     </div>
     <div id="grid"></div>
+    <div id="footer">Fan-made. Not affiliated with Jagex. Game assets &copy; Jagex.</div>
   </div>
   <div id="right">
     <div id="view">
+      <button id="backBtn">&larr; Back</button>
+      <div id="spinner" hidden></div>
+      <div id="hint" hidden><span><b>Drag</b> to rotate &middot; <b>Scroll</b> or pinch to zoom &middot; <b>Right-drag</b> to pan &middot; <b>Star</b> to save favourites</span><button id="hintOk">Got it</button></div>
       <div id="empty"><div>
-        <p><strong>Dragonwilds Model Viewer</strong></p>
+        <p><strong class="siteName"></strong></p>
         <p>Export the game's meshes with FModel as glTF, then click <em>Open export folder</em> and pick the folder FModel wrote to. See ModelViewer/README.md for the steps.</p>
         <p>Nothing is uploaded. Files are read straight from your disk.</p>
       </div></div>
@@ -107,12 +151,40 @@
     </div>
   </div>
 </div>
+<div id="support" hidden><div>
+  <h2>Enjoying <span class="siteName"></span>?</h2>
+  <p>It's a free fan project. If it's been useful, a coffee helps keep it online.</p>
+  <div class="row">
+    <a class="primary" href="https://ko-fi.com/paulbuilds" target="_blank" rel="noopener">&#9749; Support on Ko-fi</a>
+    <button id="supportClose">Continue browsing</button>
+  </div>
+</div></div>
 
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+const SITE_NAME = 'Relic Atlas';   // shown in the header and start screen (the login page uses SITE_NAME in server.js)
+document.title = SITE_NAME;
+document.getElementById('siteName').textContent = SITE_NAME;
+for (const el of document.querySelectorAll('.siteName')) el.textContent = SITE_NAME;
+// Hosted copies (server.js) store meshes meshopt-compressed.
+const gltfLoader = manager => new GLTFLoader(manager).setMeshoptDecoder(MeshoptDecoder);
+
+// Category chips: first matching rule wins, tested against the in-game path.
+const CATEGORIES = [
+  ['Buildings', /base_building|architecture|castle|building|wall|tower|ruin|bridge|house|door|roof/i],
+  ['Furniture', /furniture|cosiness|chair|table|bed|shelf|cabinet|chest|decor/i],
+  ['Nature', /landscape|foliage|tree|rock|cliff|plant|bush|grass|stone|flower|mushroom/i],
+  ['Characters', /character|npc|skeleton|creature|dragon|animation|trophy/i],
+  ['Items', /\/item\/|weapon|tool|resource|food|armou?r|shield/i],
+  ['Props', /prop|barrel|crate|sack|pot|lantern|sign|fence|cart/i],
+];
+const categoryOf = m => (CATEGORIES.find(([, re]) => re.test(m.objectPath)) || ['Other'])[0];
+let category = '';
 
 const MODEL_EXT = /\.(glb|gltf|obj)$/i;
 const PAGE = 300;
@@ -235,13 +307,45 @@ async function loadManifest() {
     return { url, rel: file, name, dir, objectPath, materials, size: e.Size || e.size || 0, search: objectPath.toLowerCase() };
   });
   models.sort((a, b) => a.objectPath.localeCompare(b.objectPath));
+  for (const m of models) m.category = categoryOf(m);
+  // Browsing a ready-made export: the folder picker isn't needed.
+  document.getElementById('openBtn').hidden = true;
+  fetch('site-config.json').then(r => r.ok ? r.json() : {}).then(c => { document.getElementById('logout').hidden = !c.login; }, () => {});
   buildFolderList();
+  buildChips();
   thumbCache.clear();
   applyFilter();
-  document.getElementById('empty').querySelector('div').innerHTML =
-    '<p><strong>Dragonwilds Model Viewer</strong></p><p>' + models.length.toLocaleString() +
-    ' models loaded from the export. Pick one on the left.</p>';
+  const empty = document.getElementById('empty').querySelector('div');
+  empty.innerHTML = '<p><strong></strong></p><p>' + models.length.toLocaleString() +
+    ' models. Search, pick a category, or click any preview to open it in 3D.</p>';
+  empty.querySelector('strong').textContent = SITE_NAME;
+  openFromHash();
 }
+
+function buildChips() {
+  const counts = new Map();
+  for (const m of models) counts.set(m.category, (counts.get(m.category) || 0) + 1);
+  const box = document.getElementById('chips');
+  box.innerHTML = '';
+  for (const [name, n] of [['', models.length], ...[...CATEGORIES.map(c => c[0]), 'Other'].filter(c => counts.get(c)).map(c => [c, counts.get(c)])]) {
+    const b = document.createElement('button');
+    b.className = 'chip' + (category === name ? ' on' : '');
+    b.innerHTML = (name || 'All') + '<small></small>';
+    b.querySelector('small').textContent = n.toLocaleString();
+    b.onclick = () => { category = name; buildChips(); applyFilter(); };
+    box.appendChild(b);
+  }
+}
+
+// Shareable links: #<object path> opens that model.
+function openFromHash() {
+  const p = decodeURIComponent(location.hash.slice(1));
+  if (!p) { document.body.classList.remove('viewing'); return; }
+  const m = models.find(x => x.objectPath === p);
+  if (m && m !== selected) select(m, true);
+  else if (m) document.body.classList.add('viewing');
+}
+window.addEventListener('hashchange', openFromHash);
 
 function buildFolderList() {
   // Offer every folder level (up to 5 deep) that contains models, with counts.
@@ -282,6 +386,7 @@ function applyFilter() {
   filtered = models.filter(m =>
     (!folder || m.dir === folder || m.dir.startsWith(folder + '/')) &&
     (!kind || m.name.startsWith(kind)) &&
+    (!category || m.category === category) &&
     (!starOnly || starred.has(m.objectPath)) &&
     words.every(w => m.search.includes(w)));
   document.getElementById('summary').textContent = models.length
@@ -316,6 +421,7 @@ function makeCard(m) {
   const img = document.createElement('img');
   img.className = 'thumb';
   img.alt = '';
+  img.onload = () => img.classList.add('loaded');
   const name = document.createElement('div');
   name.className = 'name';
   name.textContent = m.name;
@@ -357,7 +463,7 @@ function loaderFor(m) {
 
 async function loadModel(m) {
   if (m.url) {
-    const scene = (await new GLTFLoader().loadAsync(m.url)).scene;
+    const scene = (await gltfLoader().loadAsync(m.url)).scene;
     await applyTextures(scene, m);
     return scene;
   }
@@ -368,7 +474,7 @@ async function loadModel(m) {
     }
     const buf = await m.file.arrayBuffer();
     const baseUrl = '';
-    const gltf = await new Promise((res, rej) => new GLTFLoader(manager).parse(buf, baseUrl, res, rej));
+    const gltf = await new Promise((res, rej) => gltfLoader(manager).parse(buf, baseUrl, res, rej));
     return gltf.scene;
   } finally {
     // Give texture loads a moment to resolve before revoking their blob URLs.
@@ -578,17 +684,32 @@ new ResizeObserver(resize).observe(view);
 renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
 
 const statusEl = document.getElementById('status');
+const spinner = document.getElementById('spinner');
 let loadToken = 0;
-async function select(m) {
+let pushedView = false;   // whether Back can return to the grid through history
+async function select(m, fromHash) {
   selected = m;
   const token = ++loadToken;
+  document.body.classList.add('viewing');
+  // Each opened model gets its own link (and a history entry, so Back returns to the grid on phones).
+  if (!fromHash && m.url) { history.pushState(null, '', '#' + encodeURI(m.objectPath)); pushedView = true; }
+  if (fromHash) {
+    const card = [...grid.children].find(c => c._model === m);
+    grid.querySelectorAll('.card.sel').forEach(c => c.classList.remove('sel'));
+    card?.classList.add('sel');
+    card?.scrollIntoView({ block: 'center' });
+  }
   document.getElementById('empty').hidden = true;
   statusEl.textContent = 'Loading ' + m.name + '...';
+  spinner.hidden = false;
   showInfo(m, null);
   let obj;
   try { obj = await loadModel(m); }
-  catch (err) { if (token === loadToken) statusEl.textContent = 'Could not load: ' + err.message; return; }
+  catch (err) { if (token === loadToken) { statusEl.textContent = 'Could not load: ' + err.message; spinner.hidden = true; } return; }
   if (token !== loadToken) { disposeTree(obj); return; }
+  spinner.hidden = true;
+  showHint();
+  countOpen();
   if (current) { scene.remove(current); disposeTree(current); }
   if (grid3d) { scene.remove(grid3d); grid3d.geometry.dispose(); }
   current = obj;
@@ -652,9 +773,45 @@ document.getElementById('exportBtn').onclick = () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 
+document.getElementById('backBtn').onclick = () => {
+  // Opened straight from a shared link: there is no grid entry in history to go back to.
+  if (location.hash && pushedView) history.back();
+  else { history.replaceState(null, '', location.pathname + location.search); document.body.classList.remove('viewing'); }
+};
+
+// Short controls hint, shown the first time a model is opened on this browser.
+const HINT_KEY = 'dwmv.hintSeen';
+function showHint() {
+  try { if (localStorage.getItem(HINT_KEY)) return; } catch { return; }
+  document.getElementById('hint').hidden = false;
+}
+document.getElementById('hintOk').onclick = () => {
+  document.getElementById('hint').hidden = true;
+  try { localStorage.setItem(HINT_KEY, '1'); } catch {}
+};
+
+// A friendly Ko-fi note after the 10th model opened in this browser, then every 25 more (at most once a day).
+const SUPPORT_KEY = 'atlas.support';
+function countOpen() {
+  let s;
+  try { s = JSON.parse(localStorage.getItem(SUPPORT_KEY) || '{}'); } catch { return; }
+  s.opens = (s.opens || 0) + 1;
+  s.next ??= 10;
+  if (s.opens >= s.next && Date.now() - (s.last || 0) > 86400e3) {
+    s.next = s.opens + 25;
+    s.last = Date.now();
+    document.getElementById('support').hidden = false;
+  }
+  try { localStorage.setItem(SUPPORT_KEY, JSON.stringify(s)); } catch {}
+}
+document.getElementById('supportClose').onclick = () => { document.getElementById('support').hidden = true; };
+document.getElementById('support').onclick = e => { if (e.target.id === 'support') e.target.hidden = true; };
+
 // Previews that aren't saved yet are built in the background (what's on screen always goes first).
 loadSavedThumbs().then(loadManifest).then(() => {
-  if (savedThumbs && models.some(m => m.url && !savedThumbs.has(thumbPath(m)))) document.getElementById('buildThumbsBtn').click();
+  const missing = savedThumbs && models.some(m => m.url && !savedThumbs.has(thumbPath(m)));
+  document.getElementById('buildThumbsBtn').hidden = !missing;
+  if (missing) document.getElementById('buildThumbsBtn').click();
 });
 </script>
 </body>

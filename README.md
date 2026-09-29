@@ -57,3 +57,10 @@ The page loads three.js from jsDelivr, so it needs an internet connection.
 - Big castles are usually built from many pieces (walls, towers, roofs), so search for parts like `wall`, `tower`, `battlement`, `gate`.
 - Folder and type filters use the object path. `SM_` is a static mesh (the usual choice for placeable pieces). `SK_` is a skeletal (animated) mesh.
 - Stars are kept in your browser for this page.
+
+## Hosting it online (Railway)
+
+`server.js` is a small no-dependency web server for the viewer. Railway builds it from this repo on every push, and the model data lives on a Railway volume at `/data`.
+
+- `.\deploy.ps1` publishes the data. It makes a slim copy in `web-data\` (textures as 512px WebP, meshes meshopt-compressed, about 400 MB instead of 9 GB), then uploads only the files the site doesn't have yet. Run it again after each export.
+- Variables on the Railway service: `SITE_PASSWORD` (optional: set it to require a password, leave it unset for a public site), `SITE_CLOSED` (set it to show a "coming soon" page), `SITE_NAME`, `DATA_DIR` (default `/data`) and `UPLOAD_TOKEN` (set by `deploy.ps1`).

@@ -4,3 +4,6 @@ Exporter/bin/
 Exporter/obj/
 Exporter/.dotnet/
 *.log
+web-data/
+tools/node_modules/
+.deploy-token

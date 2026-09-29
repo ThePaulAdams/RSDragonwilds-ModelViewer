@@ -606,7 +606,7 @@ async function loadSiteConfig() {
   if (siteConfig.assets) DATA_BASE = siteConfig.assets;
   // Nothing personal (stars, export) on the hosted site until it has user accounts.
   // The export button builds a file in the browser; the hosted site has no such feature at all.
-  if (siteConfig.hosted) { document.body.classList.add('hosted'); document.getElementById('exportBtn').remove(); }
+  if (siteConfig.hosted) { document.body.classList.add('hosted'); document.getElementById('exportBtn')?.remove(); }
 }
 
 async function loadSavedThumbs() {

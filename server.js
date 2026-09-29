@@ -161,7 +161,8 @@ async function page(model) {
   // Crawlable text for search engines and no-JS visitors (the app itself draws the grid with JavaScript).
   const links = (model ? [model] : list).map(x => `<li><a href="/model/${attr(encodeURIComponent(x.slug))}">${esc(x.title)}</a>${x.where ? ` <small>${esc(x.where)}</small>` : ''}</li>`).join('');
   const body = `<noscript><h1>${esc(model ? model.title : SITE_NAME)}</h1><p>${esc(description)}</p><ul>${links}</ul></noscript>`;
-  return indexHtml.replace(/<!--seo-->[\s\S]*?<!--\/seo-->/, head).replace('<!--seo-list-->', body);
+  return indexHtml.replace(/<!--seo-->[\s\S]*?<!--\/seo-->/, head)
+    .replace(/<button id="exportBtn"[^>]*>[^<]*<\/button>/, '')   // no export feature on the site.replace('<!--seo-list-->', body);
 }
 async function sendPage(req, res, model) {
   const body = gzipSync(await page(model));

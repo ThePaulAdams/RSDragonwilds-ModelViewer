@@ -150,6 +150,17 @@
   #tip .ing div { display: flex; gap: 6px; align-items: center; }
   #tip img { width: 20px; height: 20px; }
 
+  /* Skills */
+  .skill { display: grid; grid-template-columns: minmax(120px, 1fr) 90px minmax(120px, 2fr) 130px auto; gap: 12px; align-items: center;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+  .skill.changedrow { border-color: rgba(240, 195, 106, .7); }
+  .skill b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .skill input { width: 100%; }
+  .skill .bar { height: 6px; border-radius: 999px; background: var(--panel2); overflow: hidden; }
+  .skill .bar i { display: block; height: 100%; background: var(--accent); }
+  .skill .was { font-size: 11px; color: var(--muted); }
+  @media (max-width: 700px) { .skill { grid-template-columns: 1fr 80px; } .skill .bar, .skill .was { display: none; } }
+
   /* Changes */
   .change { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
   .change h3 { margin: 0 0 6px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
@@ -218,7 +229,7 @@
   <main>
     <section id="welcome">
       <h2>Edit your <span>character</span></h2>
-      <p>Set your spellbooks and unlock recipes in your RuneScape: Dragonwilds character save. Everything happens in your browser: your save is never uploaded.</p>
+      <p>Set your spellbooks, unlock recipes and set skill levels in your RuneScape: Dragonwilds character save. Everything happens in your browser: your save is never uploaded.</p>
       <div class="big">
         <button class="primary" id="openFolderBig">Open characters folder</button>
         <button id="openFileBig">Open a character file</button>
@@ -230,6 +241,7 @@
       <div class="features">
         <div><b>Spellbooks</b>Drag spells onto all four spell wheels, see the rune cost of each book, unlock any spell.</div>
         <div><b>Recipes</b>Search every recipe, filter by station, unlock one, a whole station or everything at once.</div>
+        <div><b>Skills</b>Set any skill by level or XP, see progress to the next level, or set every skill at once.</div>
         <div><b>Undo and checks</b>Undo any step. Every id is checked against the game's data before saving.</div>
         <div><b>Safe saving</b>A backup of the original is made before anything is written, and only the parts you changed are touched.</div>
       </div>
@@ -240,7 +252,7 @@
         <button data-tab="spells" class="on">Spells</button>
         <button data-tab="recipes">Recipes</button>
         <button data-tab="changes">Changes<span class="count" id="changeCount" hidden></span></button>
-        <button disabled title="Coming next">Skills<span class="soon">soon</span></button>
+        <button data-tab="skills">Skills</button>
         <button disabled title="Coming next">Inventory<span class="soon">soon</span></button>
         <button disabled title="Coming next">Quests<span class="soon">soon</span></button>
       </nav>
@@ -294,6 +306,16 @@
         <details class="unknown" id="unknownRecipes" hidden><summary></summary><div class="list" style="margin-top:8px"></div></details>
       </div>
 
+      <div id="skillsTab" data-panel="skills" hidden>
+        <div class="toolbar">
+          <span class="summary grow" id="skillSummary"></span>
+          <label class="check">Set every skill to level <input id="allLevel" type="number" min="1" style="width:70px"></label>
+          <button id="allLevelBtn">Set</button>
+        </div>
+        <div class="list" id="skillList"></div>
+        <p class="muted" style="margin-top:12px">XP is what the save stores; the level follows from it. Lowering a skill can lock you out of things you already built or learned with it.</p>
+      </div>
+
       <div id="changesTab" data-panel="changes" hidden>
         <div class="toolbar">
           <span class="summary grow" id="changesSummary"></span>
@@ -340,7 +362,7 @@ const BOOKS = 4, PER_BOOK = 12;
 const BACKUP_DIR = 'Ashenfallen backups';
 
 // ---------- game data ----------
-const cat = { spells: new Map(), recipes: new Map(), items: new Map(), version: null, loaded: false };
+const cat = { spells: new Map(), recipes: new Map(), items: new Map(), skills: new Map(), xpTable: [], version: null, loaded: false };
 const iconUrl = icon => (icon ? '/gamedata/' + String(icon).replace(/^\/+/, '') : '');
 async function getJson(name) {
   try { const r = await fetch('/gamedata/' + name); return r.ok ? await r.json() : null; } catch { return null; }
@@ -350,7 +372,9 @@ function norm(e) {
   return { ...e, id, name: e.name ?? e.display_name ?? e.asset ?? id };
 }
 async function loadData() {
-  const [spells, recipes, items, version] = await Promise.all(['spells.json', 'recipes.json', 'items.json', 'version.json'].map(getJson));
+  const [spells, recipes, items, version, skills] = await Promise.all(['spells.json', 'recipes.json', 'items.json', 'version.json', 'skills.json'].map(getJson));
+  for (const s of skills?.skills || []) { const x = norm(s); if (x.id) cat.skills.set(x.id, x); }
+  if (Array.isArray(skills?.xpTable)) cat.xpTable = skills.xpTable;
   for (const s of spells || []) { const x = norm(s); if (x.id) cat.spells.set(x.id, x); }
   for (const r of recipes || []) { const x = norm(r); if (x.id) cat.recipes.set(x.id, x); }
   for (const i of items || []) { const x = norm(i); if (x.id) cat.items.set(x.id, x); }
@@ -367,7 +391,7 @@ const spellName = id => cat.spells.get(id)?.name || null;
 
 // ---------- state ----------
 // The fields the editor changes. Found by key, so a moved field still works.
-const FIELDS = { recipes: 'RecipesUnlocked', recipesNew: 'RecipesNew', spells: 'SpellsUnlocked', spellsNew: 'SpellsNew', selected: 'SelectedSpells' };
+const FIELDS = { recipes: 'RecipesUnlocked', recipesNew: 'RecipesNew', spells: 'SpellsUnlocked', spellsNew: 'SpellsNew', selected: 'SelectedSpells', skills: 'Skills' };
 let file = null;     // { name, handle, dir, lastModified, original, backedUp }
 let doc = null;      // the parsed save as it is on disk
 let paths = {};      // field -> path in the save (null when the save doesn't have it)
@@ -381,16 +405,18 @@ function readFields(d) {
   const p = {}, v = {};
   for (const [f, key] of Object.entries(FIELDS)) {
     p[f] = findKey(d.data, key);
+    // Skills sit one level down: GameProgress.Skills.Skills = [{ Id, Xp }].
+    if (f === 'skills' && p[f] && !Array.isArray(getAt(d.data, p[f]))) p[f] = Array.isArray(getAt(d.data, [...p[f], 'Skills'])) ? [...p[f], 'Skills'] : null;
     const val = p[f] && getAt(d.data, p[f]);
-    v[f] = Array.isArray(val) ? val.slice() : [];
+    v[f] = Array.isArray(val) ? structuredClone(val) : [];
   }
   // Fields the editor may add when missing: the "new" lists live next to their unlocked lists.
   if (!p.recipesNew && p.recipes) p.recipesNew = [...p.recipes.slice(0, -1), FIELDS.recipesNew];
   if (!p.spellsNew && p.spells) p.spellsNew = [...p.spells.slice(0, -1), FIELDS.spellsNew];
   return { p, v };
 }
-const clone = s => Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.slice()]));
-const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+const clone = s => structuredClone(s);
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 function changedFields() { return state ? Object.keys(FIELDS).filter(f => paths[f] && !same(state[f], base[f])) : []; }
 
 function edit(label, fn) {
@@ -512,7 +538,7 @@ async function save() {
 
   let text;
   try {
-    text = patchSave(doc, fields.map(f => ({ path: paths[f], value: state[f] })));
+    text = patchSave(doc, patchList(fields));
     // Check the result: it must parse, hold exactly the new values, and nothing else may differ.
     const check = parseSave(text);
     for (const f of fields) if (!same(getAt(check.data, paths[f]) || [], state[f])) throw new Error('the written ' + FIELDS[f] + ' did not match');
@@ -543,6 +569,17 @@ async function save() {
     toast(`Saved ${file.name}. Start the game and load your character.`);
     if (folder) { await scanFolder(); renderChars(); }
   } catch (e) { toast('Save failed: ' + e.message + '. Your file was not changed unless the backup says otherwise.', true); }
+}
+// The text changes to write. Skill XP is patched value by value, so each skill's other fields keep their exact text.
+function patchList(fields) {
+  const out = [];
+  for (const f of fields) {
+    const a = base[f], b = state[f];
+    if (f === 'skills' && a.length === b.length && a.every((x, i) => x?.Id === b[i]?.Id)) {
+      b.forEach((x, i) => { if (x.Xp !== a[i].Xp) out.push({ path: [...paths[f], i, 'Xp'], value: x.Xp }); });
+    } else out.push({ path: paths[f], value: b });
+  }
+  return out;
 }
 async function backup(text) {
   const name = file.name.replace(/\.json$/i, '') + '-' + stamp() + '.json';
@@ -632,6 +669,12 @@ function issues() {
     const n = dup(state[f]);
     if (n) out.push({ level: 'warn', text: `${n} ${label}${n > 1 ? 's are' : ' is'} listed twice.`, fix: 'Remove duplicates', run: () => edit('Remove duplicates', s => { s[f] = [...new Set(s[f])]; }) });
   }
+  const badXp = state.skills.filter(x => !Number.isInteger(x.Xp) || x.Xp < 0 || x.Xp > 4294967295);
+  if (badXp.length) out.push({ level: 'bad', text: `${badXp.length} skill${badXp.length > 1 ? 's have' : ' has'} an XP value the game can't store.` });
+  if (cat.skills.size) {
+    const u = state.skills.filter(x => !cat.skills.has(x.Id));
+    if (u.length) out.push({ level: 'warn', text: `${u.length} skill id${u.length > 1 ? 's are' : ' is'} not in the game data.` });
+  }
   if (!paths.recipes) out.push({ level: 'warn', text: 'This save has no recipe list, so recipes can\'t be edited.' });
   if (!paths.selected) out.push({ level: 'warn', text: 'This save has no spellbooks, so spells can\'t be placed.' });
   return out;
@@ -658,9 +701,11 @@ function render() {
   renderStats(); renderIssues();
   if (tab === 'spells') renderSpells();
   if (tab === 'recipes') renderRecipes();
+  if (tab === 'skills') renderSkills();
   if (tab === 'changes') renderChanges();
 }
 function diffCount(f) {
+  if (f === 'skills') return state.skills.filter((x, i) => !same(x, base.skills[i])).length;
   if (f === 'selected') return state.selected.reduce((a, x, i) => a + (x !== base.selected[i] ? 1 : 0), 0) + Math.abs(state.selected.length - base.selected.length);
   if (f === 'recipesNew' || f === 'spellsNew') return 0;   // follows the unlock changes
   const a = new Set(base[f]), b = new Set(state[f]);
@@ -888,6 +933,49 @@ $('recipeGrid').onmousemove = e => {
 };
 $('recipeGrid').onmouseleave = () => { $('tip').hidden = true; };
 
+// ----- skills -----
+// skills.json's xpTable[i] is the total XP needed for level i + 1.
+const maxLevel = () => cat.xpTable.length;
+const levelFor = xp => { let l = 1; for (let i = 0; i < cat.xpTable.length; i++) if (xp >= cat.xpTable[i]) l = i + 1; return l; };
+const xpFor = level => cat.xpTable[Math.max(0, Math.min(level, maxLevel()) - 1)] ?? 0;
+const skillName = (id, i) => cat.skills.get(id)?.name || `Skill ${i + 1}`;
+function renderSkills() {
+  const lv = maxLevel() > 0;
+  $('allLevel').max = maxLevel() || ''; $('allLevel').disabled = $('allLevelBtn').disabled = !lv;
+  $('skillSummary').innerHTML = !paths.skills ? 'This save has no skills list.'
+    : lv ? `Total level <b>${state.skills.reduce((a, x) => a + levelFor(x.Xp), 0)}</b>, total XP <b>${state.skills.reduce((a, x) => a + (x.Xp || 0), 0).toLocaleString('en')}</b>.`
+    : 'Skill names and levels appear when the game data is published. You can already edit XP.';
+  $('skillList').innerHTML = state.skills.map((x, i) => {
+    const l = lv ? levelFor(x.Xp) : null, next = lv && l < maxLevel() ? cat.xpTable[l] : null, cur = lv ? cat.xpTable[l - 1] : 0;
+    const pct = next ? Math.round(((x.Xp - cur) / (next - cur)) * 100) : 100;
+    const was = base.skills[i];
+    return `<div class="skill${same(x, was) ? '' : ' changedrow'}" data-i="${i}">
+      <div><b>${esc(skillName(x.Id, i))}</b>${cat.skills.has(x.Id) ? '' : `<br><code style="font-size:11px">${esc(x.Id)}</code>`}</div>
+      ${lv ? `<label class="muted">Level <input type="number" data-k="level" min="1" max="${maxLevel()}" value="${l}"></label>` : '<span></span>'}
+      <div>${lv ? `<div class="bar" title="${next ? `${(next - x.Xp).toLocaleString('en')} XP to level ${l + 1}` : 'Max level'}"><i style="width:${pct}%"></i></div>` : ''}
+        ${was && was.Xp !== x.Xp ? `<span class="was">was ${was.Xp.toLocaleString('en')} XP${lv ? ` (level ${levelFor(was.Xp)})` : ''}</span>` : ''}</div>
+      <label class="muted">XP <input type="number" data-k="xp" min="0" step="1" value="${x.Xp}"></label>
+      ${lv ? `<button data-k="max" title="Level ${maxLevel()}">Max</button>` : '<span></span>'}</div>`;
+  }).join('');
+}
+$('skillList').onchange = e => {
+  const row = e.target.closest('.skill'), k = e.target.dataset.k; if (!row || !k) return;
+  const i = +row.dataset.i, v = Math.floor(Number(e.target.value));
+  if (!Number.isFinite(v) || v < (k === 'level' ? 1 : 0)) { toast(k === 'level' ? 'Levels start at 1.' : 'XP can\'t be negative.', true); return renderSkills(); }
+  const xp = k === 'level' ? xpFor(v) : v;
+  edit(`Set ${skillName(state.skills[i].Id, i)} to ${k === 'level' ? 'level ' + v : xp.toLocaleString('en') + ' XP'}`, s => { s.skills[i].Xp = xp; });
+};
+$('skillList').onclick = e => {
+  const b = e.target.closest('button[data-k=max]'); if (!b) return;
+  const i = +b.closest('.skill').dataset.i;
+  edit(`Max ${skillName(state.skills[i].Id, i)}`, s => { s.skills[i].Xp = Math.max(s.skills[i].Xp, xpFor(maxLevel())); });
+};
+$('allLevelBtn').onclick = () => {
+  const v = Math.floor(Number($('allLevel').value));
+  if (!(v >= 1 && v <= maxLevel())) return toast(`Pick a level from 1 to ${maxLevel()}.`, true);
+  edit(`Set every skill to level ${v}`, s => { for (const x of s.skills) x.Xp = xpFor(v); });
+};
+
 // ----- changes -----
 function renderChanges() {
   const groups = [];
@@ -904,12 +992,15 @@ function renderChanges() {
     const a = base.selected[i] ?? EMPTY, b = state.selected[i] ?? EMPTY;
     if (a !== b) slots.push(`<li>Book ${Math.floor(i / PER_BOOK) + 1}, slot ${i % PER_BOOK + 1}: ${esc(looksLikeId(a) ? (spellName(a) || a) : 'empty')} &rarr; ${esc(looksLikeId(b) ? (spellName(b) || b) : 'empty')}</li>`);
   }
+  const sk = state.skills.map((x, i) => [x, base.skills[i], i]).filter(([x, w]) => !same(x, w));
+  if (sk.length) groups.push(`<div class="change"><h3>${sk.length} skill${sk.length > 1 ? 's' : ''}</h3><ul>${sk.map(([x, w, i]) =>
+    `<li>${esc(skillName(x.Id, i))}: ${(w?.Xp ?? 0).toLocaleString('en')} &rarr; ${x.Xp.toLocaleString('en')} XP${maxLevel() ? ` (level ${levelFor(w?.Xp ?? 0)} &rarr; ${levelFor(x.Xp)})` : ''}</li>`).join('')}</ul></div>`);
   if (slots.length) groups.push(`<div class="change"><h3>${slots.length} spellbook slot${slots.length > 1 ? 's' : ''}</h3><ul>${slots.join('')}</ul></div>`);
   $('changeList').innerHTML = groups.join('') || '<p class="muted">No changes yet.</p>';
   $('changesSummary').textContent = groups.length ? 'These are written to your save when you click Save. Nothing else in the file changes.' : '';
   $('revertAll').disabled = !groups.length;
 }
-$('revertAll').onclick = () => edit('Undo all changes', s => { for (const f of Object.keys(FIELDS)) s[f] = base[f].slice(); });
+$('revertAll').onclick = () => edit('Undo all changes', s => { for (const f of Object.keys(FIELDS)) s[f] = structuredClone(base[f]); });
 
 // ---------- shell ----------
 $('tabs').onclick = e => {

@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/">
+<title>Save Editor | Ashenfallen</title>
+<meta name="description" content="Edit your RuneScape: Dragonwilds character: set your spellbooks, unlock recipes and more, with undo, checks against real game data and an automatic backup. Fan-made, not affiliated with Jagex.">
+<link rel="canonical" href="https://ashenfallen.com/character">
+<meta property="og:title" content="Save Editor | Ashenfallen"><meta property="og:image" content="https://ashenfallen.com/og.png?v=1">
+<meta name="theme-color" content="#14161a">
+<link rel="icon" href="/favicon.ico?v=1" sizes="48x48">
+<link rel="icon" href="/favicon-32.png?v=1" type="image/png" sizes="32x32">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #14161a; --panel: #1c1f25; --panel2: #23272f; --line: #2f343d;
+    --text: #e6e6e6; --muted: #9aa3ae; --accent: #e0b64a; --accent2: #6cb4ff; --ok: #6fcf7f; --bad: #ff8a80; --warn: #f0c36a;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  button, select, input { font: inherit; color: var(--text); background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #1a1405; border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .45; cursor: default; }
+  input[type=search] { min-width: 0; }
+  a { color: var(--accent2); }
+  kbd { background: var(--panel2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 12px; }
+  code { color: var(--accent2); word-break: break-all; }
+
+  header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel);
+    border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { margin: 0 8px 0 0; font-size: 16px; letter-spacing: .4px; white-space: nowrap; }
+  header h1 a { color: var(--text); text-decoration: none; }
+  header h1 span { color: var(--accent); }
+  .grow { flex: 1; }
+  .group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  #fileLabel { font-size: 12px; color: var(--muted); max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #fileLabel.dirty { color: var(--warn); }
+
+  #app { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - 50px); }
+  aside { background: var(--panel); border-right: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 14px; }
+  aside h2, .h2 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  .muted { color: var(--muted); font-size: 12px; }
+  #chars { display: flex; flex-direction: column; gap: 4px; }
+  #chars button { text-align: left; display: flex; flex-direction: column; gap: 0; padding: 6px 9px; }
+  #chars button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  #chars small { color: var(--muted); font-size: 11px; }
+  .stat { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 2px 0; }
+  .stat span:first-child { color: var(--muted); }
+  #issues { display: flex; flex-direction: column; gap: 6px; }
+  .issue { font-size: 12px; border-left: 3px solid var(--warn); padding: 3px 0 3px 8px; }
+  .issue.bad { border-color: var(--bad); }
+  .issue.ok { border-color: var(--ok); color: var(--muted); }
+  .issue button { margin-top: 4px; font-size: 12px; padding: 2px 8px; }
+  #backups { display: flex; flex-direction: column; gap: 4px; }
+  #backups button { font-size: 12px; text-align: left; }
+
+  main { min-width: 0; padding: 14px 16px 40px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap; }
+  .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 12px; color: var(--muted); font-weight: 600; }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+  .tabs button:hover:not(:disabled) { color: var(--text); }
+  .tabs .soon { font-size: 10px; font-weight: 700; margin-left: 4px; color: var(--muted); text-transform: uppercase; }
+  .count { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #1a1405; font-size: 11px; margin-left: 4px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .toolbar input[type=search] { flex: 1 1 200px; }
+  label.check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; }
+
+  /* Welcome */
+  #welcome { max-width: 720px; margin: 30px auto; text-align: center; }
+  #welcome h2 { font-size: 28px; margin: 0 0 8px; }
+  #welcome h2 span { color: var(--accent); }
+  #welcome p { color: var(--muted); }
+  #welcome .big { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 20px 0; }
+  #welcome .big button { padding: 10px 16px; font-size: 15px; }
+  .pathbox { display: inline-flex; gap: 6px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px 6px 10px; max-width: 100%; }
+  .pathbox code { color: var(--text); font-size: 13px; }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; text-align: left; margin-top: 26px; }
+  .features div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; color: var(--muted); }
+  .features b { color: var(--text); display: block; margin-bottom: 2px; }
+  #drop { position: fixed; inset: 0; background: rgba(224, 182, 74, .12); border: 3px dashed var(--accent); display: grid; place-items: center;
+    font-size: 22px; z-index: 20; pointer-events: none; }
+
+  /* Spells */
+  #spellsTab { display: grid; grid-template-columns: minmax(300px, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .books { display: flex; gap: 4px; justify-content: center; margin-bottom: 8px; }
+  .books button.on { background: var(--accent); color: #1a1405; border-color: var(--accent); font-weight: 600; }
+  .wheel { position: relative; width: 100%; max-width: 400px; aspect-ratio: 1; margin: 0 auto; }
+  .wheel::before { content: ""; position: absolute; inset: 14%; border-radius: 50%; border: 2px solid var(--line);
+    background: radial-gradient(circle, #23201a 0%, #171a1f 70%); }
+  .slot { position: absolute; width: 17%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; padding: 0;
+    background: #101216; border: 2px solid var(--line); display: grid; place-items: center; overflow: hidden; }
+  .slot img { width: 78%; height: 78%; object-fit: contain; pointer-events: none; }
+  .slot .abbr { font-size: 11px; font-weight: 700; color: var(--text); text-align: center; line-height: 1.1; padding: 4px; pointer-events: none; }
+  .slot .n { position: absolute; bottom: 6%; font-size: 10px; color: var(--muted); pointer-events: none; }
+  .slot.sel { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(224, 182, 74, .35); }
+  .slot.over { border-color: var(--accent2); }
+  .slot.changed::after { content: ""; position: absolute; top: 8%; right: 12%; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+  .slot.badslot { border-color: var(--bad); }
+  .hub { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 40%; text-align: center; }
+  .hub b { display: block; font-size: 15px; }
+  .hub .costs { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 3px; background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 0 7px 0 3px; font-size: 11px; color: var(--text); }
+  .chip img { width: 16px; height: 16px; }
+  .wheelBtns { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+  #slotInfo { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 64px; font-size: 13px; }
+  #slotInfo b { color: var(--text); }
+  .list { display: flex; flex-direction: column; gap: 4px; }
+  .row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  .row[draggable=true] { cursor: grab; }
+  .row:hover { border-color: #4a505c; }
+  .row img, .row .noimg { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; background: #101216; }
+  .row .noimg { display: grid; place-items: center; font-size: 11px; color: var(--muted); }
+  .row .t { min-width: 0; }
+  .row .t b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .t small { color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+  .row .acts { display: flex; gap: 6px; align-items: center; }
+  .row.locked { opacity: .65; }
+  .row.added { border-color: rgba(111, 207, 127, .6); }
+  .row.removed { border-color: rgba(255, 138, 128, .6); }
+  .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 1px 6px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); color: var(--muted); }
+  .tag.gold { background: var(--accent); color: #1a1405; border-color: var(--accent); }
+
+  /* Toggle */
+  .tog { position: relative; width: 38px; height: 22px; border-radius: 999px; padding: 0; background: #3a404b; border: 0; flex: none; }
+  .tog::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #c9ced6; transition: left .12s; }
+  .tog.on { background: var(--accent); }
+  .tog.on::after { left: 19px; background: #1a1405; }
+
+  /* Recipes */
+  #recipeGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+  #recipeGrid .row { grid-template-columns: 40px minmax(0, 1fr) auto; cursor: pointer; }
+  .summary { color: var(--muted); font-size: 13px; }
+  .summary b { color: var(--text); }
+  #more { margin: 12px auto; display: block; }
+  details.unknown { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+  details.unknown summary { cursor: pointer; color: var(--muted); }
+
+  /* Tooltip */
+  #tip { position: fixed; z-index: 30; max-width: 320px; background: #0f1115; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+    font-size: 12px; pointer-events: none; box-shadow: 0 6px 20px rgba(0, 0, 0, .5); }
+  #tip b { font-size: 13px; }
+  #tip .ing { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+  #tip .ing div { display: flex; gap: 6px; align-items: center; }
+  #tip img { width: 20px; height: 20px; }
+
+  /* Changes */
+  .change { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+  .change h3 { margin: 0 0 6px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
+  .change ul { margin: 0; padding-left: 18px; columns: 2 260px; font-size: 13px; }
+  .plus { color: var(--ok); } .minus { color: var(--bad); }
+
+  #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--accent);
+    border-radius: 8px; padding: 8px 14px; font-size: 13px; z-index: 40; max-width: calc(100% - 32px); }
+  #toast.bad { border-color: var(--bad); }
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; max-width: 620px; }
+  dialog::backdrop { background: rgba(0, 0, 0, .6); }
+  dialog h3 { margin: 0 0 8px; }
+  dialog ol, dialog ul { padding-left: 20px; }
+  dialog li { margin: 4px 0; }
+  .dlgBtns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+
+  @media (max-width: 900px) {
+    #app { grid-template-columns: 1fr; }
+    aside { border-right: 0; border-bottom: 1px solid var(--line); }
+    #spellsTab { grid-template-columns: 1fr; }
+    header { position: static; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="/">&#9670; <span>Ashenfallen</span></a> Save Editor</h1>
+  <div class="group">
+    <button id="openFolderBtn" class="primary" title="Pick your SaveCharacters folder to see all your characters">Open characters folder</button>
+    <button id="openFileBtn" title="Open one character .json file">Open file</button>
+    <span id="fileLabel"></span>
+  </div>
+  <div class="grow"></div>
+  <div class="group">
+    <button id="undoBtn" title="Undo (Ctrl+Z)" disabled>Undo</button>
+    <button id="redoBtn" title="Redo (Ctrl+Y)" disabled>Redo</button>
+    <button id="saveBtn" class="primary" title="Save (Ctrl+S)" disabled>Save</button>
+    <button id="helpBtn">Help</button>
+  </div>
+</header>
+
+<div id="app">
+  <aside>
+    <section id="charsBox" hidden>
+      <h2>Characters</h2>
+      <div id="chars"></div>
+    </section>
+    <section id="charBox" hidden>
+      <h2>Character</h2>
+      <div id="charStats"></div>
+    </section>
+    <section id="issuesBox" hidden>
+      <h2>Checks</h2>
+      <div id="issues"></div>
+    </section>
+    <section id="backupsBox" hidden>
+      <h2>Backups</h2>
+      <div id="backups"></div>
+    </section>
+    <section>
+      <h2>Game data</h2>
+      <div id="dataInfo" class="muted">Loading...</div>
+    </section>
+  </aside>
+
+  <main>
+    <section id="welcome">
+      <h2>Edit your <span>character</span></h2>
+      <p>Set your spellbooks and unlock recipes in your RuneScape: Dragonwilds character save. Everything happens in your browser: your save is never uploaded.</p>
+      <div class="big">
+        <button class="primary" id="openFolderBig">Open characters folder</button>
+        <button id="openFileBig">Open a character file</button>
+        <button id="reopenBtn" hidden>Reopen last folder</button>
+      </div>
+      <p class="muted">Your characters are in this folder. Paste it into the address bar of the folder picker:</p>
+      <div class="pathbox"><code id="savePath">%LOCALAPPDATA%\RSDragonwilds\Saved\SaveCharacters</code><button id="copyPath">Copy</button></div>
+      <p class="muted" id="fsNote" hidden>This browser can't save back to the file directly, so edited saves are downloaded instead. Chrome or Edge can save in place.</p>
+      <div class="features">
+        <div><b>Spellbooks</b>Drag spells onto all four spell wheels, see the rune cost of each book, unlock any spell.</div>
+        <div><b>Recipes</b>Search every recipe, filter by station, unlock one, a whole station or everything at once.</div>
+        <div><b>Undo and checks</b>Undo any step. Every id is checked against the game's data before saving.</div>
+        <div><b>Safe saving</b>A backup of the original is made before anything is written, and only the parts you changed are touched.</div>
+      </div>
+    </section>
+
+    <section id="editor" hidden>
+      <nav class="tabs" id="tabs">
+        <button data-tab="spells" class="on">Spells</button>
+        <button data-tab="recipes">Recipes</button>
+        <button data-tab="changes">Changes<span class="count" id="changeCount" hidden></span></button>
+        <button disabled title="Coming next">Skills<span class="soon">soon</span></button>
+        <button disabled title="Coming next">Inventory<span class="soon">soon</span></button>
+        <button disabled title="Coming next">Quests<span class="soon">soon</span></button>
+      </nav>
+
+      <div id="spellsTab" data-panel="spells">
+        <div>
+          <div class="books" id="books"></div>
+          <div class="wheel" id="wheel"></div>
+          <div class="wheelBtns">
+            <button id="clearSlotBtn" title="Empty the selected slot (Delete)">Empty slot</button>
+            <button id="clearBookBtn">Empty this book</button>
+            <button id="fillBookBtn" title="Put unlocked spells that aren't in any book into the empty slots">Fill empty slots</button>
+          </div>
+          <div id="slotInfo" class="muted">Click a slot, then pick a spell on the right. Or drag spells onto the wheel.</div>
+        </div>
+        <div>
+          <div class="toolbar">
+            <input id="spellSearch" type="search" placeholder="Search spells...">
+            <select id="spellFilter">
+              <option value="all">All spells</option>
+              <option value="unlocked">Unlocked</option>
+              <option value="locked">Locked</option>
+              <option value="unused">Unlocked, not in a book</option>
+            </select>
+            <button id="unlockAllSpells">Unlock all</button>
+          </div>
+          <div class="summary" id="spellSummary"></div>
+          <div class="list" id="spellList" style="margin-top:8px"></div>
+        </div>
+      </div>
+
+      <div id="recipesTab" data-panel="recipes" hidden>
+        <div class="toolbar">
+          <input id="recipeSearch" type="search" placeholder="Search recipes or ingredients...">
+          <select id="recipeStation"></select>
+          <select id="recipeFilter">
+            <option value="all">All</option>
+            <option value="unlocked">Unlocked</option>
+            <option value="locked">Locked</option>
+            <option value="changed">Changed</option>
+          </select>
+          <label class="check"><input type="checkbox" id="markNew" checked> Show as new in game</label>
+        </div>
+        <div class="toolbar">
+          <span class="summary grow" id="recipeSummary"></span>
+          <button id="unlockShown">Unlock shown</button>
+          <button id="lockShown">Lock shown</button>
+        </div>
+        <div id="recipeGrid"></div>
+        <button id="more" hidden>Show more</button>
+        <details class="unknown" id="unknownRecipes" hidden><summary></summary><div class="list" style="margin-top:8px"></div></details>
+      </div>
+
+      <div id="changesTab" data-panel="changes" hidden>
+        <div class="toolbar">
+          <span class="summary grow" id="changesSummary"></span>
+          <button id="revertAll">Undo all changes</button>
+        </div>
+        <div id="changeList"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="tip" hidden></div>
+<div id="toast" hidden></div>
+<div id="drop" hidden>Drop your character .json here</div>
+<input type="file" id="fileInput" accept=".json,application/json" hidden>
+
+<dialog id="helpDlg">
+  <h3>How to use the save editor</h3>
+  <ol>
+    <li><b>Close the game</b> (or at least go back to the main menu). The game writes your character when it saves, so it would overwrite your edits.</li>
+    <li>Click <b>Open characters folder</b> and pick <code>%LOCALAPPDATA%\RSDragonwilds\Saved\SaveCharacters</code>, then click a character. Or open a single file.</li>
+    <li>Make your changes. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes, <kbd>Ctrl</kbd>+<kbd>Y</kbd> redoes. The Changes tab lists everything you changed.</li>
+    <li>Click <b>Save</b> (<kbd>Ctrl</kbd>+<kbd>S</kbd>). The first time, a copy of the original goes into an <code>Ashenfallen backups</code> folder next to your saves (and into this browser). Then only the parts you changed are written.</li>
+    <li>Start the game and load your character.</li>
+  </ol>
+  <p class="muted">The game also keeps its own <code>.json.backup</code> of the previous save. If something ever goes wrong, use <b>Restore</b> under Backups on the left, or copy a backup back by hand.</p>
+  <p class="muted">In Firefox, Safari and Brave (unless <code>brave://flags/#file-system-access-api</code> is on), the edited save is downloaded instead: put it in the SaveCharacters folder, replacing the old file.</p>
+  <p class="muted">Fan-made, not affiliated with Jagex. Editing saves is at your own risk; keep your backups.</p>
+  <div class="dlgBtns"><button class="primary" id="helpClose">Got it</button></div>
+</dialog>
+
+<dialog id="askDlg">
+  <h3 id="askTitle"></h3>
+  <p id="askText" class="muted"></p>
+  <div class="dlgBtns" id="askBtns"></div>
+</dialog>
+
+<script type="module">
+import { parseSave, patchSave, findKey, getAt, looksLikeId } from '/character-save.js';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const BOOKS = 4, PER_BOOK = 12;
+const BACKUP_DIR = 'Ashenfallen backups';
+
+// ---------- game data ----------
+const cat = { spells: new Map(), recipes: new Map(), items: new Map(), version: null, loaded: false };
+const iconUrl = icon => (icon ? '/gamedata/' + String(icon).replace(/^\/+/, '') : '');
+async function getJson(name) {
+  try { const r = await fetch('/gamedata/' + name); return r.ok ? await r.json() : null; } catch { return null; }
+}
+function norm(e) {
+  const id = e.id ?? e.persistence_id ?? e.persistenceId;
+  return { ...e, id, name: e.name ?? e.display_name ?? e.asset ?? id };
+}
+async function loadData() {
+  const [spells, recipes, items, version] = await Promise.all(['spells.json', 'recipes.json', 'items.json', 'version.json'].map(getJson));
+  for (const s of spells || []) { const x = norm(s); if (x.id) cat.spells.set(x.id, x); }
+  for (const r of recipes || []) { const x = norm(r); if (x.id) cat.recipes.set(x.id, x); }
+  for (const i of items || []) { const x = norm(i); if (x.id) cat.items.set(x.id, x); }
+  cat.version = version; cat.loaded = true;
+  const n = (m, w) => `${m.size.toLocaleString('en')} ${w}`;
+  $('dataInfo').innerHTML = cat.spells.size || cat.recipes.size
+    ? `${n(cat.spells, 'spells')}, ${n(cat.recipes, 'recipes')}, ${n(cat.items, 'items')}${version?.game ? `<br>Game version ${esc(version.game)}` : ''}`
+    : 'Spell and recipe names are on their way. Until then the editor shows the ids from your save.';
+  buildStations();
+  render();
+}
+const itemName = id => cat.items.get(id)?.name || id;
+const spellName = id => cat.spells.get(id)?.name || null;
+
+// ---------- state ----------
+// The fields the editor changes. Found by key, so a moved field still works.
+const FIELDS = { recipes: 'RecipesUnlocked', recipesNew: 'RecipesNew', spells: 'SpellsUnlocked', spellsNew: 'SpellsNew', selected: 'SelectedSpells' };
+let file = null;     // { name, handle, dir, lastModified, original, backedUp }
+let doc = null;      // the parsed save as it is on disk
+let paths = {};      // field -> path in the save (null when the save doesn't have it)
+let base = null;     // field values on disk
+let state = null;    // field values being edited
+let EMPTY = '';      // how this save writes an empty spell slot
+let undoStack = [], redoStack = [];
+let tab = 'spells', book = 0, selSlot = 0;
+
+function readFields(d) {
+  const p = {}, v = {};
+  for (const [f, key] of Object.entries(FIELDS)) {
+    p[f] = findKey(d.data, key);
+    const val = p[f] && getAt(d.data, p[f]);
+    v[f] = Array.isArray(val) ? val.slice() : [];
+  }
+  // Fields the editor may add when missing: the "new" lists live next to their unlocked lists.
+  if (!p.recipesNew && p.recipes) p.recipesNew = [...p.recipes.slice(0, -1), FIELDS.recipesNew];
+  if (!p.spellsNew && p.spells) p.spellsNew = [...p.spells.slice(0, -1), FIELDS.spellsNew];
+  return { p, v };
+}
+const clone = s => Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.slice()]));
+const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+function changedFields() { return state ? Object.keys(FIELDS).filter(f => paths[f] && !same(state[f], base[f])) : []; }
+
+function edit(label, fn) {
+  const before = clone(state);
+  fn(state);
+  if (Object.keys(FIELDS).every(f => same(before[f], state[f]))) return;
+  undoStack.push({ label, state: before }); redoStack = [];
+  if (undoStack.length > 500) undoStack.shift();
+  render();
+}
+function undo() { const u = undoStack.pop(); if (!u) return; redoStack.push({ label: u.label, state: clone(state) }); state = u.state; toast('Undone: ' + u.label); render(); }
+function redo() { const r = redoStack.pop(); if (!r) return; undoStack.push({ label: r.label, state: clone(state) }); state = r.state; toast('Redone: ' + r.label); render(); }
+
+// ---------- opening ----------
+const canWrite = 'showOpenFilePicker' in window;
+const canFolder = 'showDirectoryPicker' in window;
+if (!canWrite) $('fsNote').hidden = false;
+
+async function openText(text, info, force) {
+  if (!force && dirty() && (await ask('Discard your changes?', `You have unsaved changes to ${file.name}.`, ['Discard', 'Cancel'])) !== 'Discard') return;
+  let d;
+  try { d = parseSave(text); } catch (e) { return toast(`That file isn't a character save: ${e.message}`, true); }
+  if (!d.data.GameProgress && !d.data.meta_data) return toast("That file isn't a Dragonwilds character save.", true);
+  doc = d; file = { ...info, original: info.original ?? text, backedUp: info.backedUp ?? false };
+  const { p, v } = readFields(doc);
+  paths = p; base = v; state = clone(v);
+  const empties = state.selected.filter(x => !looksLikeId(x));
+  EMPTY = empties.length ? mode(empties) : '';
+  undoStack = []; redoStack = [];
+  $('welcome').hidden = true; $('editor').hidden = false;
+  $('charBox').hidden = false; $('issuesBox').hidden = false;
+  if (!info.keepPos) { book = 0; selSlot = 0; }
+  renderChars(); renderBackups(); render();
+}
+const mode = arr => { const c = new Map(); for (const x of arr) c.set(x, (c.get(x) || 0) + 1); return [...c].sort((a, b) => b[1] - a[1])[0][0]; };
+
+async function openFile() {
+  if (!canWrite) return $('fileInput').click();
+  try {
+    const [h] = await showOpenFilePicker({ id: 'savecharacters', types: [{ description: 'Dragonwilds character', accept: { 'application/json': ['.json'] } }] });
+    const f = await h.getFile();
+    await openText(await f.text(), { name: f.name, handle: h, dir: null, lastModified: f.lastModified });
+    $('charsBox').hidden = true;
+  } catch (e) { if (e.name !== 'AbortError') toast(e.message, true); }
+}
+$('fileInput').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (f) { await openText(await f.text(), { name: f.name, handle: null, dir: null, lastModified: f.lastModified }); $('charsBox').hidden = true; }
+};
+
+let folder = null, folderChars = [];
+async function openFolder(handle) {
+  if (!canFolder) return openFile();
+  try {
+    const dir = handle || await showDirectoryPicker({ id: 'savecharacters', mode: 'readwrite' });
+    if ((await dir.requestPermission({ mode: 'readwrite' })) !== 'granted') return toast('The folder needs write permission to save.', true);
+    folder = dir; idbSet('folder', dir).catch(() => {});
+    await scanFolder();
+    if (!folderChars.length) {
+      const sub = await dir.getDirectoryHandle('SaveCharacters').catch(() => null);   // they picked "Saved"
+      if (sub) { folder = sub; idbSet('folder', sub).catch(() => {}); await scanFolder(); }
+    }
+    if (!folderChars.length) return toast(`No character saves in "${dir.name}". Pick the SaveCharacters folder.`, true);
+    $('charsBox').hidden = false;
+    renderChars();
+    if (folderChars.length === 1 || !doc) loadChar(folderChars[0]);
+  } catch (e) { if (e.name !== 'AbortError') toast(e.message, true); }
+}
+async function scanFolder() {
+  folderChars = [];
+  for await (const [name, h] of folder.entries()) {
+    if (h.kind !== 'file' || !/\.json$/i.test(name)) continue;
+    try {
+      const f = await h.getFile();
+      const j = JSON.parse(await f.text());
+      if (!j.GameProgress) continue;
+      folderChars.push({ name, handle: h, char: j.meta_data?.char_name || name.replace(/\.json$/i, ''), hardcore: !!j.Hardcore?.IsHardcore,
+        lastModified: f.lastModified });
+    } catch {}
+  }
+  folderChars.sort((a, b) => b.lastModified - a.lastModified);
+}
+async function loadChar(c) {
+  const f = await c.handle.getFile();
+  await openText(await f.text(), { name: c.name, handle: c.handle, dir: folder, lastModified: f.lastModified });
+}
+function renderChars() {
+  $('chars').innerHTML = folderChars.map((c, i) => `<button data-i="${i}" class="${file?.handle && c.name === file.name ? 'on' : ''}">
+    <span>${esc(c.char)}${c.hardcore ? ' <span class="tag">Hardcore</span>' : ''}</span><small>${esc(c.name)} &middot; saved ${ago(c.lastModified)}</small></button>`).join('');
+}
+$('chars').onclick = e => { const b = e.target.closest('button'); if (b) loadChar(folderChars[b.dataset.i]); };
+const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+
+// Drag a file onto the page.
+let dragDepth = 0;
+addEventListener('dragenter', e => { if (e.dataTransfer?.types.includes('Files')) { dragDepth++; $('drop').hidden = false; } });
+addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('drop').hidden = true; } });
+addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
+addEventListener('drop', async e => {
+  if (!e.dataTransfer?.types.includes('Files')) return;
+  e.preventDefault(); dragDepth = 0; $('drop').hidden = true;
+  const item = e.dataTransfer.items?.[0];
+  const h = item?.getAsFileSystemHandle ? await item.getAsFileSystemHandle().catch(() => null) : null;
+  if (h?.kind === 'directory') return openFolder(h);
+  const f = e.dataTransfer.files[0];
+  if (f) { await openText(await f.text(), { name: f.name, handle: h?.kind === 'file' ? h : null, dir: null, lastModified: f.lastModified }); $('charsBox').hidden = true; }
+});
+
+// ---------- saving ----------
+const dirty = () => changedFields().length > 0;
+const stamp = () => new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+
+async function save() {
+  if (!doc) return;
+  const fields = changedFields();
+  if (!fields.length) return toast('Nothing to save.');
+  const bad = issues().filter(x => x.level === 'bad');
+  if (bad.length && (await ask('Save with problems?', bad.map(x => x.text).join(' '), ['Save anyway', 'Cancel'])) !== 'Save anyway') return;
+
+  let text;
+  try {
+    text = patchSave(doc, fields.map(f => ({ path: paths[f], value: state[f] })));
+    // Check the result: it must parse, hold exactly the new values, and nothing else may differ.
+    const check = parseSave(text);
+    for (const f of fields) if (!same(getAt(check.data, paths[f]) || [], state[f])) throw new Error('the written ' + FIELDS[f] + ' did not match');
+    const strip = (data, fs) => { const c = JSON.parse(JSON.stringify(data)); for (const f of fs) { const p = paths[f]; const o = getAt(c, p.slice(0, -1)); if (o) delete o[p[p.length - 1]]; } return JSON.stringify(c); };
+    if (strip(check.data, fields) !== strip(doc.data, fields)) throw new Error('other parts of the save changed');
+  } catch (e) { return toast('Could not build the save, nothing was written: ' + e.message, true); }
+
+  if (!file.handle) return download(text, file.name, 'Downloaded. Put it in your SaveCharacters folder, replacing the old file.');
+  try {
+    if ((await file.handle.queryPermission({ mode: 'readwrite' })) !== 'granted' && (await file.handle.requestPermission({ mode: 'readwrite' })) !== 'granted')
+      return download(text, file.name, 'No permission to write the file, so it was downloaded instead.');
+    const now = await file.handle.getFile();
+    if (now.lastModified !== file.lastModified) {
+      const a = await ask('The game saved this character after you opened it',
+        'Saving now would replace that newer save. Reload it and redo your changes, or keep your version.', ['Reload', 'Save mine anyway', 'Cancel']);
+      if (a === 'Reload') { const t = await now.text(); undoStack = []; return openText(t, { ...file, lastModified: now.lastModified, original: t, keepPos: true }, true); }
+      if (a !== 'Save mine anyway') return;
+    }
+    if (!file.backedUp) await backup(now.lastModified === file.lastModified ? file.original : await now.text());
+    const w = await file.handle.createWritable();
+    await w.write(text); await w.close();
+    const after = await file.handle.getFile();
+    if (await after.text() !== text) throw new Error('the file on disk does not match what was written');
+    const keep = { ...file, lastModified: after.lastModified, keepPos: true };
+    const undoKeep = undoStack;
+    await openText(text, keep, true);
+    undoStack = undoKeep; render();   // undo still works after saving; it just needs another save
+    toast(`Saved ${file.name}. Start the game and load your character.`);
+    if (folder) { await scanFolder(); renderChars(); }
+  } catch (e) { toast('Save failed: ' + e.message + '. Your file was not changed unless the backup says otherwise.', true); }
+}
+async function backup(text) {
+  const name = file.name.replace(/\.json$/i, '') + '-' + stamp() + '.json';
+  await idbBackup(file.name, name, text).catch(() => {});
+  if (file.dir) {
+    const bdir = await file.dir.getDirectoryHandle(BACKUP_DIR, { create: true });
+    const w = await (await bdir.getFileHandle(name, { create: true })).createWritable();
+    await w.write(text); await w.close();
+    toast(`Backed up the original to ${BACKUP_DIR}\\${name}`);
+  } else download(text, name, 'Downloaded a backup of the original first.');
+  file.backedUp = true;
+  renderBackups();
+}
+function download(text, name, msg) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  if (msg) toast(msg);
+}
+
+// Backups in this browser (IndexedDB), newest first, ten per character.
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('ashenfallen-save-editor', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('backups', { autoIncrement: true }); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function idbTx(store, mode, fn) {
+  const db = await idb();
+  return new Promise((res, rej) => { const t = db.transaction(store, mode); const out = fn(t.objectStore(store)); t.oncomplete = () => res(out instanceof IDBRequest ? out.result : out); t.onerror = () => rej(t.error); });
+}
+const idbSet = (k, v) => idbTx('kv', 'readwrite', s => s.put(v, k));
+const idbGet = k => idbTx('kv', 'readonly', s => s.get(k));
+async function idbBackups(file) {
+  const all = await idbTx('backups', 'readonly', s => s.getAll());
+  const keys = await idbTx('backups', 'readonly', s => s.getAllKeys());
+  return all.map((b, i) => ({ ...b, key: keys[i] })).filter(b => b.file === file).sort((a, b) => b.time - a.time);
+}
+async function idbBackup(fileName, name, text) {
+  await idbTx('backups', 'readwrite', s => s.add({ file: fileName, name, text, time: Date.now() }));
+  for (const old of (await idbBackups(fileName)).slice(10)) await idbTx('backups', 'readwrite', s => s.delete(old.key));
+}
+async function renderBackups() {
+  if (!file) return;
+  const list = await idbBackups(file.name).catch(() => []);
+  $('backupsBox').hidden = !list.length;
+  $('backups').innerHTML = list.map((b, i) => `<button data-i="${i}" title="Put this backup back as ${esc(file.name)}">Restore ${new Date(b.time).toLocaleString()}</button>`).join('')
+    + (file.dir ? `<span class="muted">Also in ${esc(BACKUP_DIR)} next to your saves.</span>` : '');
+  $('backups').onclick = async e => {
+    const b = list[e.target.closest('button')?.dataset.i]; if (!b) return;
+    if ((await ask('Restore this backup?', `Your character goes back to how it was on ${new Date(b.time).toLocaleString()}. The current file is backed up first.`, ['Restore', 'Cancel'])) !== 'Restore') return;
+    if (!file.handle) return download(b.text, file.name, 'Downloaded the backup. Put it in your SaveCharacters folder.');
+    try {
+      const cur = await (await file.handle.getFile()).text();
+      if (cur !== b.text) { file.backedUp = false; await backup(cur); }
+      const w = await file.handle.createWritable(); await w.write(b.text); await w.close();
+      const f = await file.handle.getFile();
+      await openText(b.text, { ...file, lastModified: f.lastModified, original: b.text, backedUp: true }, true);
+      toast('Backup restored.');
+    } catch (err) { toast('Restore failed: ' + err.message, true); }
+  };
+}
+
+// ---------- checks ----------
+function issues() {
+  if (!state) return [];
+  const out = [];
+  const known = (m, id) => !cat.loaded || !m.size || m.has(id);
+  const dup = arr => arr.length - new Set(arr).size;
+  const unlocked = new Set(state.spells);
+  const notUnlocked = [...new Set(state.selected.filter(x => looksLikeId(x) && !unlocked.has(x)))];
+  if (notUnlocked.length) out.push({ level: 'bad', text: `${notUnlocked.length} spell${notUnlocked.length > 1 ? 's are' : ' is'} in a spellbook but not unlocked.`, fix: 'Unlock them', run: () => edit('Unlock spells in books', s => { s.spells.push(...notUnlocked); }) });
+  const odd = state.selected.filter(x => x !== EMPTY && !looksLikeId(x));
+  if (odd.length) out.push({ level: 'bad', text: `${odd.length} spell slot${odd.length > 1 ? 's hold' : ' holds'} something that isn't a spell id.` });
+  if (state.selected.length !== BOOKS * PER_BOOK && paths.selected) out.push({ level: 'warn', text: `The save has ${state.selected.length} spell slots; the game uses ${BOOKS * PER_BOOK}.` });
+  if (cat.spells.size) {
+    const u = [...new Set([...state.spells, ...state.selected.filter(looksLikeId)])].filter(x => !known(cat.spells, x));
+    if (u.length) out.push({ level: 'warn', text: `${u.length} spell id${u.length > 1 ? 's are' : ' is'} not in the game data (maybe from a newer game version).` });
+  }
+  if (cat.recipes.size) {
+    const u = state.recipes.filter(x => !known(cat.recipes, x));
+    if (u.length) out.push({ level: 'warn', text: `${u.length} unlocked recipe id${u.length > 1 ? 's are' : ' is'} not in the game data. They're kept as they are.` });
+  }
+  for (const [f, label] of [['recipes', 'recipe'], ['spells', 'spell']]) {
+    const n = dup(state[f]);
+    if (n) out.push({ level: 'warn', text: `${n} ${label}${n > 1 ? 's are' : ' is'} listed twice.`, fix: 'Remove duplicates', run: () => edit('Remove duplicates', s => { s[f] = [...new Set(s[f])]; }) });
+  }
+  if (!paths.recipes) out.push({ level: 'warn', text: 'This save has no recipe list, so recipes can\'t be edited.' });
+  if (!paths.selected) out.push({ level: 'warn', text: 'This save has no spellbooks, so spells can\'t be placed.' });
+  return out;
+}
+function renderIssues() {
+  const list = issues();
+  $('issues').innerHTML = list.length
+    ? list.map((x, i) => `<div class="issue ${x.level}">${esc(x.text)}${x.fix ? `<br><button data-i="${i}">${esc(x.fix)}</button>` : ''}</div>`).join('')
+    : `<div class="issue ok">No problems found${cat.spells.size ? ' against the game data' : ''}.</div>`;
+  $('issues').onclick = e => { const b = e.target.closest('button'); if (b) list[b.dataset.i].run(); };
+}
+
+// ---------- rendering ----------
+function render() {
+  if (!state) return;
+  const n = changedFields().reduce((a, f) => a + diffCount(f), 0);
+  $('changeCount').hidden = !n; $('changeCount').textContent = n;
+  $('undoBtn').disabled = !undoStack.length; $('redoBtn').disabled = !redoStack.length;
+  $('saveBtn').disabled = !n;
+  $('saveBtn').textContent = file.handle ? 'Save' : 'Download';
+  $('fileLabel').textContent = file.name + (n ? ` (${n} unsaved change${n > 1 ? 's' : ''})` : '');
+  $('fileLabel').classList.toggle('dirty', !!n);
+  document.title = (n ? '* ' : '') + 'Save Editor | Ashenfallen';
+  renderStats(); renderIssues();
+  if (tab === 'spells') renderSpells();
+  if (tab === 'recipes') renderRecipes();
+  if (tab === 'changes') renderChanges();
+}
+function diffCount(f) {
+  if (f === 'selected') return state.selected.reduce((a, x, i) => a + (x !== base.selected[i] ? 1 : 0), 0) + Math.abs(state.selected.length - base.selected.length);
+  if (f === 'recipesNew' || f === 'spellsNew') return 0;   // follows the unlock changes
+  const a = new Set(base[f]), b = new Set(state[f]);
+  return [...b].filter(x => !a.has(x)).length + [...a].filter(x => !b.has(x)).length;
+}
+function renderStats() {
+  const d = doc.data, m = d.meta_data || {};
+  const hours = (d.GameProgress?.Character?.Playtime_wall || 0) / 3600;
+  const rows = [
+    ['Name', m.char_name || file.name],
+    ['Mode', d.Hardcore?.IsHardcore ? 'Hardcore' : 'Standard'],
+    hours ? ['Played', hours < 1 ? `${Math.round(hours * 60)} min` : `${Math.round(hours)} h`] : null,
+    ['Recipes', cat.recipes.size ? `${realRecipes().filter(r => state.recipes.includes(r.id)).length.toLocaleString('en')} / ${realRecipes().length.toLocaleString('en')}` : new Set(state.recipes).size.toLocaleString('en')],
+    ['Spells', cat.spells.size ? `${[...cat.spells.keys()].filter(id => state.spells.includes(id)).length} / ${cat.spells.size}` : new Set(state.spells).size],
+    ['Saved', `${(d.SaveCount ?? '?')} times`],
+  ].filter(Boolean);
+  $('charStats').innerHTML = rows.map(([k, v]) => `<div class="stat"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('');
+}
+function icon(entry, fallback) {
+  return entry?.icon ? `<img src="${esc(iconUrl(entry.icon))}" alt="" loading="lazy">` : `<span class="noimg">${esc(fallback || '?')}</span>`;
+}
+const abbr = s => s.split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase();
+function costChips(costs, mult = 1) {
+  return (costs || []).map(c => { const it = cat.items.get(c.item); return `<span class="chip" title="${esc(it?.name || c.item)}">${it?.icon ? `<img src="${esc(iconUrl(it.icon))}" alt="">` : ''}${c.count * mult}${it?.icon ? '' : ' ' + esc((it?.name || '?').replace(/ rune$/i, ''))}</span>`; }).join('');
+}
+
+// ----- spells -----
+function renderSpells() {
+  $('books').innerHTML = Array.from({ length: BOOKS }, (_, b) => {
+    const used = state.selected.slice(b * PER_BOOK, b * PER_BOOK + PER_BOOK).filter(looksLikeId).length;
+    return `<button data-b="${b}" class="${b === book ? 'on' : ''}">Book ${b + 1} <small>(${used})</small></button>`;
+  }).join('');
+  const unlocked = new Set(state.spells);
+  let html = '';
+  for (let k = 0; k < PER_BOOK; k++) {
+    const idx = book * PER_BOOK + k, id = state.selected[idx] ?? EMPTY;
+    const a = (k / PER_BOOK) * Math.PI * 2 - Math.PI / 2;
+    const x = 50 + Math.cos(a) * 41, y = 50 + Math.sin(a) * 41;
+    const sp = cat.spells.get(id), has = looksLikeId(id);
+    const cls = ['slot', idx === selSlot ? 'sel' : '', id !== (base.selected[idx] ?? EMPTY) ? 'changed' : '', has && !unlocked.has(id) ? 'badslot' : ''].join(' ');
+    html += `<button class="${cls}" data-slot="${idx}" style="left:${x}%;top:${y}%" draggable="${has}" title="${esc(has ? (sp?.name || id) : 'Empty slot')}">
+      ${has ? (sp?.icon ? `<img src="${esc(iconUrl(sp.icon))}" alt="">` : `<span class="abbr">${esc(sp ? abbr(sp.name) : id.slice(0, 4))}</span>`) : ''}<span class="n">${k + 1}</span></button>`;
+  }
+  // Rune cost of casting each spell in this book once.
+  const totals = new Map();
+  for (const id of state.selected.slice(book * PER_BOOK, book * PER_BOOK + PER_BOOK)) for (const c of cat.spells.get(id)?.costs || []) totals.set(c.item, (totals.get(c.item) || 0) + c.count);
+  html += `<div class="hub"><b>Book ${book + 1}</b><span class="muted">${totals.size ? 'Runes to cast each once' : cat.spells.size ? 'No spells yet' : ''}</span>
+    <div class="costs">${costChips([...totals].map(([item, count]) => ({ item, count })))}</div></div>`;
+  $('wheel').innerHTML = html;
+
+  const id = state.selected[selSlot] ?? EMPTY, sp = cat.spells.get(id);
+  $('slotInfo').innerHTML = looksLikeId(id)
+    ? `<b>Book ${Math.floor(selSlot / PER_BOOK) + 1}, slot ${selSlot % PER_BOOK + 1}:</b> ${esc(sp?.name || id)}${sp?.description ? `<br>${esc(sp.description)}` : ''}
+       ${sp?.costs?.length ? `<div class="costs" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">${costChips(sp.costs)}</div>` : ''}${unlocked.has(id) ? '' : '<br><span class="minus">Not unlocked: the game may not let you cast it. The check on the left can fix this.</span>'}`
+    : `<b>Book ${Math.floor(selSlot / PER_BOOK) + 1}, slot ${selSlot % PER_BOOK + 1}</b> is empty. Pick a spell on the right to put it here.`;
+
+  // Spell list: every spell in the game data, plus anything in the save the data doesn't know.
+  const q = $('spellSearch').value.trim().toLowerCase(), filter = $('spellFilter').value;
+  const inBook = new Map(); state.selected.forEach((x, i) => { if (looksLikeId(x)) (inBook.get(x) || inBook.set(x, []).get(x)).push(i); });
+  const ids = new Set([...cat.spells.keys(), ...state.spells, ...base.spells, ...state.selected.filter(looksLikeId)]);
+  const baseUnlocked = new Set(base.spells);
+  let list = [...ids].map(id => ({ id, sp: cat.spells.get(id), on: unlocked.has(id) }));
+  list = list.filter(x => {
+    if (filter === 'unlocked' && !x.on) return false;
+    if (filter === 'locked' && x.on) return false;
+    if (filter === 'unused' && (!x.on || inBook.has(x.id))) return false;
+    if (!q) return true;
+    return [x.sp?.name, x.sp?.school, x.sp?.description, x.id, ...(x.sp?.costs || []).map(c => itemName(c.item))].some(s => s && String(s).toLowerCase().includes(q));
+  }).sort((a, b) => (a.sp ? 0 : 1) - (b.sp ? 0 : 1) || (a.sp?.school || '').localeCompare(b.sp?.school || '') || (a.sp?.level ?? 0) - (b.sp?.level ?? 0) || (a.sp?.name || a.id).localeCompare(b.sp?.name || b.id));
+  $('spellSummary').innerHTML = `<b>${unlocked.size}</b> unlocked${cat.spells.size ? ` of <b>${cat.spells.size}</b>` : ''}. ${list.length !== ids.size ? `Showing ${list.length}.` : ''}`;
+  $('spellList').innerHTML = list.map(x => {
+    const where = (inBook.get(x.id) || []).map(i => `<span class="tag gold">Book ${Math.floor(i / PER_BOOK) + 1} &middot; ${i % PER_BOOK + 1}</span>`).join('');
+    const ch = x.on !== baseUnlocked.has(x.id) ? (x.on ? ' added' : ' removed') : '';
+    return `<div class="row${x.on ? '' : ' locked'}${ch}" draggable="true" data-id="${esc(x.id)}">
+      ${icon(x.sp, x.sp ? abbr(x.sp.name) : '?')}
+      <div class="t"><b>${esc(x.sp?.name || 'Unknown spell')}</b><small>${x.sp?.school ? esc(x.sp.school) : ''}${x.sp?.level ? ` &middot; level ${x.sp.level}` : ''}${x.sp ? '' : `<code>${esc(x.id)}</code>`} ${costChips(x.sp?.costs)} ${where}</small></div>
+      <div class="acts"><button data-act="place" title="Put in the selected slot">Place</button><button class="tog${x.on ? ' on' : ''}" data-act="toggle" title="${x.on ? 'Unlocked' : 'Locked'}" aria-label="Unlocked"></button></div></div>`;
+  }).join('') || '<p class="muted">No spells match.</p>';
+}
+function setSlot(idx, id, label) {
+  edit(label, s => {
+    while (s.selected.length <= idx) s.selected.push(EMPTY);
+    s.selected[idx] = id;
+    if (looksLikeId(id) && !s.spells.includes(id)) { s.spells.push(id); if ($('markNew').checked && paths.spellsNew && !s.spellsNew.includes(id)) s.spellsNew.push(id); }
+  });
+}
+const nameOf = id => spellName(id) || 'spell';
+$('books').onclick = e => { const b = e.target.closest('button'); if (b) { book = +b.dataset.b; selSlot = book * PER_BOOK + (selSlot % PER_BOOK); render(); } };
+$('wheel').onclick = e => { const s = e.target.closest('.slot'); if (s) { selSlot = +s.dataset.slot; render(); } };
+$('wheel').oncontextmenu = e => { const s = e.target.closest('.slot'); if (s) { e.preventDefault(); selSlot = +s.dataset.slot; clearSlot(); } };
+function clearSlot() { if (looksLikeId(state.selected[selSlot])) setSlot(selSlot, EMPTY, 'Empty slot'); }
+$('clearSlotBtn').onclick = clearSlot;
+$('clearBookBtn').onclick = () => edit(`Empty book ${book + 1}`, s => { for (let k = 0; k < PER_BOOK; k++) if (book * PER_BOOK + k < s.selected.length) s.selected[book * PER_BOOK + k] = EMPTY; });
+$('fillBookBtn').onclick = () => edit(`Fill book ${book + 1}`, s => {
+  const used = new Set(s.selected), pool = s.spells.filter(x => !used.has(x) && (!cat.spells.size || cat.spells.has(x)));
+  for (let k = 0; k < PER_BOOK && pool.length; k++) { const i = book * PER_BOOK + k; while (s.selected.length <= i) s.selected.push(EMPTY); if (!looksLikeId(s.selected[i])) s.selected[i] = pool.shift(); }
+});
+$('spellList').onclick = e => {
+  const row = e.target.closest('.row'), act = e.target.closest('button')?.dataset.act; if (!row || !act) return;
+  const id = row.dataset.id;
+  if (act === 'place') {
+    setSlot(selSlot, id, `Put ${nameOf(id)} in book ${Math.floor(selSlot / PER_BOOK) + 1}`);
+    // Move on to the next empty slot in this book, so several spells can be placed in a row.
+    for (let k = 1; k <= PER_BOOK; k++) { const i = book * PER_BOOK + ((selSlot % PER_BOOK) + k) % PER_BOOK; if (!looksLikeId(state.selected[i])) { selSlot = i; break; } }
+    render();
+  }
+  if (act === 'toggle') {
+    const on = state.spells.includes(id);
+    edit(`${on ? 'Lock' : 'Unlock'} ${nameOf(id)}`, s => {
+      if (on) { s.spells = s.spells.filter(x => x !== id); s.spellsNew = s.spellsNew.filter(x => x !== id); }
+      else { s.spells.push(id); if ($('markNew').checked && paths.spellsNew && !s.spellsNew.includes(id)) s.spellsNew.push(id); }
+    });
+  }
+};
+$('unlockAllSpells').onclick = () => edit('Unlock all spells', s => {
+  for (const id of cat.spells.keys()) if (!s.spells.includes(id)) { s.spells.push(id); if ($('markNew').checked && paths.spellsNew) s.spellsNew.push(id); }
+});
+$('spellSearch').oninput = $('spellFilter').onchange = () => renderSpells();
+// Drag spells from the list onto slots, and slots onto other slots (swap) or off the wheel (empty).
+let dragFrom = null;
+document.addEventListener('dragstart', e => {
+  const row = e.target.closest?.('#spellList .row'), slot = e.target.closest?.('.slot');
+  if (row) dragFrom = { id: row.dataset.id };
+  else if (slot) dragFrom = { slot: +slot.dataset.slot };
+  else return;
+  e.dataTransfer.setData('text/plain', 'spell'); e.dataTransfer.effectAllowed = 'move';
+});
+$('wheel').addEventListener('dragover', e => { const s = e.target.closest('.slot'); if (dragFrom && s) { e.preventDefault(); s.classList.add('over'); } });
+$('wheel').addEventListener('dragleave', e => e.target.closest('.slot')?.classList.remove('over'));
+$('wheel').addEventListener('drop', e => {
+  const s = e.target.closest('.slot'); if (!dragFrom || !s) return;
+  e.preventDefault(); e.stopPropagation();
+  const to = +s.dataset.slot;
+  if (dragFrom.id) setSlot(to, dragFrom.id, `Put ${nameOf(dragFrom.id)} in book ${Math.floor(to / PER_BOOK) + 1}`);
+  else if (dragFrom.slot !== to) edit('Move spell', st => { while (st.selected.length <= Math.max(to, dragFrom.slot)) st.selected.push(EMPTY); [st.selected[to], st.selected[dragFrom.slot]] = [st.selected[dragFrom.slot], st.selected[to]]; });
+  selSlot = to; dragFrom = null; render();
+});
+document.addEventListener('dragend', e => {
+  // A slot dragged out of the wheel is emptied.
+  if (dragFrom?.slot != null && e.dataTransfer.dropEffect === 'none' && !$('wheel').contains(document.elementFromPoint(e.clientX, e.clientY))) { selSlot = dragFrom.slot; clearSlot(); }
+  dragFrom = null;
+});
+
+// ----- recipes -----
+const realRecipes = () => [...cat.recipes.values()].filter(r => !r.test);
+function buildStations() {
+  const st = new Map();
+  for (const r of realRecipes()) { const k = r.station || 'Other'; st.set(k, (st.get(k) || 0) + 1); }
+  $('recipeStation').innerHTML = `<option value="">All stations</option>` + [...st].sort((a, b) => a[0].localeCompare(b[0])).map(([k, n]) => `<option value="${esc(k)}">${esc(k)} (${n})</option>`).join('');
+}
+let recipeLimit = 300, shownRecipes = [];
+function renderRecipes() {
+  const unlocked = new Set(state.recipes), was = new Set(base.recipes);
+  const q = $('recipeSearch').value.trim().toLowerCase(), station = $('recipeStation').value, filter = $('recipeFilter').value;
+  const all = realRecipes();
+  shownRecipes = all.filter(r => {
+    const on = unlocked.has(r.id);
+    if (filter === 'unlocked' && !on) return false;
+    if (filter === 'locked' && on) return false;
+    if (filter === 'changed' && on === was.has(r.id)) return false;
+    if (station && (r.station || 'Other') !== station) return false;
+    if (!q) return true;
+    return [r.name, r.asset, r.station, r.skill, r.id, ...(r.makes || []).concat(r.needs || []).map(x => itemName(x.item))].some(s => s && String(s).toLowerCase().includes(q));
+  }).sort((a, b) => (a.station || '').localeCompare(b.station || '') || (a.level ?? 0) - (b.level ?? 0) || a.name.localeCompare(b.name));
+  const onCount = all.filter(r => unlocked.has(r.id)).length;
+  $('recipeSummary').innerHTML = all.length
+    ? `<b>${onCount.toLocaleString('en')}</b> of <b>${all.length.toLocaleString('en')}</b> recipes unlocked. Showing ${shownRecipes.length.toLocaleString('en')}.`
+    : `<b>${unlocked.size}</b> recipes unlocked in this save. The full recipe list appears when the game data is published.`;
+  const lockedShown = shownRecipes.filter(r => !unlocked.has(r.id)).length;
+  $('unlockShown').textContent = `Unlock shown (${lockedShown.toLocaleString('en')})`; $('unlockShown').disabled = !lockedShown;
+  $('lockShown').textContent = `Lock shown (${(shownRecipes.length - lockedShown).toLocaleString('en')})`; $('lockShown').disabled = shownRecipes.length === lockedShown;
+  $('recipeGrid').innerHTML = shownRecipes.slice(0, recipeLimit).map(r => {
+    const on = unlocked.has(r.id), ch = on !== was.has(r.id) ? (on ? ' added' : ' removed') : '';
+    return `<div class="row${on ? '' : ' locked'}${ch}" data-id="${esc(r.id)}">${icon(r, abbr(r.name))}
+      <div class="t"><b>${esc(r.name)}</b><small>${esc(r.station || '')}${r.level ? ` &middot; lvl ${r.level}` : ''}</small></div>
+      <button class="tog${on ? ' on' : ''}" aria-label="Unlocked"></button></div>`;
+  }).join('');
+  $('more').hidden = shownRecipes.length <= recipeLimit;
+  $('more').textContent = `Show ${Math.min(600, shownRecipes.length - recipeLimit)} more`;
+  // Unlocked recipes the game data doesn't know (or all of them while there is no game data).
+  const unknown = state.recipes.filter(id => !cat.recipes.has(id) || cat.recipes.get(id).test);
+  const box = $('unknownRecipes');
+  box.hidden = !unknown.length;
+  box.querySelector('summary').textContent = all.length ? `${unknown.length} unlocked ids not in the recipe list (kept as they are)` : `${unknown.length} recipe ids in this save`;
+  if (box.open) box.querySelector('.list').innerHTML = unknown.slice(0, 1000).map(id => `<div class="row" data-id="${esc(id)}"><span class="noimg">?</span><div class="t"><b>${esc(cat.recipes.get(id)?.name || 'Unknown recipe')}</b><small><code>${esc(id)}</code></small></div><button data-act="remove">Remove</button></div>`).join('');
+}
+$('unknownRecipes').ontoggle = () => renderRecipes();
+$('unknownRecipes').onclick = e => { const b = e.target.closest('button[data-act=remove]'); if (b) setRecipes([b.closest('.row').dataset.id], false, 'Remove unknown recipe'); };
+function setRecipes(ids, on, label) {
+  edit(label, s => {
+    if (on) {
+      const have = new Set(s.recipes), isNew = new Set(s.recipesNew);
+      for (const id of ids) if (!have.has(id)) { s.recipes.push(id); have.add(id); if ($('markNew').checked && paths.recipesNew && !isNew.has(id)) s.recipesNew.push(id); }
+    } else {
+      const drop = new Set(ids);
+      s.recipes = s.recipes.filter(x => !drop.has(x)); s.recipesNew = s.recipesNew.filter(x => !drop.has(x));
+    }
+  });
+}
+$('recipeGrid').onclick = e => {
+  const row = e.target.closest('.row'); if (!row) return;
+  const id = row.dataset.id, on = state.recipes.includes(id);
+  setRecipes([id], !on, `${on ? 'Lock' : 'Unlock'} ${cat.recipes.get(id)?.name || 'recipe'}`);
+};
+$('unlockShown').onclick = () => { const ids = shownRecipes.map(r => r.id); setRecipes(ids, true, `Unlock ${ids.length} recipes`); };
+$('lockShown').onclick = async () => {
+  const ids = shownRecipes.filter(r => state.recipes.includes(r.id)).map(r => r.id);
+  if (ids.length > 20 && (await ask(`Lock ${ids.length} recipes?`, 'You can undo this.', ['Lock', 'Cancel'])) !== 'Lock') return;
+  setRecipes(ids, false, `Lock ${ids.length} recipes`);
+};
+$('recipeSearch').oninput = $('recipeStation').onchange = $('recipeFilter').onchange = () => { recipeLimit = 300; renderRecipes(); };
+$('more').onclick = () => { recipeLimit += 600; renderRecipes(); };
+
+// Recipe tooltip: what it makes and needs.
+$('recipeGrid').onmousemove = e => {
+  const row = e.target.closest('.row'), r = row && cat.recipes.get(row.dataset.id);
+  if (!r) return ($('tip').hidden = true);
+  const line = x => { const it = cat.items.get(x.item); return `<div>${it?.icon ? `<img src="${esc(iconUrl(it.icon))}" alt="">` : ''}${x.count} &times; ${esc(it?.name || x.item)}</div>`; };
+  $('tip').innerHTML = `<b>${esc(r.name)}</b><div class="muted">${esc([r.station, r.skill && `${r.skill}${r.level ? ' ' + r.level : ''}`].filter(Boolean).join(' · '))}</div>
+    ${r.needs?.length ? `<div class="ing"><span class="muted">Needs</span>${r.needs.map(line).join('')}</div>` : ''}
+    ${r.makes?.length ? `<div class="ing"><span class="muted">Makes</span>${r.makes.map(line).join('')}</div>` : ''}`;
+  const t = $('tip'); t.hidden = false;
+  t.style.left = Math.min(e.clientX + 14, innerWidth - t.offsetWidth - 8) + 'px';
+  t.style.top = Math.min(e.clientY + 14, innerHeight - t.offsetHeight - 8) + 'px';
+};
+$('recipeGrid').onmouseleave = () => { $('tip').hidden = true; };
+
+// ----- changes -----
+function renderChanges() {
+  const groups = [];
+  const nameFor = { recipes: id => cat.recipes.get(id)?.name, spells: id => cat.spells.get(id)?.name };
+  for (const [f, title] of [['recipes', 'recipes'], ['spells', 'spells']]) {
+    const a = new Set(base[f]), b = new Set(state[f]);
+    const add = [...b].filter(x => !a.has(x)), rem = [...a].filter(x => !b.has(x));
+    const li = (ids, cls, sign) => ids.slice(0, 400).map(id => `<li class="${cls}">${sign} ${esc(nameFor[f](id) || id)}</li>`).join('') + (ids.length > 400 ? `<li class="muted">and ${ids.length - 400} more</li>` : '');
+    if (add.length) groups.push(`<div class="change"><h3><span class="plus">+${add.length}</span> Unlocked ${title}</h3><ul>${li(add, 'plus', '+')}</ul></div>`);
+    if (rem.length) groups.push(`<div class="change"><h3><span class="minus">&minus;${rem.length}</span> Locked ${title}</h3><ul>${li(rem, 'minus', '−')}</ul></div>`);
+  }
+  const slots = [];
+  for (let i = 0; i < Math.max(state.selected.length, base.selected.length); i++) {
+    const a = base.selected[i] ?? EMPTY, b = state.selected[i] ?? EMPTY;
+    if (a !== b) slots.push(`<li>Book ${Math.floor(i / PER_BOOK) + 1}, slot ${i % PER_BOOK + 1}: ${esc(looksLikeId(a) ? (spellName(a) || a) : 'empty')} &rarr; ${esc(looksLikeId(b) ? (spellName(b) || b) : 'empty')}</li>`);
+  }
+  if (slots.length) groups.push(`<div class="change"><h3>${slots.length} spellbook slot${slots.length > 1 ? 's' : ''}</h3><ul>${slots.join('')}</ul></div>`);
+  $('changeList').innerHTML = groups.join('') || '<p class="muted">No changes yet.</p>';
+  $('changesSummary').textContent = groups.length ? 'These are written to your save when you click Save. Nothing else in the file changes.' : '';
+  $('revertAll').disabled = !groups.length;
+}
+$('revertAll').onclick = () => edit('Undo all changes', s => { for (const f of Object.keys(FIELDS)) s[f] = base[f].slice(); });
+
+// ---------- shell ----------
+$('tabs').onclick = e => {
+  const b = e.target.closest('button[data-tab]'); if (!b) return;
+  tab = b.dataset.tab;
+  for (const x of $('tabs').querySelectorAll('button')) x.classList.toggle('on', x === b);
+  for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== tab;
+  $('tip').hidden = true;
+  render();
+};
+let toastTimer;
+function toast(msg, bad) {
+  const t = $('toast'); t.textContent = msg; t.className = bad ? 'bad' : ''; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), bad ? 9000 : 4500);
+}
+function ask(title, text, buttons) {
+  return new Promise(res => {
+    $('askTitle').textContent = title; $('askText').textContent = text;
+    $('askBtns').innerHTML = buttons.map((b, i) => `<button class="${i === 0 ? 'primary' : ''}">${esc(b)}</button>`).join('');
+    const d = $('askDlg');
+    $('askBtns').onclick = e => { const b = e.target.closest('button'); if (b) { d.close(); res(b.textContent); } };
+    d.onclose = () => res(null);
+    d.showModal();
+  });
+}
+$('openFolderBtn').onclick = $('openFolderBig').onclick = () => openFolder();
+$('openFileBtn').onclick = $('openFileBig').onclick = openFile;
+$('saveBtn').onclick = save;
+$('undoBtn').onclick = undo; $('redoBtn').onclick = redo;
+$('helpBtn').onclick = () => $('helpDlg').showModal();
+$('helpClose').onclick = () => $('helpDlg').close();
+$('copyPath').onclick = async () => { try { await navigator.clipboard.writeText($('savePath').textContent); toast('Copied. Paste it into the folder picker.'); } catch { toast('Select the path and copy it.'); } };
+if (!canFolder) { $('openFolderBtn').hidden = true; $('openFolderBig').hidden = true; }
+idbGet('folder').then(h => { if (h && canFolder) { $('reopenBtn').hidden = false; $('reopenBtn').textContent = `Reopen ${h.name}`; $('reopenBtn').onclick = () => openFolder(h); } }).catch(() => {});
+
+addEventListener('keydown', e => {
+  const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName);
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
+  else if (mod && !typing && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if (mod && !typing && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+  else if (!typing && tab === 'spells' && state && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); clearSlot(); }
+  else if (!typing && e.key === '/') { e.preventDefault(); (tab === 'recipes' ? $('recipeSearch') : $('spellSearch')).focus(); }
+});
+addEventListener('beforeunload', e => { if (dirty()) { e.preventDefault(); e.returnValue = ''; } });
+
+loadData();
+</script>
+</body>
+</html>

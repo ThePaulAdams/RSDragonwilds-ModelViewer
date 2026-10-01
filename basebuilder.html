@@ -32,6 +32,8 @@
   header h1 span { color: var(--accent); }
   header .grow { flex: 1; }
   .group { display: flex; gap: 4px; align-items: center; }
+  .snap-label { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; margin: 0 2px; }
+  .snap-label select { padding: 3px 6px; font-size: 12px; background: var(--panel2); border-color: var(--line); }
   #sync { font-size: 12px; color: var(--muted); max-width: 360px; }
   #sync.ok { color: var(--ok); }
   #sync.bad { color: var(--bad); }
@@ -101,8 +103,31 @@
       <button id="modeRotate" title="Rotate (E)">Rotate</button>
       <button id="modeScale" title="Scale (R)">Scale</button>
     </div>
+    <div class="group" title="Snap settings">
+      <button id="snapBtn" class="on" title="Toggle Snap (G)">Snap: ON</button>
+      <label class="snap-label" title="Movement snap step">Grid:
+        <select id="moveSnap">
+          <option value="0.01">0.01 m (1 cm)</option>
+          <option value="0.05">0.05 m (5 cm)</option>
+          <option value="0.1" selected>0.1 m (10 cm)</option>
+          <option value="0.25">0.25 m</option>
+          <option value="0.5">0.5 m (50 cm)</option>
+          <option value="1.0">1.0 m</option>
+        </select>
+      </label>
+      <label class="snap-label" title="Rotation snap angle">Rot:
+        <select id="rotSnap">
+          <option value="0.1">0.1°</option>
+          <option value="0.5">0.5°</option>
+          <option value="1" selected>1°</option>
+          <option value="5">5°</option>
+          <option value="15">15°</option>
+          <option value="45">45°</option>
+          <option value="90">90°</option>
+        </select>
+      </label>
+    </div>
     <div class="group">
-      <button id="snapBtn" class="on" title="Snap to a 50 cm grid and 15° steps (G)">Snap</button>
       <button id="dupBtn" title="Duplicate (Ctrl+D)">Duplicate</button>
       <button id="delBtn" title="Delete (Delete)">Delete</button>
       <button id="undoBtn" title="Undo (Ctrl+Z)">Undo</button>
@@ -134,13 +159,13 @@
     <div id="selBox" hidden>
       <div id="selName"></div>
       <div id="selPath"></div>
-      <div class="field"><span>East (m)</span><input id="fX" type="number" step="0.1"></div>
-      <div class="field"><span>North (m)</span><input id="fY" type="number" step="0.1"></div>
-      <div class="field"><span>Up (m)</span><input id="fZ" type="number" step="0.1"></div>
-      <div class="field"><span>Turn °</span><input id="fYaw" type="number" step="15"></div>
-      <div class="field"><span>Tilt °</span><input id="fPitch" type="number" step="15"></div>
-      <div class="field"><span>Roll °</span><input id="fRoll" type="number" step="15"></div>
-      <div class="field"><span>Size</span><input id="fScale" type="number" step="0.1" min="0.05"></div>
+      <div class="field"><span>East (m)</span><input id="fX" type="number" step="0.01"></div>
+      <div class="field"><span>North (m)</span><input id="fY" type="number" step="0.01"></div>
+      <div class="field"><span>Up (m)</span><input id="fZ" type="number" step="0.01"></div>
+      <div class="field"><span>Turn °</span><input id="fYaw" type="number" step="0.1"></div>
+      <div class="field"><span>Tilt °</span><input id="fPitch" type="number" step="0.1"></div>
+      <div class="field"><span>Roll °</span><input id="fRoll" type="number" step="0.1"></div>
+      <div class="field"><span>Size</span><input id="fScale" type="number" step="0.01" min="0.01"></div>
     </div>
     <h2>Placed <span id="placedCount" class="muted"></span></h2>
     <div id="list"></div>
@@ -171,7 +196,8 @@
   <h3>Controls</h3>
   <p class="muted">
     <b>Click</b> place / select &nbsp; <b>Drag</b> orbit &nbsp; <b>Right drag</b> pan &nbsp; <b>Wheel</b> zoom<br>
-    <kbd>W</kbd> move &nbsp; <kbd>E</kbd> rotate &nbsp; <kbd>R</kbd> scale &nbsp; <kbd>G</kbd> snap on/off &nbsp; <kbd>F</kbd> focus selection<br>
+    <kbd>W</kbd> move &nbsp; <kbd>E</kbd> rotate &nbsp; <kbd>R</kbd> scale &nbsp; <kbd>G</kbd> toggle snap &nbsp; <kbd>F</kbd> focus<br>
+    <kbd>Arrows</kbd> nudge &nbsp; <kbd>Shift+Arrows</kbd> fine rotate &nbsp; <kbd>Q</kbd> / <kbd>E</kbd> rotate while placing<br>
     <kbd>Delete</kbd> delete &nbsp; <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate &nbsp; <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo &nbsp; <kbd>Esc</kbd> stop placing / deselect
   </p>
   <p class="muted">No game folder? Use <b>Export</b> to download <code>placed.txt</code> and copy it into that folder yourself (with the game closed).</p>
@@ -334,8 +360,24 @@ scene.add(anchorMark);
 const placedGroup = new THREE.Group(); scene.add(placedGroup);
 const baseGroup = new THREE.Group(); scene.add(baseGroup);
 
+let snapOn = true;
+let moveSnapVal = 0.1;   // 10 cm in metres (0.1 scale)
+let rotSnapVal = 1.0;    // 1 degree rotation step
+let scaleSnapVal = 0.05;
+
 const gizmo = new TransformControls(camera, renderer.domElement);
-gizmo.setTranslationSnap(0.5); gizmo.setRotationSnap(15 * D); gizmo.setScaleSnap(0.05);
+function updateGizmoSnapping() {
+  gizmo.setTranslationSnap(snapOn ? moveSnapVal : null);
+  gizmo.setRotationSnap(snapOn ? rotSnapVal * D : null);
+  gizmo.setScaleSnap(snapOn ? scaleSnapVal : null);
+  const btn = $('snapBtn');
+  if (btn) {
+    btn.classList.toggle('on', snapOn);
+    btn.textContent = snapOn ? 'Snap: ON' : 'Snap: OFF';
+    btn.title = snapOn ? `Snap: ON (${moveSnapVal}m, ${rotSnapVal}°) - Press G to toggle` : 'Snap: OFF (Free movement) - Press G to toggle';
+  }
+}
+updateGizmoSnapping();
 gizmo.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if (!e.value) commitGizmo(); else pushUndo(); });
 gizmo.addEventListener('objectChange', () => { if (gizmo.mode === 'scale') { const o = gizmo.object; const s = o.scale.x; o.scale.set(s, s, s); } showSelection(); });
 scene.add(gizmo.getHelper());
@@ -435,7 +477,7 @@ function showSelection() {
   $('selPath').textContent = r.Mesh;
   const rel = obj.position;
   $('fX').value = rel.x.toFixed(2); $('fY').value = rel.z.toFixed(2); $('fZ').value = rel.y.toFixed(2);
-  $('fYaw').value = tmp.Yaw.toFixed(1); $('fPitch').value = tmp.Pitch.toFixed(1); $('fRoll').value = tmp.Roll.toFixed(1); $('fScale').value = tmp.Scale;
+  $('fYaw').value = +(tmp.Yaw.toFixed(2)); $('fPitch').value = +(tmp.Pitch.toFixed(2)); $('fRoll').value = +(tmp.Roll.toFixed(2)); $('fScale').value = tmp.Scale;
 }
 for (const k of ['fX', 'fY', 'fZ', 'fYaw', 'fPitch', 'fRoll', 'fScale']) $(k).addEventListener('change', () => {
   if (!selected) return;
@@ -522,7 +564,10 @@ renderer.domElement.addEventListener('pointermove', e => {
   const p = hitPoint();
   ghost.visible = !!p;
   if (p) {
-    if (snapOn) { p.x = Math.round(p.x * 2) / 2; p.z = Math.round(p.z * 2) / 2; }
+    if (snapOn && moveSnapVal > 0) {
+      p.x = Math.round(p.x / moveSnapVal) * moveSnapVal;
+      p.z = Math.round(p.z / moveSnapVal) * moveSnapVal;
+    }
     ghost.position.copy(p);
     ghost.quaternion.copy(ueToThreeQuat(rotToQuat(0, ghostYaw, 0)));
   }
@@ -1028,15 +1073,36 @@ $('importBtn').onclick = () => {
 // ---------------------------------------------------------------------------
 // Buttons and keys
 // ---------------------------------------------------------------------------
-let snapOn = true;
 function setMode(mode) {
   gizmo.setMode(mode);
   for (const [b, m] of [['modeMove', 'translate'], ['modeRotate', 'rotate'], ['modeScale', 'scale']]) $(b).classList.toggle('on', m === mode);
 }
 function toggleSnap() {
-  snapOn = !snapOn; $('snapBtn').classList.toggle('on', snapOn);
-  gizmo.setTranslationSnap(snapOn ? 0.5 : null); gizmo.setRotationSnap(snapOn ? 15 * D : null); gizmo.setScaleSnap(snapOn ? 0.05 : null);
+  snapOn = !snapOn;
+  updateGizmoSnapping();
+  toast(snapOn ? `Snap ON: ${moveSnapVal}m, ${rotSnapVal}°` : 'Snap OFF: Free movement');
 }
+$('moveSnap')?.addEventListener('change', e => {
+  moveSnapVal = parseFloat(e.target.value) || 0.1;
+  updateGizmoSnapping();
+  try { localStorage.setItem('bb.moveSnap', String(moveSnapVal)); } catch {}
+  toast(`Grid snap: ${moveSnapVal}m`);
+});
+$('rotSnap')?.addEventListener('change', e => {
+  rotSnapVal = parseFloat(e.target.value) || 1.0;
+  updateGizmoSnapping();
+  const step = rotSnapVal < 1 ? String(rotSnapVal) : '0.1';
+  $('fYaw').step = step; $('fPitch').step = step; $('fRoll').step = step;
+  try { localStorage.setItem('bb.rotSnap', String(rotSnapVal)); } catch {}
+  toast(`Rotation snap: ${rotSnapVal}°`);
+});
+try {
+  const sm = localStorage.getItem('bb.moveSnap');
+  if (sm && $('moveSnap')) { $('moveSnap').value = sm; moveSnapVal = parseFloat(sm) || 0.1; }
+  const sr = localStorage.getItem('bb.rotSnap');
+  if (sr && $('rotSnap')) { $('rotSnap').value = sr; rotSnapVal = parseFloat(sr) || 1.0; }
+  updateGizmoSnapping();
+} catch {}
 function del() {
   if (!selected) return;
   pushUndo();
@@ -1067,12 +1133,44 @@ addEventListener('keydown', e => {
   else if (k === 'delete' || k === 'backspace') { e.preventDefault(); del(); }
   else if (k === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
   else if (k === 'd' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); duplicate(); }
-  else if (k === 'w') setMode('translate');
-  else if (k === 'e') setMode('rotate');
+  else if (k === 'w' && !picked) setMode('translate');
+  else if (k === 'e' && !picked) setMode('rotate');
   else if (k === 'r') setMode('scale');
   else if (k === 'g') toggleSnap();
   else if (k === 'f') focusSelected();
-  else if (k === 'q' && picked) { ghostYaw = norm(ghostYaw - 15); }
+  else if (k === 'q' && picked) {
+    const step = e.shiftKey ? 15 : (rotSnapVal || 1);
+    ghostYaw = norm(ghostYaw - step);
+    if (ghost) ghost.quaternion.copy(ueToThreeQuat(rotToQuat(0, ghostYaw, 0)));
+  }
+  else if (k === 'e' && picked) {
+    const step = e.shiftKey ? 15 : (rotSnapVal || 1);
+    ghostYaw = norm(ghostYaw + step);
+    if (ghost) ghost.quaternion.copy(ueToThreeQuat(rotToQuat(0, ghostYaw, 0)));
+  }
+  else if (selected && !picked && (k === 'arrowleft' || k === 'arrowright' || k === 'arrowup' || k === 'arrowdown' || k === 'pageup' || k === 'pagedown')) {
+    e.preventDefault();
+    pushUndo();
+    const obj = objects.get(selected), r = records.get(selected);
+    const mStep = moveSnapVal || 0.1;
+    const rStep = rotSnapVal || 1.0;
+    if (e.shiftKey) {
+      if (k === 'arrowleft') r.Yaw = norm(r.Yaw - rStep);
+      else if (k === 'arrowright') r.Yaw = norm(r.Yaw + rStep);
+      else if (k === 'arrowup') r.Pitch = norm(r.Pitch + rStep);
+      else if (k === 'arrowdown') r.Pitch = norm(r.Pitch - rStep);
+    } else {
+      if (k === 'arrowleft') obj.position.x -= mStep;
+      else if (k === 'arrowright') obj.position.x += mStep;
+      else if (k === 'arrowup') obj.position.z += mStep;
+      else if (k === 'arrowdown') obj.position.z -= mStep;
+      else if (k === 'pageup') obj.position.y += mStep;
+      else if (k === 'pagedown') obj.position.y -= mStep;
+      readObject(obj, r);
+    }
+    applyRecord(obj, r);
+    changed();
+  }
 });
 addEventListener('beforeunload', e => { if (!dir && records.size) { e.preventDefault(); } });
 </script>

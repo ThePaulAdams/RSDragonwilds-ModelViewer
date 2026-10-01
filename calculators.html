@@ -29,6 +29,7 @@
       <label class="f">XP per action<input id="xpa" type="number" min="0" step="any" placeholder="e.g. 25"></label>
     </div>
     <div id="xout"></div>
+    <p id="xnote" class="muted" style="font-size:13px"></p>
     <h2 style="margin-top:20px">Level table</h2>
     <div style="max-height:320px;overflow:auto"><table id="xtab"></table></div>
   </section>
@@ -37,9 +38,9 @@
     <div class="row">
       <label class="f">Rune<select id="rrune"></select></label>
       <label class="f">Your runecrafting level<input id="rlv" type="number" min="1" value="1"></label>
-      <label class="f">Essence per run<input id="rep" type="number" min="1"></label>
       <label class="f">Goal<select id="rmode"><option value="runes">Runes wanted</option><option value="xp">XP wanted</option></select></label>
       <label class="f">Amount<input id="ramt" type="number" min="1" value="1000"></label>
+      <label class="f">Essence per trip (optional)<input id="rep" type="number" min="1" placeholder="e.g. 28"></label>
     </div>
     <div id="rout"></div>
   </section>
@@ -89,11 +90,20 @@ if (!altars.length) document.querySelector('#tabs [data-t=rc]').hidden = true;
 function rc() {
   if (!altars.length) return $('rout').replaceChildren(el('p', { className: 'muted', textContent: 'No runecrafting data available yet.' }));
   const altar = altars.find(a => a.id === $('rrune').value) || altars[0], lv = Math.floor(num('rlv')) || 1;
-  const r = L.runecraftRuns({ altar, level: lv, essencePerRun: num('rep') || data.runecrafting.essencePerRun, targetRunes: $('rmode').value === 'runes' ? num('ramt') : 0, targetXp: $('rmode').value === 'xp' ? num('ramt') : 0 });
-  const out = el('div', { className: 'stat' }, stat('Runes per essence', r.runesPerEssence), stat('Essence', fmt(r.essence)), stat('Runs', fmt(r.runs)), stat(r.xp != null ? 'XP gained' : 'Runes made', fmt(r.xp ?? r.runes)));
-  $('rout').replaceChildren(out, el('p', { className: lv < altar.level ? 'tag' : 'muted', style: 'margin-top:10px', textContent: lv < altar.level ? `You need level ${altar.level} for ${altar.rune}s.` : `${altar.rune} needs level ${altar.level}. Extra runes per essence at levels ${(altar.multiples || []).join(', ') || 'none'}.` }));
+  const r = L.runecraftRuns({ altar, level: lv, essencePerTrip: num('rep'), targetRunes: $('rmode').value === 'runes' ? num('ramt') : 0, targetXp: $('rmode').value === 'xp' ? num('ramt') : 0 });
+  const dur = s => s >= 3600 ? `${fmt(s / 3600)} h` : s >= 60 ? `${fmt(s / 60)} min` : `${fmt(s)} s`;
+  const out = el('div', { className: 'stat' }, stat('Runes per essence', +r.runesPerEssence.toFixed(2)));
+  if (r.essence != null) {
+    out.append(stat('Essence needed', fmt(r.essence)), stat('Runes made', fmt(r.runes)), stat('XP gained', fmt(r.xp)));
+    if (r.seconds) out.append(stat('Crafting time', dur(r.seconds)));
+    if (r.trips) out.append(stat('Trips', fmt(r.trips)));
+  }
+  const notes = [];
+  if (lv < altar.level) notes.push(`You need Runecrafting ${altar.level} to craft ${altar.rune}s.`);
+  if (altar.bonusYieldLevel) notes.push(r.perk ? 'Efficiency perk active: counted as an average of extra runes.' : `The Efficiency perk at level ${altar.bonusYieldLevel} adds a ${Math.round((altar.extraRuneChance || 0) * 100)}% chance of extra runes.`);
+  $('rout').replaceChildren(out, el('p', { className: lv < altar.level ? 'tag' : 'muted', style: 'margin-top:10px', textContent: notes.join(' ') }));
 }
-$('rrune').replaceChildren(...altars.map(a => el('option', { value: a.id, textContent: a.rune }))); $('rep').value = data.runecrafting?.essencePerRun || 28;
+$('rrune').replaceChildren(...altars.map(a => el('option', { value: a.id, textContent: `${a.rune} (level ${a.level})` })));
 
 const byName = new Map(Object.entries(data.items).map(([id, i]) => [i.name.toLowerCase(), id]));
 function mat() {
@@ -108,10 +118,11 @@ function mat() {
 }
 
 for (const id of ['xlv', 'xxp', 'xtg', 'xpa']) $(id).oninput = xp;
-for (const id of ['rrune', 'rlv', 'rep', 'rmode', 'ramt']) $(id).oninput = rc;
+for (const id of ['rrune', 'rlv', 'rmode', 'ramt', 'rep']) $(id).oninput = rc;
 $('mlist').oninput = mat;
 const show = t => { if (t === 'rc' && !altars.length) t = 'xp'; for (const s of ['xp', 'rc', 'mat']) $(s).hidden = s !== t; document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); history.replaceState(null, '', '#' + t); };
 $('tabs').onclick = e => e.target.dataset.t && show(e.target.dataset.t);
+if (!data.xpEstimated && !data.sample) $('xnote').textContent = 'XP table read from the game files (the newest of its six curve rows). Check it against your own save if a level looks off.';
 table(); xp(); rc(); mat(); show(['xp', 'rc', 'mat'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'xp');
 </script>
 </body>

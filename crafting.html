@@ -139,7 +139,7 @@ function treeNode(n) {
   li.append(el('b', { textContent: `${fmt(n.qty)}x ` }), icon(n.item), name(n.item));
   if (n.fromInventory) li.append(el('span', { className: 'tag ok', textContent: ` ${fmt(n.fromInventory)} in inventory` }));
   if (n.recipe) {
-    li.append(el('span', { className: 'tag', textContent: ` craft x${fmt(n.crafts)}${n.recipe.station ? ' at ' + st(n.recipe.station) : ''}${n.recipe.skill ? ` (${sk(n.recipe.skill)}${n.recipe.level ? ' ' + n.recipe.level : ''})` : ''}` }));
+    li.append(el('span', { className: 'tag', textContent: ` craft x${fmt(n.crafts)}${n.recipe.station ? ' at ' + st(n.recipe.station) : ''}${n.recipe.skill || n.recipe.level ? ` (${[n.recipe.skill && sk(n.recipe.skill), n.recipe.level && `needs ${sk(n.recipe.levelSkill || n.recipe.skill)} ${n.recipe.level}`].filter(Boolean).join(', ')})` : ''}` }));
     const alts = ix.byOutput.get(n.item);
     if (alts.length > 1) {
       const s = el('select', { style: 'margin-left:8px' }, ...alts.map(r => el('option', { value: r.id, textContent: L.recipeLabel(ix, r), selected: r === n.recipe })));

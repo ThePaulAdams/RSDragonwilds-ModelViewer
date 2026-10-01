@@ -1,7 +1,7 @@
 // Pure planning and calculator logic shared by /crafting and /calculators (no DOM, no network).
 // Game data shape (see data/README.md):
 //   items:    { [id]: { name, icon?, category? } }
-//   recipes:  [{ id, output: { item, qty }, ingredients: [{ item, qty }], station?, skill?, level?, xp? }]
+//   recipes:  [{ id, output: { item, qty }, ingredients: [{ item, qty }], station?, skill?, xp?, level?, levelSkill? }]
 //   stations: { [id]: { name } }   skills: [{ id, name }]   xpTable: cumulative XP to reach level i+1
 
 // Cleans extracted game data: drops placeholder rows (no output, no ingredients, journal entries, unknown items),
@@ -84,10 +84,8 @@ export function plan(ix, targets, opts = {}) {
     n.recipe = r; n.crafts = times; n.surplus = times * r.output.qty - need;
     crafts[r.id] = (crafts[r.id] || 0) + times;
     if (r.station) stations[r.station] = true;
-    if (r.skill) {
-      skillLevel[r.skill] = Math.max(skillLevel[r.skill] || 0, r.level || 0);
-      skillXp[r.skill] = (skillXp[r.skill] || 0) + (r.xp || 0) * times;
-    }
+    if (r.skill) skillXp[r.skill] = (skillXp[r.skill] || 0) + (r.xp || 0) * times;
+    if (r.level) { const ls = r.levelSkill || r.skill; skillLevel[ls] = Math.max(skillLevel[ls] || 0, r.level); }
     for (const g of r.ingredients) n.children.push(node(g.item, g.qty * times, [...path, item]));
     return n;
   }
@@ -148,22 +146,23 @@ export function xpProgress(table, xp) {
 export const actionsNeeded = (from, to, perAction) => perAction > 0 && to > from ? Math.ceil((to - from) / perAction) : 0;
 
 // ---- Runecrafting ----
-// altar: { rune, level, xpPerEssence, multiples?: [levels at which you get +1 rune per essence] }
+// altar: { rune, level, xpPerEssence, runesPerEssence, extraRuneChance?, bonusYieldLevel?, secondsPerCraft? }
+// Each essence makes `runesPerEssence` runes. From `bonusYieldLevel` the efficiency perk adds a chance of extra runes,
+// modelled as an average of (1 + extraRuneChance) times the base yield.
 export function runesPerEssence(altar, level) {
-  return 1 + (altar.multiples || []).filter(l => level >= l).length;
+  const perk = altar.bonusYieldLevel && level >= altar.bonusYieldLevel;
+  return altar.runesPerEssence * (perk ? 1 + (altar.extraRuneChance || 0) : 1);
 }
-export function runecraftRuns({ altar, level, essencePerRun, targetRunes, targetXp }) {
+export function runecraftRuns({ altar, level, essencePerTrip, targetRunes, targetXp }) {
   const rpe = runesPerEssence(altar, level);
-  const out = { runesPerEssence: rpe };
-  if (targetRunes > 0) {
-    out.essence = Math.ceil(targetRunes / rpe);
-    out.runs = Math.ceil(out.essence / essencePerRun);
-    out.xp = out.essence * altar.xpPerEssence;
-  } else if (targetXp > 0) {
-    out.essence = Math.ceil(targetXp / altar.xpPerEssence);
-    out.runs = Math.ceil(out.essence / essencePerRun);
-    out.runes = out.essence * rpe;
-  }
+  const out = { runesPerEssence: rpe, perk: !!(altar.bonusYieldLevel && level >= altar.bonusYieldLevel) };
+  if (targetRunes > 0) out.essence = Math.ceil(targetRunes / rpe);
+  else if (targetXp > 0) out.essence = Math.ceil(targetXp / altar.xpPerEssence);
+  else return out;
+  out.xp = out.essence * altar.xpPerEssence;
+  out.runes = Math.floor(out.essence * rpe);
+  if (altar.secondsPerCraft) out.seconds = out.essence * altar.secondsPerCraft;
+  if (essencePerTrip > 0) out.trips = Math.ceil(out.essence / essencePerTrip);
   return out;
 }
 

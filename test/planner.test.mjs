@@ -41,11 +41,19 @@ test('xp maths', () => {
   assert.equal(L.xpProgress(t, 1e12).max, true);
   assert.equal(L.actionsNeeded(0, 100, 30), 4);
 });
-test('runecrafting', () => {
+test('runecrafting uses flat yield plus the efficiency perk', () => {
   const air = data.runecrafting.altars[0];
-  assert.equal(L.runesPerEssence(air, 22), 3);
-  const r = L.runecraftRuns({ altar: air, level: 22, essencePerRun: 28, targetRunes: 1000 });
-  assert.equal(r.essence, 334); assert.equal(r.runs, 12);
+  assert.equal(L.runesPerEssence(air, 10), 5);
+  assert.equal(L.runesPerEssence(air, 22), 5.25);
+  const r = L.runecraftRuns({ altar: air, level: 1, essencePerTrip: 28, targetRunes: 1000 });
+  assert.equal(r.essence, 200); assert.equal(r.trips, 8); assert.equal(r.xp, 400); assert.equal(r.seconds, 2000);
+  assert.equal(L.runecraftRuns({ altar: air, level: 1, targetXp: 100 }).essence, 50);
+});
+test('level requirement is credited to levelSkill, XP to skill', () => {
+  const d = L.cleanData({ items: { a: { name: 'A' }, b: { name: 'B' } }, xpTable: [0, 1],
+    recipes: [{ id: '1', output: { item: 'b', qty: 1 }, ingredients: [{ item: 'a', qty: 1 }], skill: 'artisan', xp: 5, level: 35, levelSkill: 'ranged' }] });
+  const p = L.plan(L.indexData(d), [{ item: 'b', qty: 2 }]);
+  assert.deepEqual(p.skillLevel, { ranged: 35 }); assert.deepEqual(p.skillXp, { artisan: 10 });
 });
 test('share links round trip', () => {
   const l = [{ item: 'oak_chest', qty: 2 }];

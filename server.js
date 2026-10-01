@@ -181,7 +181,7 @@ async function home() {
   }
   const count = list.length.toLocaleString('en');
   const title = `${SITE_NAME}: tools for RuneScape: Dragonwilds`;
-  const description = `Fan-made tools for RuneScape: Dragonwilds: a 3D viewer for ${count} game models, a base builder that reads your save, and a drops and loot finder. Fan-made, not affiliated with Jagex.`;
+  const description = `Fan-made tools for RuneScape: Dragonwilds: a 3D viewer for ${count} game models, a base builder that reads your save, a drops and loot finder and a character save editor. Fan-made, not affiliated with Jagex.`;
   const head = `<title>${esc(title)}</title>
 <meta name="description" content="${attr(description)}">
 <link rel="canonical" href="${attr(SITE_URL + '/')}">
@@ -254,7 +254,7 @@ createServer(async (req, res) => {
 
     if (path === '/robots.txt') return send(res, 200, `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`, { 'Cache-Control': 'public, max-age=86400' });
     if (path === '/sitemap.xml') {
-      const urls = [SITE_URL + '/', SITE_URL + '/viewer', SITE_URL + '/base-builder', SITE_URL + '/drops', ...(await models()).list.map(x => SITE_URL + '/model/' + encodeURIComponent(x.slug))];
+      const urls = [SITE_URL + '/', SITE_URL + '/viewer', SITE_URL + '/base-builder', SITE_URL + '/drops', SITE_URL + '/character', ...(await models()).list.map(x => SITE_URL + '/model/' + encodeURIComponent(x.slug))];
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc></url>`).join('\n')}\n</urlset>\n`;
       return send(res, 200, xml, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=86400' });
     }
@@ -315,6 +315,15 @@ createServer(async (req, res) => {
         'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
       return res.end(req.method === 'HEAD' ? undefined : body);
     }
+    // Character save editor. The save never leaves the browser; character-save.js is its reader and writer.
+    if (path === '/character' || path === '/save-editor' || path === '/character.html') {
+      if (path !== '/character') { res.writeHead(301, { Location: '/character' }); return res.end(); }
+      const body = gzipSync(await readFile(join(APP, 'character.html')));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
+        'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    if (path === '/character-save.js') return sendFile(req, res, join(APP, 'character-save.js'), 'public, max-age=300');
     // Game data shared by every tool (see gamedata/README.md): /gamedata/<file>, and /gamedata.json, the combined file
     // the crafting planner reads. The copy in the repo deploys with the code; a copy uploaded to DATA_DIR/gamedata wins.
     if (path === '/gamedata.json' || path.startsWith('/gamedata/')) {

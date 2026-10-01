@@ -58,6 +58,18 @@ The page loads three.js from jsDelivr, so it needs an internet connection.
 - Folder and type filters use the object path. `SM_` is a static mesh (the usual choice for placeable pieces). `SK_` is a skeletal (animated) mesh.
 - Stars are kept in your browser for this page.
 
+## Save Editor (/character)
+
+`character.html` edits a character save (`%LOCALAPPDATA%\RSDragonwilds\Saved\SaveCharacters\<name>.json`) in the browser:
+spellbooks (4 wheels of 12, `GameProgress.Spellcasting.SelectedSpells`, "" is an empty slot), unlocked spells and recipes
+(`GameProgress.Progress.SpellsUnlocked` / `RecipesUnlocked`, plus the `...New` lists that show the "new" badge in game).
+Names and icons come from `/gamedata/` (see `gamedata/README.md`); ids are the game's persistence ids.
+
+The save is plain JSON in Unreal's own layout (CRLF, tabs, objects' braces on their own line, floats with 17 digits), which
+`JSON.stringify` can't reproduce. `character-save.js` parses the file while remembering where every value sits and, on save,
+rewrites only the values that changed, so the rest of the file stays byte-identical. Before the first write it copies the
+original to `SaveCharacters\Ashenfallen backups\` (or downloads it) and into the browser's IndexedDB. `npm test` runs its tests.
+
 ## Hosting it online (Railway)
 
 `server.js` is a small no-dependency web server for the viewer. Railway builds it from this repo on every push, and the model data lives on a Railway volume at `/data`.

@@ -40,6 +40,44 @@ public static class PieceTools
                 Console.WriteLine(f.Path);
             return 0;
         }
+        if (mode == "pieces-scan")
+        {
+            var uassets = p.Files.Values.Where(f => f.Extension.Equals("uasset", StringComparison.OrdinalIgnoreCase)).ToList();
+            Console.WriteLine($"Total uasset files: {uassets.Count}");
+            var groups = uassets.GroupBy(f => {
+                var name = Path.GetFileNameWithoutExtension(f.Path);
+                var prefix = name.Contains('_') ? name.Substring(0, name.IndexOf('_') + 1) : "Other";
+                return prefix;
+            }).OrderByDescending(g => g.Count());
+            Console.WriteLine("Top Asset Prefixes:");
+            foreach (var g in groups.Take(25))
+                Console.WriteLine($"  {g.Key,-15} : {g.Count()}");
+
+            var smFiles = uassets.Where(f => Path.GetFileName(f.Path).StartsWith("SM_", StringComparison.OrdinalIgnoreCase)).ToList();
+            Console.WriteLine($"Total SM_ static meshes: {smFiles.Count}");
+            var smRoots = smFiles.GroupBy(f => f.Path.Split('/')[0]).OrderByDescending(g => g.Count());
+            foreach (var r in smRoots)
+                Console.WriteLine($"  SM_ root {r.Key,-20}: {r.Count()}");
+
+            var skFiles = uassets.Where(f => Path.GetFileName(f.Path).StartsWith("SK_", StringComparison.OrdinalIgnoreCase)).ToList();
+            Console.WriteLine($"Total SK_ skeletal meshes: {skFiles.Count}");
+            var skRoots = skFiles.GroupBy(f => f.Path.Split('/')[0]).OrderByDescending(g => g.Count());
+            foreach (var r in skRoots)
+                Console.WriteLine($"  SK_ root {r.Key,-20}: {r.Count()}");
+
+            var bpFiles = uassets.Where(f => Path.GetFileName(f.Path).StartsWith("BP_", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(f.Path).StartsWith("B_", StringComparison.OrdinalIgnoreCase)).ToList();
+            Console.WriteLine($"Total BP_/B_ blueprints: {bpFiles.Count}");
+
+            var vfxFiles = uassets.Where(f => Path.GetFileName(f.Path).StartsWith("NS_", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(f.Path).StartsWith("FXS_", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(f.Path).StartsWith("PS_", StringComparison.OrdinalIgnoreCase) || f.Path.Contains("/VFX/", StringComparison.OrdinalIgnoreCase)).ToList();
+            Console.WriteLine($"Total VFX/Niagara/Emitter files: {vfxFiles.Count}");
+
+            var chestFiles = uassets.Where(f => f.Path.Contains("Chest", StringComparison.OrdinalIgnoreCase)).ToList();
+            Console.WriteLine($"Chest-related assets: {chestFiles.Count}");
+            foreach (var c in chestFiles.Take(25))
+                Console.WriteLine($"  Chest asset: {c.Path}");
+
+            return 0;
+        }
         if (mode == "pieces-dump")
         {
             var pkg = p.LoadPackage(a[2]);

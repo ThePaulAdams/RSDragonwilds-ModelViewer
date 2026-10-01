@@ -100,7 +100,7 @@
     <h1><a href="/">&#9670; <span>Ashenfallen</span></a> Base Builder</h1>
     <div class="group">
       <button id="saveBtn" title="Show your base from your save file (Wilds.sav). Read only: the save is never changed.">Open save</button>
-      <button id="connectBtn" class="primary" title="Pick your RSDragonwilds game folder (or ue4ss\Mods\CustomBuilds)">Connect game folder</button>
+      <button id="connectBtn" class="primary" title="Pick your RSDragonwilds game root folder (Steam > Manage > Browse local files). Works automatically with root folder or mod folder!">Connect game folder</button>
       <span id="sync">Not connected: changes stay in this page until you connect or export.</span>
     </div>
     <div class="grow"></div>
@@ -196,19 +196,19 @@
 
 <div id="help" hidden><div>
   <h3>Build your base here, see it in your game</h3>
-  <p class="muted">Needs the <b>Custom Builds</b> mod (in the RuneScape: Dragonwilds Toolkit) and Chrome or Edge.</p>
-  <p><b>Just looking?</b> Click <b>Open save</b> and pick <code>Wilds.sav</code> from <code>%LOCALAPPDATA%\RSDragonwilds\Saved\SaveGames</code> to see your base in 3D. The save is only read, never changed, and nothing is uploaded. The ground, rocks and buildings around your base come from the game's own map (see <b>World</b> on the right).</p>
-  <p><b>To build:</b></p>
+  <p class="muted">Works with or without mods. Live in-game sync needs the <b>Custom Builds</b> mod (in the RuneScape: Dragonwilds Toolkit) and Chrome or Edge.</p>
+  <p><b>Load your game save (No mods needed):</b> Click <b>Open save</b> and pick <code>Wilds.sav</code> from <code>%LOCALAPPDATA%\RSDragonwilds\Saved\SaveGames</code>. Your full base loads instantly in 3D right where you built it, surrounded by the real game terrain and world map. The save is only read, never modified.</p>
+  <p><b>To build and sync with your game:</b></p>
   <ol>
-    <li>In the game, stand where you want to build (or aim at the spot) and type <code>cb anchor</code> in the UE4SS console (F10). That saves the spot and your building pieces around it.</li>
-    <li>Here, click <b>Connect game folder</b> and pick your <code>RSDragonwilds</code> game folder (Steam: right-click the game, Manage, Browse local files). A backup of your placed models is made first. Allow editing when the browser asks.</li>
-    <li>Your anchor shows as a gold marker and your base as grey shapes. Pick models on the left and click to place them.</li>
-    <li>Every change is saved into the mod's <code>placed.txt</code> and appears in the game within a couple of seconds. Things you place, move or delete in the game show up here too.</li>
+    <li>Click <b>Connect game folder</b> and pick your main <code>RSDragonwilds</code> game folder (Steam: right-click game &gt; Manage &gt; Browse local files). The builder automatically locates your mod directory or saves <code>placed.txt</code> right there.</li>
+    <li>In the game, stand where you want to build and type <code>cb anchor</code> in the console (F10) to save your position.</li>
+    <li>Pick models from the library (or click any world object to eyedropper it) and place them down. Every change saves into <code>placed.txt</code> and updates live in your game!</li>
   </ol>
   <h3>Controls</h3>
   <p class="muted">
-    <b>Click</b> place / select &nbsp; <b>Drag</b> orbit &nbsp; <b>Right drag</b> pan &nbsp; <b>Wheel</b> zoom<br>
-    <kbd>W</kbd> move &nbsp; <kbd>E</kbd> rotate &nbsp; <kbd>R</kbd> scale &nbsp; <kbd>G</kbd> grid snap &nbsp; <kbd>M</kbd> magnet connect &nbsp; <kbd>F</kbd> focus<br>
+    <b>Click</b> place / select &nbsp; <b>Click world object</b> Eyedropper pick &nbsp; <kbd>Alt</kbd>+<b>Click world object</b> Clone into base<br>
+    <b>Drag</b> orbit &nbsp; <b>Right drag</b> pan &nbsp; <b>Wheel</b> zoom &nbsp; <kbd>F</kbd> focus<br>
+    <kbd>W</kbd> move &nbsp; <kbd>E</kbd> rotate &nbsp; <kbd>R</kbd> scale &nbsp; <kbd>G</kbd> grid snap &nbsp; <kbd>M</kbd> magnet connect<br>
     <kbd>Q</kbd> / <kbd>E</kbd> rotate step &nbsp; <kbd>T</kbd> turn 90° &nbsp; <kbd>End</kbd> drop to floor &nbsp; <kbd>Alt</kbd> bypass snap / duplicate drag<br>
     <kbd>Arrows</kbd> nudge &nbsp; <kbd>Shift+Arrows</kbd> fine rotate &nbsp; <kbd>Delete</kbd> delete &nbsp; <kbd>Ctrl+D</kbd> duplicate &nbsp; <kbd>Ctrl+Z</kbd> undo
   </p>
@@ -859,6 +859,43 @@ renderer.domElement.addEventListener('pointerup', e => {
   const hit = ray.intersectObjects(placedGroup.children, true)[0];
   let id = null;
   if (hit) for (let o = hit.object; o; o = o.parent) if (o.userData.id) { id = o.userData.id; break; }
+
+  // World object interaction: click to eyedropper pick, Alt+click to clone directly into placed base!
+  if (!id && worldGroup.visible && worldGroup.children.length) {
+    const worldHit = ray.intersectObjects(worldGroup.children, false)[0];
+    if (worldHit && worldHit.object?.userData?.model) {
+      const wm = worldHit.object.userData.model;
+      const rows = worldHit.object.userData.rows;
+      const row = (rows && worldHit.instanceId != null) ? rows[worldHit.instanceId] : null;
+
+      if (e.altKey && row) {
+        pushUndo();
+        const cloneId = newId();
+        const rot = quatToRot({ x: row[4], y: row[5], z: row[6], w: row[7] });
+        const r = {
+          X: row[1], Y: row[2], Z: row[3],
+          Yaw: rot.yaw, Pitch: rot.pitch, Roll: rot.roll,
+          Scale: row[8] || 1,
+          Mesh: wm.path,
+          Base: ''
+        };
+        records.set(cloneId, r);
+        spawn(cloneId, r);
+        refreshList();
+        changed();
+        addRecent(wm);
+        select(cloneId);
+        toast(`Cloned "${wm.title}" from world into base! (Move it closer with gizmo)`);
+        return;
+      }
+
+      setPicked(wm);
+      addRecent(wm);
+      toast(`Eyedropper: Picked "${wm.title}" from world (Click to place, or Alt+Click to clone in-place)`);
+      return;
+    }
+  }
+
   select(id);
 });
 
@@ -1183,11 +1220,12 @@ function terrainMesh(t, h) {
 }
 const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
 // Every copy of one world mesh as instanced meshes (one per part of the model).
-function addInstances(root, rows) {
+function addInstances(root, rows, m) {
   root.updateMatrixWorld(true);
   root.traverse(o => {
     if (!o.isMesh) return;
     const im = new THREE.InstancedMesh(o.geometry, o.material, rows.length);
+    im.userData = { model: m, rows };
     rows.forEach((r, i) => {
       _p.copy(toScene(r[1], r[2], r[3]));
       _s.set(r[8], r[10], r[9]);
@@ -1244,7 +1282,7 @@ async function loadWorld() {
     for (const [mi, rows] of byMesh) {
       const m = modelFor(w.meshes[mi]); if (!m) continue;
       objects += rows.length;
-      loadMesh(m).then(root => { if (token === worldToken) addInstances(root, rows); }).catch(() => { });
+      loadMesh(m).then(root => { if (token === worldToken) addInstances(root, rows, m); }).catch(() => { });
     }
   }
   if (token !== worldToken) return;
@@ -1295,17 +1333,47 @@ setInterval(async () => {
   status(`Updated from the game ${new Date().toLocaleTimeString()}`, 'ok');
 }, 2000);
 
-// Accept the game folder or any folder on the way down to the mod (Binaries, Win64, ue4ss, Mods, CustomBuilds).
-const MOD_PATH = ['RSDragonwilds', 'Binaries', 'Win64', 'ue4ss', 'Mods', 'CustomBuilds'];
+// Accept the game root folder (e.g. Steam's RSDragonwilds) or any subfolder down to CustomBuilds.
 async function findModDir(h) {
-  const isMod = async d => { for (const n of ['models.txt', 'models-all.txt', 'placed.txt']) { try { await d.getFileHandle(n); return true; } catch { } } return false; };
-  if (await isMod(h)) return h;
-  for (let i = 0; i < MOD_PATH.length; i++) {
-    let d = h;
-    try { for (const n of MOD_PATH.slice(i)) d = await d.getDirectoryHandle(n); } catch { continue; }
-    if (await isMod(d)) return d;
+  if (h.name?.toLowerCase() === 'custombuilds') return { dir: h, isMod: true };
+
+  // Known subfolder sequences down to CustomBuilds from various root depths
+  const modPaths = [
+    ['RSDragonwilds', 'Binaries', 'Win64', 'ue4ss', 'Mods', 'CustomBuilds'],
+    ['Binaries', 'Win64', 'ue4ss', 'Mods', 'CustomBuilds'],
+    ['Win64', 'ue4ss', 'Mods', 'CustomBuilds'],
+    ['ue4ss', 'Mods', 'CustomBuilds'],
+    ['Mods', 'CustomBuilds'],
+    ['CustomBuilds']
+  ];
+
+  for (const chain of modPaths) {
+    try {
+      let d = h;
+      for (const seg of chain) d = await d.getDirectoryHandle(seg);
+      if (d) return { dir: d, isMod: true };
+    } catch {}
   }
-  return null;
+
+  // If ue4ss/Mods exists in game root, auto-create CustomBuilds folder
+  const ue4ssPaths = [
+    ['RSDragonwilds', 'Binaries', 'Win64', 'ue4ss', 'Mods'],
+    ['Binaries', 'Win64', 'ue4ss', 'Mods'],
+    ['ue4ss', 'Mods']
+  ];
+  for (const chain of ue4ssPaths) {
+    try {
+      let d = h;
+      for (const seg of chain) d = await d.getDirectoryHandle(seg);
+      if (d) {
+        const modDir = await d.getDirectoryHandle('CustomBuilds', { create: true });
+        return { dir: modDir, isMod: true };
+      }
+    } catch {}
+  }
+
+  // Fallback: It's an unmodded game root or custom folder. Accept it!
+  return { dir: h, isMod: false };
 }
 $('connectBtn').onclick = async () => {
   if (!window.showDirectoryPicker) {
@@ -1316,9 +1384,8 @@ $('connectBtn').onclick = async () => {
   }
   try {
     const picked = await window.showDirectoryPicker({ id: 'custombuilds', mode: 'readwrite' });
-    const found = await findModDir(picked);
-    if (!found) { status('Custom Builds isn\'t in that folder. Pick your RSDragonwilds game folder (with the mod installed).', 'bad'); return; }
-    dir = found;
+    const res = await findModDir(picked);
+    dir = res.dir;
     // A copy of placed.txt as it was before this page touched it.
     let backup = '';
     const before = await readText('placed.txt');
@@ -1328,7 +1395,11 @@ $('connectBtn').onclick = async () => {
     }
     await loadFromFolder();
     $('connectBtn').textContent = 'Reconnect';
-    status(`Connected: ${records.size} placed models. Changes go straight into the game.` + (backup ? ` Backup: ${backup}` : ''), 'ok');
+    if (res.isMod) {
+      status(`Connected: ${records.size} placed models. Changes go straight into the game.` + (backup ? ` Backup: ${backup}` : ''), 'ok');
+    } else {
+      status(`Connected to game folder! Saved placed.txt. (Note: Install the Custom Builds mod to spawn placed models in-game).`, 'ok');
+    }
   } catch (e) { if (e.name !== 'AbortError') status('Could not open the folder: ' + e.message, 'bad'); dir = null; }
 };
 

@@ -315,9 +315,14 @@ createServer(async (req, res) => {
         'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
       return res.end(req.method === 'HEAD' ? undefined : body);
     }
-    if (path.startsWith('/gamedata/')) {
-      const file = inside(join(APP, 'gamedata'), path.slice(10));
-      if (!file || file.endsWith('.md')) return send(res, 404, 'Not found');
+    // Game data shared by every tool (see gamedata/README.md): /gamedata/<file>, and /gamedata.json, the combined file
+    // the crafting planner reads. The copy in the repo deploys with the code; a copy uploaded to DATA_DIR/gamedata wins.
+    if (path === '/gamedata.json' || path.startsWith('/gamedata/')) {
+      const rel = path === '/gamedata.json' ? 'gamedata.json' : path.slice(10);
+      if (rel.endsWith('.md')) return send(res, 404, 'Not found');
+      let file = inside(join(DATA, 'gamedata'), rel);
+      if (file && !(await stat(file).catch(() => null))?.isFile()) file = inside(join(APP, 'gamedata'), rel);
+      if (!file) return send(res, 404, 'Not found');
       // JSON changes with each game update; icons keep their name, so they can be cached for a week.
       return sendFile(req, res, file, file.endsWith('.json') ? 'public, max-age=300' : 'public, max-age=604800');
     }

@@ -185,7 +185,7 @@ async function json(name) {
 
 async function load() {
   const [meta, items, enemies, chests, tables] = await Promise.all(
-    ['meta.json', 'items.json', 'enemies.json', 'chests.json', 'loottables.json'].map(n => json(n).catch(() => n === 'meta.json' ? {} : [])));
+    ['version.json', 'items.json', 'enemies.json', 'chests.json', 'loottables.json'].map(n => json(n).catch(() => n === 'version.json' ? {} : [])));
   D.meta = meta;
   for (const it of items) D.items.set(it.id, it);
   for (const t of tables) D.tables.set(t.id, t);
@@ -203,7 +203,7 @@ async function load() {
   for (const it of D.items.values()) if (D.dropsOf.has(it.id)) D.index.push({ kind: 'item', key: 'item:' + it.id, name: it.name || it.id, f: fold(it.name + ' ' + it.id), ref: it });
   for (const s of D.sources.values()) D.index.push({ kind: s.kind, key: s.key, name: s.name || s.id, f: fold(s.name + ' ' + s.id), ref: s });
   D.index.sort((a, b) => a.name.localeCompare(b.name));
-  if (meta.gameVersion) $('#ver').textContent = ` (game version ${meta.gameVersion})`;
+  if (meta.game) $('#ver').textContent = ` (game version ${meta.game})`;
   // Which models the viewer has, so items and enemies can link to their 3D model.
   fetch('/assets/models.json').then(r => r.ok ? r.json() : null).then(m => {
     for (const x of m?.Models || []) D.models.add(x.File.split('/').pop().replace(/\.glb$/i, '').toLowerCase());
@@ -251,12 +251,12 @@ function dropsFor(src) {
 const itemName = id => D.items.get(id)?.name || id;
 function iconHtml(item, big) {
   const cls = 'icon' + (big ? ' big' : '');
-  if (item?.icon) return `<span class="${cls}"><img src="/gamedata/icons/${encodeURIComponent(item.icon)}" alt="" loading="lazy" onerror="this.remove()"></span>`;
+  if (item?.icon) return `<span class="${cls}"><img src="/gamedata/${item.icon.split('/').map(encodeURIComponent).join('/')}" alt="" loading="lazy" onerror="this.remove()"></span>`;
   return `<span class="${cls}" aria-hidden="true">&#9670;</span>`;
 }
 function srcIcon(s, big) {
   const cls = 'icon' + (big ? ' big' : '');
-  if (s.icon) return `<span class="${cls}"><img src="/gamedata/icons/${encodeURIComponent(s.icon)}" alt="" loading="lazy" onerror="this.remove()"></span>`;
+  if (s.icon) return `<span class="${cls}"><img src="/gamedata/${s.icon.split('/').map(encodeURIComponent).join('/')}" alt="" loading="lazy" onerror="this.remove()"></span>`;
   return `<span class="${cls}" aria-hidden="true">${s.kind === 'chest' ? '&#9635;' : '&#9760;'}</span>`;
 }
 const modelLink = name => name && D.models.has(name.toLowerCase()) ? `<a class="chip" href="/model/${encodeURIComponent(name)}">View in 3D &rarr;</a>` : '';

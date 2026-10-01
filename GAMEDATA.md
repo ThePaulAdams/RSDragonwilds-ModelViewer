@@ -11,14 +11,14 @@ Ids are the game's own `PersistenceID` (22-char base64url, what save files store
 | skills.json | `SKILL_*` (incl. deprecated ones, flagged): id (PersistenceID, the id used in saves), asset, name, maxLevel, icon; `xpTable[i]` = cumulative XP to reach level i+1 (row `XPByLevel_011`; the game picks its row natively, so every `CT_XPByLevel` row is in `xpTables`) |
 | perks.json | `PerkV2_*` skill perks: skill, level required, recipes unlocked |
 | runecrafting.json | Rune altar: per-rune recipe (runes per essence, extra-rune chance, seconds, XP per craft, unlock level, bonus-yield perk) plus the Runecrafting perks |
-
-Recipes also carry `level` / `levelSkill` (from the perk that unlocks them, else from skill-level progression bundles); recipes with neither have no level requirement in the data.
 | spells.json | `USD_*` utility spells: id (PersistenceID, else asset), name, icon, cooldown (s), castType, requirements, costs `[{item,count}]`, xpEvent, raw |
 | quests.json | `Quest_*`: id, name, description, main, activity, objectives `[{key,text}]` (the data has no reward fields; rewards are scripted in the quest blueprints) |
 | loottables.json | see below |
 | enemies.json | one per `BP_AI_*_Character`: id, name (from the AI data asset; `nameFromAsset:true` when guessed from the asset name), difficulty, tags, lootRow, lootTables, lootByPowerLevel, model |
 | chests.json | one per `DT_LootChest_RespawnProfiles` row: id, respawnSeconds (in-game time), respawnTrigger, lootTables |
 | version.json / meta.json | game build (from the Mappings file name), extraction time, counts |
+
+Recipes also carry `level` / `levelSkill` (from the perk that unlocks them, else from skill-level progression bundles); recipes with neither have no level requirement in the data.
 
 ## Loot structure (as the game defines it)
 

@@ -155,6 +155,8 @@
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
   .skill.changedrow { border-color: rgba(240, 195, 106, .7); }
   .skill b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .skill .sname { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .skill .sname img { width: 28px; height: 28px; flex: none; }
   .skill input { width: 100%; }
   .skill .bar { height: 6px; border-radius: 999px; background: var(--panel2); overflow: hidden; }
   .skill .bar i { display: block; height: 100%; background: var(--accent); }
@@ -401,7 +403,7 @@ const BOOKS = 4, PER_BOOK = 12;
 const BACKUP_DIR = 'Ashenfallen backups';
 
 // ---------- game data ----------
-const cat = { spells: new Map(), recipes: new Map(), items: new Map(), skills: new Map(), xpTable: [], version: null, loaded: false };
+const cat = { spells: new Map(), recipes: new Map(), items: new Map(), skills: new Map(), xpTable: [], perks: new Map(), version: null, loaded: false };
 const iconUrl = icon => (icon ? '/gamedata/' + String(icon).replace(/^\/+/, '') : '');
 async function getJson(name) {
   try { const r = await fetch('/gamedata/' + name); return r.ok ? await r.json() : null; } catch { return null; }
@@ -419,7 +421,10 @@ function norm(e) {
 // Spells carry their skill only as a tag icon: ".../T_Icon_Tag_Skill_Agility.T_Icon_Tag_Skill_Agility" -> "Agility".
 const spellSchool = s => s.school || (/T_Icon_Tag_Skill_([A-Za-z]+)/.exec(s.raw?.SpellTagIcon?.AssetPathName || '') || [])[1] || null;
 async function loadData() {
-  const [spells, recipes, items, version, skills] = await Promise.all(['spells.json', 'recipes.json', 'items.json', 'version.json', 'skills.json'].map(getJson));
+  const [spells, recipes, items, version, skills, perks] = await Promise.all(['spells.json', 'recipes.json', 'items.json', 'version.json', 'skills.json', 'perks.json'].map(getJson));
+  // Perks by skill asset ("SKILL_Artisan"), in level order: what each level unlocks.
+  for (const p of perks || []) if (p.skill && p.level) (cat.perks.get(p.skill) || cat.perks.set(p.skill, []).get(p.skill)).push(p);
+  for (const list of cat.perks.values()) list.sort((a, b) => a.level - b.level);
   for (const s of skills?.skills || []) { const x = norm(s); if (x.id) cat.skills.set(x.id, x); }
   if (Array.isArray(skills?.xpTable)) cat.xpTable = skills.xpTable;
   for (const i of items || []) { const x = norm(i); if (x.id) cat.items.set(x.id, x); }
@@ -1014,6 +1019,12 @@ const maxLevel = () => cat.xpTable.length;
 const levelFor = xp => { let l = 1; for (let i = 0; i < cat.xpTable.length; i++) if (xp >= cat.xpTable[i]) l = i + 1; return l; };
 const xpFor = level => cat.xpTable[Math.max(0, Math.min(level, maxLevel()) - 1)] ?? 0;
 const skillName = (id, i) => cat.skills.get(id)?.name || `Skill ${i + 1}`;
+// "4 of 12 perks · next: Bark to Bones at 11"
+function perkLine(x) {
+  const list = cat.perks.get(cat.skills.get(x.Id)?.asset); if (!list?.length || !maxLevel()) return '';
+  const l = levelFor(x.Xp), got = list.filter(p => p.level <= l).length, next = list.find(p => p.level > l);
+  return `<br><small class="muted" title="${esc(list.map(p => `${p.level}: ${p.name}`).join('\n'))}">${got} of ${list.length} perks${next ? ` &middot; next: ${esc(next.name)} at ${next.level}` : ''}</small>`;
+}
 function renderSkills() {
   const lv = maxLevel() > 0;
   $('allLevel').max = maxLevel() || ''; $('allLevel').disabled = $('allLevelBtn').disabled = !lv;
@@ -1025,7 +1036,7 @@ function renderSkills() {
     const pct = next ? Math.round(((x.Xp - cur) / (next - cur)) * 100) : 100;
     const was = base.skills[i];
     return `<div class="skill${same(x, was) ? '' : ' changedrow'}" data-i="${i}">
-      <div><b>${esc(skillName(x.Id, i))}</b>${cat.skills.has(x.Id) ? '' : `<br><code style="font-size:11px">${esc(x.Id)}</code>`}</div>
+      <div class="sname">${cat.skills.get(x.Id)?.icon ? `<img src="${esc(iconUrl(cat.skills.get(x.Id).icon))}" alt="">` : ''}<div><b>${esc(skillName(x.Id, i))}</b>${cat.skills.has(x.Id) ? perkLine(x) : `<br><code style="font-size:11px">${esc(x.Id)}</code>`}</div></div>
       ${lv ? `<label class="muted">Level <input type="number" data-k="level" min="1" max="${maxLevel()}" value="${l}"></label>` : '<span></span>'}
       <div>${lv ? `<div class="bar" title="${next ? `${(next - x.Xp).toLocaleString('en')} XP to level ${l + 1}` : 'Max level'}"><i style="width:${pct}%"></i></div>` : ''}
         ${was && was.Xp !== x.Xp ? `<span class="was">was ${was.Xp.toLocaleString('en')} XP${lv ? ` (level ${levelFor(was.Xp)})` : ''}</span>` : ''}</div>

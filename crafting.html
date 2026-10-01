@@ -56,7 +56,11 @@
 <script type="module">
 import * as L from '/planner-lib.js';
 const $ = id => document.getElementById(id);
-const data = await (await fetch('/gamedata.json')).json();
+const data = await (async () => {
+  // Real extracted data is served by the game data route; fall back to the placeholder sample until it exists.
+  try { const r = await fetch('/gamedata/crafting.json'); if (r.ok) return await r.json(); } catch {}
+  return (await fetch('/sample-gamedata.json')).json();
+})();
 const ix = L.indexData(data);
 const name = id => L.itemName(ix, id);
 const st = id => data.stations?.[id]?.name || id;

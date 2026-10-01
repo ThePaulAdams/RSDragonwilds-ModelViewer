@@ -304,10 +304,7 @@ createServer(async (req, res) => {
     if (path === '/pieces.json') return sendFile(req, res, join(DATA, 'pieces.json'), 'public, max-age=3600');
     // Crafting planner and calculators: plain pages plus a shared logic module, stylesheet and the game data.
     if (path === '/planner-lib.js' || path === '/site.css') return sendFile(req, res, join(APP, 'static', path.slice(1)), 'public, max-age=300');
-    if (path === '/gamedata.json') {
-      const real = join(DATA, 'gamedata', 'gamedata.json');
-      return sendFile(req, res, (await stat(real).catch(() => null))?.isFile() ? real : join(APP, 'data', 'sample-gamedata.json'), 'public, max-age=300');
-    }
+    if (path === '/sample-gamedata.json') return sendFile(req, res, join(APP, 'data', 'sample-gamedata.json'), 'public, max-age=300');
     for (const [route, file] of [['/crafting', 'crafting.html'], ['/calculators', 'calculators.html']]) if (path === route) {
       const body = gzipSync(await readFile(join(APP, file)));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,

@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/">
+<title>Base Builder | Ashenfallen</title>
+<meta name="description" content="Design your RuneScape: Dragonwilds base in 3D with any of the game's 3,647 models, and send it straight into your game with the Custom Builds mod. Fan-made, not affiliated with Jagex.">
+<meta name="theme-color" content="#14161a">
+<link rel="icon" href="/favicon.ico?v=1" sizes="48x48">
+<link rel="icon" href="/favicon-32.png?v=1" type="image/png" sizes="32x32">
+<style>
+  :root {
+    --bg: #14161a; --panel: #1c1f25; --panel2: #23272f; --line: #2f343d;
+    --text: #e6e6e6; --muted: #9aa3ae; --accent: #e0b64a; --accent2: #6cb4ff; --ok: #6fcf7f; --bad: #ff8a80;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  button, select, input { font: inherit; color: var(--text); background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.on, button.primary { background: var(--accent); color: #1a1a1a; border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .45; cursor: default; }
+  #app { display: grid; grid-template-columns: 300px 1fr 280px; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel);
+    border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { margin: 0 8px 0 0; font-size: 16px; letter-spacing: .4px; white-space: nowrap; }
+  header h1 a { color: var(--text); text-decoration: none; }
+  header h1 span { color: var(--accent); }
+  header .grow { flex: 1; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  #sync { font-size: 12px; color: var(--muted); max-width: 360px; }
+  #sync.ok { color: var(--ok); }
+  #sync.bad { color: var(--bad); }
+  aside { min-height: 0; display: flex; flex-direction: column; background: var(--panel); }
+  #assets { border-right: 1px solid var(--line); }
+  #props { border-left: 1px solid var(--line); overflow-y: auto; padding: 12px; gap: 10px; }
+  #assets .top { padding: 10px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line); }
+  #assets input[type=search] { width: 100%; }
+  #assets select { width: 100%; }
+  #count { color: var(--muted); font-size: 12px; }
+  #grid { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: grid; grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: max-content; gap: 6px; align-content: start; }
+  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; cursor: grab; overflow: hidden; }
+  .card:hover { border-color: var(--accent); }
+  .card.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .card img { width: 100%; aspect-ratio: 1; display: block; background: #101216; object-fit: cover; }
+  .card .name { padding: 3px 5px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+  #more { grid-column: 1 / -1; color: var(--muted); text-align: center; padding: 8px; font-size: 12px; }
+  main { position: relative; min-width: 0; min-height: 0; }
+  main canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #tip { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: rgba(20, 22, 26, .92);
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 12px; color: var(--muted);
+    max-width: calc(100% - 24px); text-align: center; pointer-events: none; }
+  #tip b { color: var(--text); }
+  #toast { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--accent);
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; pointer-events: none; }
+  h2 { margin: 4px 0; font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  .field { display: grid; grid-template-columns: 52px 1fr; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+  .field input { width: 100%; padding: 4px 6px; }
+  #selName { font-weight: 600; word-break: break-all; }
+  #selPath { color: var(--accent2); font-size: 11px; word-break: break-all; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .muted { color: var(--muted); font-size: 12px; }
+  #list { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; }
+  #list div { padding: 3px 6px; border-radius: 4px; font-size: 12px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #list div:hover { background: var(--panel2); }
+  #list div.sel { background: var(--accent); color: #1a1a1a; }
+  #help { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: grid; place-items: center; padding: 16px; z-index: 10; }
+  #help > div { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; max-width: 620px;
+    max-height: calc(100vh - 32px); overflow-y: auto; }
+  #help h3 { margin: 0 0 6px; }
+  #help ol { padding-left: 20px; margin: 8px 0 14px; }
+  #help li { margin: 4px 0; }
+  #help code { color: var(--accent2); }
+  kbd { background: var(--panel2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 12px; }
+  @media (max-width: 1000px) { #app { grid-template-columns: 240px 1fr; } #props { display: none; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1><a href="/">&#9670; <span>Ashenfallen</span></a> Base Builder</h1>
+    <div class="group">
+      <button id="connectBtn" class="primary" title="Pick your game's ue4ss\Mods\CustomBuilds folder">Connect game folder</button>
+      <span id="sync">Not connected: changes stay in this page until you connect or export.</span>
+    </div>
+    <div class="grow"></div>
+    <div class="group" title="Gizmo mode">
+      <button id="modeMove" class="on" title="Move (W)">Move</button>
+      <button id="modeRotate" title="Rotate (E)">Rotate</button>
+      <button id="modeScale" title="Scale (R)">Scale</button>
+    </div>
+    <div class="group">
+      <button id="snapBtn" class="on" title="Snap to a 50 cm grid and 15° steps (G)">Snap</button>
+      <button id="dupBtn" title="Duplicate (Ctrl+D)">Duplicate</button>
+      <button id="delBtn" title="Delete (Delete)">Delete</button>
+      <button id="undoBtn" title="Undo (Ctrl+Z)">Undo</button>
+    </div>
+    <div class="group">
+      <button id="importBtn" title="Load a placed.txt file">Import</button>
+      <button id="exportBtn" title="Download placed.txt">Export</button>
+      <button id="helpBtn">Help</button>
+    </div>
+  </header>
+
+  <aside id="assets">
+    <div class="top">
+      <input id="search" type="search" placeholder="Search 3,647 models...">
+      <select id="folder"></select>
+      <div id="count"></div>
+    </div>
+    <div id="grid"></div>
+  </aside>
+
+  <main id="view">
+    <div id="tip">Pick a model on the left, then <b>click in the scene</b> to place it. <b>Click</b> a placed model to select it. Drag the gizmo to move or rotate.</div>
+    <div id="toast" hidden></div>
+  </main>
+
+  <aside id="props">
+    <h2>Selected</h2>
+    <div id="noSel" class="muted">Nothing selected.</div>
+    <div id="selBox" hidden>
+      <div id="selName"></div>
+      <div id="selPath"></div>
+      <div class="field"><span>East (m)</span><input id="fX" type="number" step="0.1"></div>
+      <div class="field"><span>North (m)</span><input id="fY" type="number" step="0.1"></div>
+      <div class="field"><span>Up (m)</span><input id="fZ" type="number" step="0.1"></div>
+      <div class="field"><span>Turn °</span><input id="fYaw" type="number" step="15"></div>
+      <div class="field"><span>Tilt °</span><input id="fPitch" type="number" step="15"></div>
+      <div class="field"><span>Roll °</span><input id="fRoll" type="number" step="15"></div>
+      <div class="field"><span>Size</span><input id="fScale" type="number" step="0.1" min="0.05"></div>
+    </div>
+    <h2>Placed <span id="placedCount" class="muted"></span></h2>
+    <div id="list"></div>
+    <h2>Base</h2>
+    <div class="muted" id="baseInfo">Connect the game folder to see your base and anchor.</div>
+    <label class="muted"><input id="showBase" type="checkbox" checked> Show my building pieces</label>
+  </aside>
+</div>
+
+<div id="help" hidden><div>
+  <h3>Build your base here, see it in your game</h3>
+  <p class="muted">Needs the <b>Custom Builds</b> mod (in the RuneScape: Dragonwilds Toolkit) and Chrome or Edge.</p>
+  <ol>
+    <li>In the game, stand where you want to build (or aim at the spot) and type <code>cb anchor</code> in the UE4SS console (F10). That saves the spot and your building pieces around it.</li>
+    <li>Here, click <b>Connect game folder</b> and pick <code>RSDragonwilds\Binaries\Win64\ue4ss\Mods\CustomBuilds</code>. Allow editing when the browser asks.</li>
+    <li>Your anchor shows as a gold marker and your base as grey shapes. Pick models on the left and click to place them.</li>
+    <li>Every change is saved into the mod's <code>placed.txt</code> and appears in the game within a couple of seconds. Things you place, move or delete in the game show up here too.</li>
+  </ol>
+  <h3>Controls</h3>
+  <p class="muted">
+    <b>Click</b> place / select &nbsp; <b>Drag</b> orbit &nbsp; <b>Right drag</b> pan &nbsp; <b>Wheel</b> zoom<br>
+    <kbd>W</kbd> move &nbsp; <kbd>E</kbd> rotate &nbsp; <kbd>R</kbd> scale &nbsp; <kbd>G</kbd> snap on/off &nbsp; <kbd>F</kbd> focus selection<br>
+    <kbd>Delete</kbd> delete &nbsp; <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate &nbsp; <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo &nbsp; <kbd>Esc</kbd> stop placing / deselect
+  </p>
+  <p class="muted">No game folder? Use <b>Export</b> to download <code>placed.txt</code> and copy it into that folder yourself (with the game closed).</p>
+  <div class="row"><button id="helpClose" class="primary">Got it</button></div>
+</div></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+const $ = id => document.getElementById(id);
+const gltfLoader = () => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+
+// ---------------------------------------------------------------------------
+// Data: the same models.json the viewer uses (assets/ on the site, export/ locally).
+// ---------------------------------------------------------------------------
+let DATA_BASE = 'export/', thumbBase = 'thumbs';
+try {
+  const r = await fetch('site-config.json', { cache: 'no-store' });
+  if (r.ok) { const c = await r.json(); if (c.assets) DATA_BASE = c.assets; thumbBase = c.thumbs || 'thumbs'; }
+} catch {}
+const enc = p => p.split('/').map(encodeURIComponent).join('/');
+
+// Viewer path "RSDragonwilds/Content/Art/X/SM_Y.SM_Y" -> game path "/Game/Art/X/SM_Y.SM_Y" (same rule as the mod).
+function gamePath(p) {
+  p = p.replace(/\\/g, '/');
+  if (!p.startsWith('/')) {
+    const m = p.match(/^([^/]+)\/Content\/(.+)$/);
+    p = m ? (m[1] === 'RSDragonwilds' ? '/Game/' : '/' + m[1] + '/') + m[2] : '/' + p;
+  }
+  if (!/\.[^/]+$/.test(p)) p += '.' + p.split('/').pop();
+  return p;
+}
+const pretty = n => n.replace(/^(SM|SK)_/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/\s+/g, ' ').trim();
+
+let models = [];
+const byGamePath = new Map();
+{
+  const data = await (await fetch(DATA_BASE + 'models.json', { cache: 'no-store' })).json();
+  for (const e of data.Models || []) {
+    const file = e.File.replace(/\\/g, '/');
+    const path = gamePath(e.ObjectPath);
+    const name = path.split('/').pop().split('.')[0];
+    const folder = path.split('/').slice(2, -1).filter(s => !/^(Art|Env|Meshes|Mesh)$/i.test(s)).slice(0, 2).join(' / ') || 'Other';
+    const materials = (e.Materials || []).map(x => ({
+      name: x.Name || '', diffuse: x.BaseColor ? DATA_BASE + enc(x.BaseColor.replace(/\\/g, '/')) : null,
+      normal: x.Normal ? DATA_BASE + enc(x.Normal.replace(/\\/g, '/')) : null, color: x.Color || null, masked: !!x.Masked }));
+    const m = { path, name, title: pretty(name), folder, url: DATA_BASE + enc(file),
+      thumb: DATA_BASE + thumbBase + '/' + enc(file.replace(/\.glb$/i, '.webp')), materials, search: (path + ' ' + pretty(name)).toLowerCase() };
+    models.push(m);
+    byGamePath.set(path.toLowerCase(), m);
+  }
+  models.sort((a, b) => a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name));
+}
+
+// ---------------------------------------------------------------------------
+// Game <-> scene coordinates. The game: centimetres, Z up, left-handed. The scene:
+// metres, Y up, right-handed, origin at the anchor. Swapping Y/Z flips handedness.
+// ---------------------------------------------------------------------------
+let anchor = { X: 0, Y: 0, Z: 0, Yaw: 0 };
+const toScene = (x, y, z) => new THREE.Vector3((x - anchor.X) / 100, (z - anchor.Z) / 100, (y - anchor.Y) / 100);
+const toGame = v => ({ X: v.x * 100 + anchor.X, Y: v.z * 100 + anchor.Y, Z: v.y * 100 + anchor.Z });
+const D = Math.PI / 180;
+// FRotator::Quaternion (degrees in, UE quaternion out).
+function rotToQuat(pitch, yaw, roll) {
+  const sp = Math.sin(pitch * D / 2), cp = Math.cos(pitch * D / 2), sy = Math.sin(yaw * D / 2), cy = Math.cos(yaw * D / 2);
+  const sr = Math.sin(roll * D / 2), cr = Math.cos(roll * D / 2);
+  return { x: cr * sp * sy - sr * cp * cy, y: -cr * sp * cy - sr * cp * sy, z: cr * cp * sy - sr * sp * cy, w: cr * cp * cy + sr * sp * sy };
+}
+// FQuat::Rotator.
+function quatToRot(q) {
+  const s = q.z * q.x - q.w * q.y;
+  const yaw = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)) / D;
+  if (s < -0.4999995) return { pitch: -90, yaw, roll: norm(-yaw - 2 * Math.atan2(q.x, q.w) / D) };
+  if (s > 0.4999995) return { pitch: 90, yaw, roll: norm(yaw - 2 * Math.atan2(q.x, q.w) / D) };
+  return { pitch: Math.asin(2 * s) / D, yaw, roll: Math.atan2(-2 * (q.w * q.x + q.y * q.z), 1 - 2 * (q.x * q.x + q.y * q.y)) / D };
+}
+const norm = a => { a %= 360; if (a > 180) a -= 360; if (a < -180) a += 360; return a; };
+// UE quaternion <-> three quaternion: the same axis swap (a reflection) -> vector part negated and swapped.
+const ueToThreeQuat = q => new THREE.Quaternion(-q.x, -q.z, -q.y, q.w);
+const threeToUeQuat = q => ({ x: -q.x, y: -q.z, z: -q.y, w: q.w });
+
+// ---------------------------------------------------------------------------
+// Records: the Custom Builds placed.txt format.
+// id|x|y|z|qx|qy|qz|qw|mesh|base=..;pitch=..;roll=..;scale=..  (qx..qw carry the yaw)
+// ---------------------------------------------------------------------------
+let records = new Map();       // id -> { X, Y, Z, Yaw, Pitch, Roll, Scale, Mesh, Base, extraLine? }
+let otherLines = [];           // lines this page doesn't understand: kept untouched
+const NUM = '([-\\d.e]+)';
+const LINE = new RegExp('^(m?\\d+)\\|' + Array(7).fill(NUM).join('\\|') + '\\|(.+)$');
+function parsePlaced(text) {
+  const out = new Map(), other = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(LINE);
+    if (!m) { if (line.trim() && !line.startsWith('#')) other.push(line); continue; }
+    const [, id, x, y, z, qx, qy, qz, qw, rest] = m;
+    const [mesh, extra = ''] = rest.split(/\|(.*)/s);
+    const r = { X: +x, Y: +y, Z: +z, Mesh: mesh, Pitch: 0, Roll: 0, Scale: 1, Base: '' };
+    const q = { x: +qx, y: +qy, z: +qz, w: +qw };
+    r.Yaw = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)) / D;
+    if (extra.includes('=')) for (const kv of extra.split(';')) {
+      const [k, v] = kv.split('=');
+      if (k === 'pitch') r.Pitch = +v || 0; else if (k === 'roll') r.Roll = +v || 0;
+      else if (k === 'scale') r.Scale = +v || 1; else if (k === 'base') r.Base = v || '';
+    } else r.Base = extra;
+    // Remember the mod's own line so untouched records are written back byte-for-byte
+    // (otherwise rounding differences would make the game respawn them).
+    Object.defineProperty(r, 'orig', { value: { line, sig: buildLine(id, r) }, writable: true });
+    out.set(id, r);
+  }
+  return { out, other };
+}
+const f2 = n => (Math.round(n * 100) / 100).toFixed(2), f6 = n => n.toFixed(6), g = n => String(Math.round(n * 1e4) / 1e4);
+function recordLine(id, r) {
+  const fresh = buildLine(id, r);
+  return r.orig && r.orig.sig === fresh ? r.orig.line : fresh;
+}
+function buildLine(id, r) {
+  const h = r.Yaw * D / 2;
+  return `${id}|${f2(r.X)}|${f2(r.Y)}|${f2(r.Z)}|${f6(0)}|${f6(0)}|${f6(Math.sin(h))}|${f6(Math.cos(h))}|${r.Mesh}|base=${r.Base || ''};pitch=${g(r.Pitch)};roll=${g(r.Roll)};scale=${g(r.Scale)}`;
+}
+function placedText() {
+  const lines = ['# CustomBuilds: piece id|x|y|z|qx|qy|qz|qw|mesh|base=..;pitch=..;roll=..;scale=.. Written by the Ashenfallen base builder.'];
+  for (const [id, r] of records) lines.push(recordLine(id, r));
+  return lines.concat(otherLines).join('\n') + '\n';
+}
+let idCounter = 0;
+const newId = () => 'm' + Math.floor(Date.now() / 1000) + String(idCounter++ % 1000).padStart(3, '0');
+
+// ---------------------------------------------------------------------------
+// Scene
+// ---------------------------------------------------------------------------
+const view = $('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+view.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b1e24);
+scene.fog = new THREE.Fog(0x1b1e24, 120, 400);
+const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 2000);
+camera.position.set(14, 11, 14);
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.target.set(0, 0, 0);
+orbit.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x50505a, 2.0));
+const sun = new THREE.DirectionalLight(0xffffff, 2.0); sun.position.set(30, 60, 20); scene.add(sun);
+const grid = new THREE.GridHelper(200, 400, 0x3a404b, 0x262a32);
+scene.add(grid);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ visible: false }));
+scene.add(ground);
+// The anchor: where "cb anchor" was used in the game.
+const anchorMark = new THREE.Group();
+anchorMark.add(new THREE.Mesh(new THREE.ConeGeometry(0.35, 1, 4), new THREE.MeshBasicMaterial({ color: 0xe0b64a })).translateY(0.5).rotateX(Math.PI));
+anchorMark.add(new THREE.Mesh(new THREE.RingGeometry(0.6, 0.75, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xe0b64a, side: THREE.DoubleSide })));
+scene.add(anchorMark);
+const placedGroup = new THREE.Group(); scene.add(placedGroup);
+const baseGroup = new THREE.Group(); scene.add(baseGroup);
+
+const gizmo = new TransformControls(camera, renderer.domElement);
+gizmo.setTranslationSnap(0.5); gizmo.setRotationSnap(15 * D); gizmo.setScaleSnap(0.05);
+gizmo.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if (!e.value) commitGizmo(); else pushUndo(); });
+gizmo.addEventListener('objectChange', () => { if (gizmo.mode === 'scale') { const o = gizmo.object; const s = o.scale.x; o.scale.set(s, s, s); } showSelection(); });
+scene.add(gizmo.getHelper());
+
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(view); resize();
+renderer.setAnimationLoop(() => { orbit.update(); renderer.render(scene, camera); });
+
+// ---------------------------------------------------------------------------
+// Model loading (shared cache; each placed copy is a clone)
+// ---------------------------------------------------------------------------
+const texLoader = new THREE.TextureLoader();
+const meshCache = new Map();
+async function loadTex(url, srgb) {
+  try { const t = await texLoader.loadAsync(url); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.flipY = false; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; }
+  catch { return null; }
+}
+function loadMesh(m) {
+  if (!meshCache.has(m.path)) meshCache.set(m.path, (async () => {
+    const root = (await gltfLoader().loadAsync(m.url)).scene;
+    const mats = [];
+    root.traverse(o => { if (o.isMesh) for (const mat of [].concat(o.material)) if (mat && !mats.includes(mat)) mats.push(mat); });
+    const byName = new Map(m.materials.map(x => [x.name.toLowerCase(), x]));
+    await Promise.all(mats.map(async (mat, i) => {
+      mat.side = THREE.DoubleSide; mat.vertexColors = false;
+      if ('metalness' in mat) { mat.metalness = 0; mat.roughness = 0.85; }
+      const e = byName.get((mat.name || '').toLowerCase()) || (mats.length === m.materials.length ? m.materials[i] : null);
+      if (!e) return;
+      const [map, normal] = await Promise.all([e.diffuse ? loadTex(e.diffuse, true) : null, e.normal ? loadTex(e.normal, false) : null]);
+      if (map) { mat.map = map; mat.color?.set(0xffffff); } else if (e.color) mat.color?.set('#' + e.color);
+      if (normal) mat.normalMap = normal;
+      if (e.masked) mat.alphaTest = 0.33;
+      mat.needsUpdate = true;
+    }));
+    return root;
+  })());
+  return meshCache.get(m.path);
+}
+// The exported .glb files are in metres and already Y-up; one game unit (cm) = 0.01 here.
+function placeholder() {
+  return new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x8a6d3b, wireframe: true }));
+}
+
+// ---------------------------------------------------------------------------
+// Placed objects
+// ---------------------------------------------------------------------------
+const objects = new Map();   // id -> Object3D
+function applyRecord(obj, r) {
+  obj.position.copy(toScene(r.X, r.Y, r.Z));
+  obj.quaternion.copy(ueToThreeQuat(rotToQuat(r.Pitch, r.Yaw, r.Roll)));
+  obj.scale.setScalar(r.Scale || 1);
+}
+function readObject(obj, r) {
+  Object.assign(r, toGame(obj.position));
+  const rot = quatToRot(threeToUeQuat(obj.quaternion));
+  r.Pitch = Math.round(rot.pitch * 100) / 100; r.Yaw = Math.round(rot.yaw * 100) / 100; r.Roll = Math.round(rot.roll * 100) / 100;
+  r.Scale = Math.round(obj.scale.x * 1e4) / 1e4;
+}
+function spawn(id, r) {
+  const obj = new THREE.Group();
+  obj.userData.id = id;
+  applyRecord(obj, r);
+  placedGroup.add(obj);
+  objects.set(id, obj);
+  const m = byGamePath.get(r.Mesh.toLowerCase());
+  if (!m) { obj.add(placeholder()); return obj; }
+  loadMesh(m).then(root => { if (objects.get(id) === obj) obj.add(root.clone(true)); }).catch(() => obj.add(placeholder()));
+  return obj;
+}
+function rebuildAll() {
+  select(null);
+  for (const o of objects.values()) placedGroup.remove(o);
+  objects.clear();
+  for (const [id, r] of records) spawn(id, r);
+  refreshList();
+}
+
+// ---------------------------------------------------------------------------
+// Selection, gizmo, list
+// ---------------------------------------------------------------------------
+let selected = null;   // id
+function select(id) {
+  selected = id && objects.has(id) ? id : null;
+  if (selected) gizmo.attach(objects.get(selected)); else gizmo.detach();
+  showSelection(); refreshList();
+}
+function showSelection() {
+  $('noSel').hidden = !!selected; $('selBox').hidden = !selected;
+  if (!selected) return;
+  const r = records.get(selected), obj = objects.get(selected);
+  const tmp = { ...r }; readObject(obj, tmp);
+  const m = byGamePath.get(r.Mesh.toLowerCase());
+  $('selName').textContent = m ? m.title : r.Mesh.split('/').pop();
+  $('selPath').textContent = r.Mesh;
+  const rel = obj.position;
+  $('fX').value = rel.x.toFixed(2); $('fY').value = rel.z.toFixed(2); $('fZ').value = rel.y.toFixed(2);
+  $('fYaw').value = tmp.Yaw.toFixed(1); $('fPitch').value = tmp.Pitch.toFixed(1); $('fRoll').value = tmp.Roll.toFixed(1); $('fScale').value = tmp.Scale;
+}
+for (const k of ['fX', 'fY', 'fZ', 'fYaw', 'fPitch', 'fRoll', 'fScale']) $(k).addEventListener('change', () => {
+  if (!selected) return;
+  pushUndo();
+  const obj = objects.get(selected), r = records.get(selected);
+  obj.position.set(+$('fX').value, +$('fZ').value, +$('fY').value);
+  readObject(obj, r);
+  r.Yaw = +$('fYaw').value; r.Pitch = +$('fPitch').value; r.Roll = +$('fRoll').value; r.Scale = Math.max(0.05, +$('fScale').value || 1);
+  applyRecord(obj, r);
+  changed();
+});
+function commitGizmo() {
+  if (!selected) return;
+  readObject(objects.get(selected), records.get(selected));
+  changed();
+}
+function refreshList() {
+  const list = $('list'); list.textContent = '';
+  $('placedCount').textContent = `(${records.size})`;
+  for (const [id, r] of records) {
+    const m = byGamePath.get(r.Mesh.toLowerCase());
+    const d = document.createElement('div');
+    d.textContent = m ? m.title : r.Mesh.split('/').pop();
+    if (id === selected) d.className = 'sel';
+    d.onclick = () => { select(id); focusSelected(); };
+    list.append(d);
+  }
+}
+function focusSelected() {
+  if (!selected) return;
+  const box = new THREE.Box3().setFromObject(objects.get(selected));
+  // Aim at the pivot (where the gizmo is); some game models sit far from their pivot.
+  const c = objects.get(selected).position.clone();
+  const size = box.isEmpty() ? 4 : box.getSize(new THREE.Vector3()).length();
+  orbit.target.copy(c);
+  camera.position.copy(c).add(new THREE.Vector3(1, 0.8, 1).normalize().multiplyScalar(Math.max(4, size * 1.4)));
+}
+
+// ---------------------------------------------------------------------------
+// Undo
+// ---------------------------------------------------------------------------
+const undoStack = [];
+function pushUndo() {
+  undoStack.push(new Map([...records].map(([k, v]) => [k, { ...v }])));
+  if (undoStack.length > 100) undoStack.shift();
+}
+function undo() {
+  const prev = undoStack.pop();
+  if (!prev) return toast('Nothing to undo');
+  records = prev; rebuildAll(); changed();
+}
+
+// ---------------------------------------------------------------------------
+// Placing: pick a model, then click in the scene
+// ---------------------------------------------------------------------------
+let picked = null;   // model to place
+let ghost = null;
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pointer(e) { const b = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1); ray.setFromCamera(ndc, camera); }
+function hitPoint() {
+  const hits = ray.intersectObjects([placedGroup, baseGroup, ground], true).filter(h => !ghost || !isInside(h.object, ghost));
+  return hits[0]?.point || null;
+}
+const isInside = (o, root) => { for (; o; o = o.parent) if (o === root) return true; return false; };
+function setPicked(m) {
+  picked = m;
+  for (const c of document.querySelectorAll('.card')) c.classList.toggle('sel', c.dataset.path === m?.path);
+  if (ghost) { scene.remove(ghost); ghost = null; }
+  if (!m) { $('tip').innerHTML = 'Pick a model on the left, then <b>click in the scene</b> to place it. <b>Click</b> a placed model to select it.'; return; }
+  select(null);
+  $('tip').innerHTML = `Placing <b>${m.title}</b>: click to place (keeps going), <b>Esc</b> to stop.`;
+  ghost = new THREE.Group(); scene.add(ghost);
+  loadMesh(m).then(root => {
+    if (picked !== m || !ghost) return;
+    const c = root.clone(true);
+    c.traverse(o => { if (o.isMesh) { o.material = [].concat(o.material).map(x => { const y = x.clone(); y.transparent = true; y.opacity = 0.5; y.depthWrite = false; return y; }); if (o.material.length === 1) o.material = o.material[0]; } });
+    ghost.add(c);
+  });
+}
+let ghostYaw = 0;
+renderer.domElement.addEventListener('pointermove', e => {
+  if (!ghost) return;
+  pointer(e);
+  const p = hitPoint();
+  ghost.visible = !!p;
+  if (p) {
+    if (snapOn) { p.x = Math.round(p.x * 2) / 2; p.z = Math.round(p.z * 2) / 2; }
+    ghost.position.copy(p);
+    ghost.quaternion.copy(ueToThreeQuat(rotToQuat(0, ghostYaw, 0)));
+  }
+});
+let down = null;
+renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down || e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4 || gizmo.dragging) return;
+  pointer(e);
+  if (picked && ghost?.visible) {
+    pushUndo();
+    const id = newId();
+    const r = { ...toGame(ghost.position), Yaw: ghostYaw, Pitch: 0, Roll: 0, Scale: 1, Mesh: picked.path, Base: '' };
+    records.set(id, r); spawn(id, r); refreshList(); changed();
+    return;
+  }
+  const hit = ray.intersectObjects(placedGroup.children, true)[0];
+  let id = null;
+  if (hit) for (let o = hit.object; o; o = o.parent) if (o.userData.id) { id = o.userData.id; break; }
+  select(id);
+});
+
+// ---------------------------------------------------------------------------
+// Asset browser
+// ---------------------------------------------------------------------------
+const folders = [...new Set(models.map(m => m.folder))].sort();
+$('folder').innerHTML = '<option value="">All folders</option>' + folders.map(f => `<option>${f.replace(/</g, '&lt;')}</option>`).join('');
+let filtered = [], shown = 0;
+function applyFilter() {
+  const q = $('search').value.trim().toLowerCase(), f = $('folder').value;
+  filtered = models.filter(m => (!f || m.folder === f) && (!q || q.split(/\s+/).every(w => m.search.includes(w))));
+  $('count').textContent = `${filtered.length.toLocaleString()} models`;
+  $('grid').textContent = ''; shown = 0; renderMore();
+}
+const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { io.unobserve(e.target); renderMore(); } }, { root: $('grid') });
+function renderMore() {
+  $('more')?.remove();
+  for (const m of filtered.slice(shown, shown + 90)) {
+    const c = document.createElement('div');
+    c.className = 'card' + (picked === m ? ' sel' : ''); c.dataset.path = m.path; c.title = m.title + '\n' + m.path;
+    c.innerHTML = `<img loading="lazy" alt=""><div class="name"></div>`;
+    c.querySelector('img').src = m.thumb;
+    c.querySelector('.name').textContent = m.title;
+    c.onclick = () => setPicked(picked === m ? null : m);
+    $('grid').append(c);
+  }
+  shown += 90;
+  if (shown < filtered.length) { const more = document.createElement('div'); more.id = 'more'; more.textContent = 'Loading more...'; $('grid').append(more); io.observe(more); }
+}
+$('search').addEventListener('input', applyFilter);
+$('folder').addEventListener('change', applyFilter);
+applyFilter();
+
+// ---------------------------------------------------------------------------
+// Game folder sync (File System Access API: Chrome / Edge)
+// ---------------------------------------------------------------------------
+let dir = null, lastText = null, writeTimer = null;
+function status(text, cls) { const s = $('sync'); s.textContent = text; s.className = cls || ''; }
+function toast(text) { const t = $('toast'); t.textContent = text; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2200); }
+async function readText(name) {
+  try { return await (await (await dir.getFileHandle(name)).getFile()).text(); } catch { return null; }
+}
+async function writeText(name, text) {
+  const w = await (await dir.getFileHandle(name, { create: true })).createWritable();
+  await w.write(text); await w.close();
+}
+function changed() {
+  showSelection();
+  refreshList();
+  if (!dir) { status('Not connected: export placed.txt or connect the game folder to keep these changes.', 'bad'); return; }
+  clearTimeout(writeTimer);
+  writeTimer = setTimeout(save, 400);
+}
+async function save() {
+  if (!dir) return;
+  const text = placedText();
+  try {
+    const old = await readText('placed.txt');
+    if (old !== null) await writeText('placed.txt.bak', old);
+    await writeText('placed.txt', text);
+    lastText = text;
+    status(`Saved ${records.size} models to the game folder ${new Date().toLocaleTimeString()}`, 'ok');
+  } catch (e) { status('Could not save: ' + e.message, 'bad'); }
+}
+async function loadFromFolder() {
+  const a = await readText('anchor.txt');
+  if (a) {
+    const line = a.split(/\r?\n/).find(l => /^-?[\d.]+\|/.test(l));
+    if (line) { const [x, y, z, yaw] = line.split('|').map(Number); anchor = { X: x, Y: y, Z: z, Yaw: yaw || 0 }; }
+  }
+  const text = await readText('placed.txt');
+  if (text !== null) { const p = parsePlaced(text); records = p.out; otherLines = p.other; lastText = text; }
+  // Start with the camera looking the way the player looked when setting the anchor.
+  const back = toScene(anchor.X - Math.cos(anchor.Yaw * D) * 1600, anchor.Y - Math.sin(anchor.Yaw * D) * 1600, anchor.Z + 900);
+  camera.position.copy(back); orbit.target.set(0, 0, 0);
+  rebuildAll();
+  await loadBase();
+  $('baseInfo').textContent = a ? `Anchor at ${anchor.X.toFixed(0)}, ${anchor.Y.toFixed(0)}, ${anchor.Z.toFixed(0)} (game cm).` : 'No anchor yet: type "cb anchor" in the game console (F10), then reconnect.';
+}
+// The player's normal building pieces near the anchor (base.txt), as grey stand-ins.
+async function loadBase() {
+  baseGroup.clear();
+  const text = await readText('base.txt');
+  if (!text) return;
+  const greyMat = new THREE.MeshStandardMaterial({ color: 0x8c96a5, transparent: true, opacity: 0.55 });
+  let n = 0;
+  for (const line of text.split(/\r?\n/)) {
+    const p = line.split('|'); if (p.length < 5 || line.startsWith('#')) continue;
+    const [name, x, y, z, yaw] = [p[0], +p[1], +p[2], +p[3], +p[4]];
+    const obj = new THREE.Group();
+    obj.position.copy(toScene(x, y, z));
+    obj.quaternion.copy(ueToThreeQuat(rotToQuat(0, yaw, 0)));
+    const m = guessPieceModel(name);
+    if (m) loadMesh(m).then(root => { const c = root.clone(true); c.traverse(o => { if (o.isMesh) o.material = greyMat; }); obj.add(c); });
+    else obj.add(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), greyMat));
+    obj.userData.piece = name;
+    baseGroup.add(obj); n++;
+  }
+  $('baseInfo').textContent += ` ${n} building pieces shown.`;
+}
+// "DA_T2_Wall_Pallisades" / "BUILDPIECE_Chest" -> the mesh whose name shares the most words.
+const pieceCache = new Map();
+function guessPieceModel(piece) {
+  if (pieceCache.has(piece)) return pieceCache.get(piece);
+  const words = piece.replace(/^(BUILDPIECE_|DA_)/i, '').toLowerCase().split(/_+/).filter(w => w.length > 1);
+  let best = null, score = 0;
+  for (const m of models) {
+    if (!/base_?building|basebuilding/i.test(m.path)) continue;
+    const n = m.name.toLowerCase();
+    const s = words.filter(w => n.includes(w)).length;
+    if (s > score) { best = m; score = s; }
+  }
+  const r = score >= Math.max(2, Math.ceil(words.length * 0.6)) ? best : null;
+  pieceCache.set(piece, r);
+  return r;
+}
+$('showBase').addEventListener('change', e => baseGroup.visible = e.target.checked);
+
+// Pick up changes the game makes (placing, moving, deleting in game).
+setInterval(async () => {
+  if (!dir || document.hidden) return;
+  const text = await readText('placed.txt');
+  if (text === null || text === lastText) return;
+  lastText = text;
+  const p = parsePlaced(text); records = p.out; otherLines = p.other;
+  rebuildAll();
+  status(`Updated from the game ${new Date().toLocaleTimeString()}`, 'ok');
+}, 2000);
+
+$('connectBtn').onclick = async () => {
+  if (!window.showDirectoryPicker) { alert('Connecting a folder needs Chrome or Edge. You can still Export placed.txt and copy it into the CustomBuilds folder.'); return; }
+  try {
+    dir = await window.showDirectoryPicker({ id: 'custombuilds', mode: 'readwrite' });
+    if (!(await readText('models.txt')) && !(await readText('models-all.txt'))) {
+      status('That folder has no Custom Builds files. Pick ue4ss\\Mods\\CustomBuilds.', 'bad'); dir = null; return;
+    }
+    await loadFromFolder();
+    $('connectBtn').textContent = 'Reconnect';
+    status(`Connected: ${records.size} placed models. Changes go straight into the game.`, 'ok');
+  } catch (e) { if (e.name !== 'AbortError') status('Could not open the folder: ' + e.message, 'bad'); }
+};
+
+// Without a folder: download / load placed.txt by hand.
+$('exportBtn').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([placedText()], { type: 'text/plain' }));
+  a.download = 'placed.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('importBtn').onclick = () => {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.txt';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    pushUndo();
+    const p = parsePlaced(await f.text()); records = p.out; otherLines = p.other;
+    rebuildAll(); changed(); toast(`Loaded ${records.size} models`);
+  };
+  inp.click();
+};
+
+// ---------------------------------------------------------------------------
+// Buttons and keys
+// ---------------------------------------------------------------------------
+let snapOn = true;
+function setMode(mode) {
+  gizmo.setMode(mode);
+  for (const [b, m] of [['modeMove', 'translate'], ['modeRotate', 'rotate'], ['modeScale', 'scale']]) $(b).classList.toggle('on', m === mode);
+}
+function toggleSnap() {
+  snapOn = !snapOn; $('snapBtn').classList.toggle('on', snapOn);
+  gizmo.setTranslationSnap(snapOn ? 0.5 : null); gizmo.setRotationSnap(snapOn ? 15 * D : null); gizmo.setScaleSnap(snapOn ? 0.05 : null);
+}
+function del() {
+  if (!selected) return;
+  pushUndo();
+  const id = selected; select(null);
+  placedGroup.remove(objects.get(id)); objects.delete(id); records.delete(id);
+  changed();
+}
+function duplicate() {
+  if (!selected) return;
+  pushUndo();
+  const r = { ...records.get(selected) }; r.X += 100;
+  const id = newId(); records.set(id, r); spawn(id, r); select(id); changed();
+}
+$('modeMove').onclick = () => setMode('translate');
+$('modeRotate').onclick = () => setMode('rotate');
+$('modeScale').onclick = () => setMode('scale');
+$('snapBtn').onclick = toggleSnap;
+$('delBtn').onclick = del;
+$('dupBtn').onclick = duplicate;
+$('undoBtn').onclick = undo;
+$('helpBtn').onclick = () => $('help').hidden = false;
+$('helpClose').onclick = () => { $('help').hidden = true; try { localStorage.setItem('bb.helpSeen', '1'); } catch {} };
+try { if (!localStorage.getItem('bb.helpSeen')) $('help').hidden = false; } catch { $('help').hidden = false; }
+addEventListener('keydown', e => {
+  if (e.target.matches('input, select, textarea')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'escape') { if (picked) setPicked(null); else select(null); }
+  else if (k === 'delete' || k === 'backspace') { e.preventDefault(); del(); }
+  else if (k === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
+  else if (k === 'd' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); duplicate(); }
+  else if (k === 'w') setMode('translate');
+  else if (k === 'e') setMode('rotate');
+  else if (k === 'r') setMode('scale');
+  else if (k === 'g') toggleSnap();
+  else if (k === 'f') focusSelected();
+  else if (k === 'q' && picked) { ghostYaw = norm(ghostYaw - 15); }
+});
+addEventListener('beforeunload', e => { if (!dir && records.size) { e.preventDefault(); } });
+</script>
+</body>
+</html>

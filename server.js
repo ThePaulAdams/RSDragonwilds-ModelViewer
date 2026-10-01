@@ -217,7 +217,7 @@ createServer(async (req, res) => {
 
     if (path === '/robots.txt') return send(res, 200, `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`, { 'Cache-Control': 'public, max-age=86400' });
     if (path === '/sitemap.xml') {
-      const urls = [SITE_URL + '/', ...(await models()).list.map(x => SITE_URL + '/model/' + encodeURIComponent(x.slug))];
+      const urls = [SITE_URL + '/', SITE_URL + '/base-builder', ...(await models()).list.map(x => SITE_URL + '/model/' + encodeURIComponent(x.slug))];
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc></url>`).join('\n')}\n</urlset>\n`;
       return send(res, 200, xml, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=86400' });
     }
@@ -259,6 +259,12 @@ createServer(async (req, res) => {
     if (path === '/site-config.json') await previews();
     if (path === '/site-config.json') return send(res, 200, JSON.stringify({ name: SITE_NAME, login: !!PASSWORD, thumbs: thumbsDir, assets: 'assets/', hosted: true }), { 'Content-Type': 'application/json' });
     if (path === '/' || path === '/index.html') return sendPage(req, res, null);
+    if (path === '/base-builder' || path === '/basebuilder.html') {
+      const body = gzipSync(await readFile(join(APP, 'basebuilder.html')));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
+        'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
     if (path.startsWith('/model/')) {
       const model = (await models()).bySlug.get(decodeURIComponent(path.slice(7)).toLowerCase());
       if (!model) { res.writeHead(302, { Location: '/' }); return res.end(); }

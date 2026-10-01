@@ -15,6 +15,8 @@ using CUE4Parse_Conversion.Options;
 using CUE4Parse_Conversion.Writers.UEFormat.Enums;
 
 if (args.Length > 0 && args[0] == "types") { foreach (var n in args[1..]) { var t = typeof(CUE4Parse.FileProvider.DefaultFileProvider).Assembly.GetTypes().First(x => x.Name == n); Console.WriteLine(t.FullName); foreach (var m in t.GetMembers()) Console.WriteLine("  " + m); } return 0; }
+if (args.Length > 0 && args[0] == "gamedata") return GameData.Run(args[1..]);
+if (args.Length > 0 && args[0] == "gamedata-find") return GameData.Find(args[1..]);
 if (args.Length > 0 && args[0] == "world") return WorldTools.Run(args[1..]);
 if (args.Length > 0 && args[0].StartsWith("pieces")) return PieceTools.Run(args[0], args[1..]);
 if (args.Length > 0 && args[0] == "web") return WebTools.Build(args[1..]);

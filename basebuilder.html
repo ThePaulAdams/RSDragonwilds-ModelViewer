@@ -91,7 +91,8 @@
   <header>
     <h1><a href="/">&#9670; <span>Ashenfallen</span></a> Base Builder</h1>
     <div class="group">
-      <button id="connectBtn" class="primary" title="Pick your game's ue4ss\Mods\CustomBuilds folder">Connect game folder</button>
+      <button id="saveBtn" title="Show your base from your save file (Wilds.sav). Read only: the save is never changed.">Open save</button>
+      <button id="connectBtn" class="primary" title="Pick your RSDragonwilds game folder (or ue4ss\Mods\CustomBuilds)">Connect game folder</button>
       <span id="sync">Not connected: changes stay in this page until you connect or export.</span>
     </div>
     <div class="grow"></div>
@@ -144,17 +145,26 @@
     <h2>Placed <span id="placedCount" class="muted"></span></h2>
     <div id="list"></div>
     <h2>Base</h2>
-    <div class="muted" id="baseInfo">Connect the game folder to see your base and anchor.</div>
+    <div class="muted" id="baseInfo">Open your save to see your base, or connect the game folder.</div>
+    <select id="baseSel" hidden></select>
     <label class="muted"><input id="showBase" type="checkbox" checked> Show my building pieces</label>
+    <h2>World</h2>
+    <label class="muted"><input id="showTerrain" type="checkbox" checked> Ground</label>
+    <label class="muted"><input id="showWorld" type="checkbox" checked> Rocks, trees and buildings</label>
+    <label class="muted"><input id="showPlants" type="checkbox"> Flowers and small plants</label>
+    <div class="field"><span>Range</span><select id="worldRange"><option value="100">100 m</option><option value="200" selected>200 m</option><option value="400">400 m</option></select></div>
+    <div class="muted" id="worldInfo">Open your save or connect the game folder to see the world around your base.</div>
   </aside>
 </div>
 
 <div id="help" hidden><div>
   <h3>Build your base here, see it in your game</h3>
   <p class="muted">Needs the <b>Custom Builds</b> mod (in the RuneScape: Dragonwilds Toolkit) and Chrome or Edge.</p>
+  <p><b>Just looking?</b> Click <b>Open save</b> and pick <code>Wilds.sav</code> from <code>%LOCALAPPDATA%\RSDragonwilds\Saved\SaveGames</code> to see your base in 3D. The save is only read, never changed, and nothing is uploaded. The ground, rocks and buildings around your base come from the game's own map (see <b>World</b> on the right).</p>
+  <p><b>To build:</b></p>
   <ol>
     <li>In the game, stand where you want to build (or aim at the spot) and type <code>cb anchor</code> in the UE4SS console (F10). That saves the spot and your building pieces around it.</li>
-    <li>Here, click <b>Connect game folder</b> and pick <code>RSDragonwilds\Binaries\Win64\ue4ss\Mods\CustomBuilds</code>. Allow editing when the browser asks.</li>
+    <li>Here, click <b>Connect game folder</b> and pick your <code>RSDragonwilds</code> game folder (Steam: right-click the game, Manage, Browse local files). A backup of your placed models is made first. Allow editing when the browser asks.</li>
     <li>Your anchor shows as a gold marker and your base as grey shapes. Pick models on the left and click to place them.</li>
     <li>Every change is saved into the mod's <code>placed.txt</code> and appears in the game within a couple of seconds. Things you place, move or delete in the game show up here too.</li>
   </ol>
@@ -486,7 +496,7 @@ let ghost = null;
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function pointer(e) { const b = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1); ray.setFromCamera(ndc, camera); }
 function hitPoint() {
-  const hits = ray.intersectObjects([placedGroup, baseGroup, ground], true).filter(h => !ghost || !isInside(h.object, ghost));
+  const hits = ray.intersectObjects([placedGroup, baseGroup, terrainGroup, ground], true).filter(h => !ghost || !isInside(h.object, ghost));
   return hits[0]?.point || null;
 }
 const isInside = (o, root) => { for (; o; o = o.parent) if (o === root) return true; return false; };
@@ -601,38 +611,337 @@ async function loadFromFolder() {
   const a = await readText('anchor.txt');
   if (a) {
     const line = a.split(/\r?\n/).find(l => /^-?[\d.]+\|/.test(l));
-    if (line) { const [x, y, z, yaw] = line.split('|').map(Number); anchor = { X: x, Y: y, Z: z, Yaw: yaw || 0 }; }
+    if (line) { const [x, y, z, yaw] = line.split('|').map(Number); anchor = { X: x, Y: y, Z: z, Yaw: yaw || 0 }; anchorFromGame = true; }
   }
   const text = await readText('placed.txt');
   if (text !== null) { const p = parsePlaced(text); records = p.out; otherLines = p.other; lastText = text; }
+  if (!anchorFromGame && !savePieces && records.size) {
+    const mid = k => { const v = [...records.values()].map(r => r[k]).sort((a, b) => a - b); return v[v.length >> 1]; };
+    anchor = { X: mid('X'), Y: mid('Y'), Z: mid('Z'), Yaw: 0 };
+  }
   // Start with the camera looking the way the player looked when setting the anchor.
   const back = toScene(anchor.X - Math.cos(anchor.Yaw * D) * 1600, anchor.Y - Math.sin(anchor.Yaw * D) * 1600, anchor.Z + 900);
   camera.position.copy(back); orbit.target.set(0, 0, 0);
   rebuildAll();
   await loadBase();
+  loadWorld();
+  if (savePieces) { showBase(+$('baseSel').value || 0, false); return; }
+  if (!a && records.size) { $('baseInfo').textContent = 'Centred on your placed models. Type "cb anchor" in the game console to line up with a spot in game, or Open save to see your base.'; return; }
   $('baseInfo').textContent = a ? `Anchor at ${anchor.X.toFixed(0)}, ${anchor.Y.toFixed(0)}, ${anchor.Z.toFixed(0)} (game cm).` : 'No anchor yet: type "cb anchor" in the game console (F10), then reconnect.';
 }
-// The player's normal building pieces near the anchor (base.txt), as grey stand-ins.
-async function loadBase() {
+// ---------------------------------------------------------------------------
+// The player's own building pieces: from the save file (Wilds.sav) or the mod's base.txt.
+// pieces.json (ModelExporter "pieces", read from the game files) gives each piece type's name and meshes.
+// ---------------------------------------------------------------------------
+let pieceDefs = null;
+async function loadPieceDefs() {
+  if (pieceDefs) return pieceDefs;
+  pieceDefs = { byId: new Map(), byAsset: new Map() };
+  try {
+    for (const p of await (await fetch('pieces.json')).json()) { pieceDefs.byId.set(p.id, p); pieceDefs.byAsset.set(p.asset.toLowerCase(), p); }
+  } catch { }
+  return pieceDefs;
+}
+const byFileName = new Map();
+function modelFor(mesh) {
+  const m = byGamePath.get(gamePath(mesh).toLowerCase());
+  if (m) return m;
+  if (!byFileName.size) for (const x of models) byFileName.set(x.name.toLowerCase(), x);
+  return byFileName.get(mesh.split('/').pop().split('.')[0].toLowerCase()) || null;
+}
+const standinMat = new THREE.MeshStandardMaterial({ color: 0x8c96a5, transparent: true, opacity: 0.55 });
+// One building piece: its meshes at their offsets, or a box the piece's size when there's no model for it.
+function pieceObject(def, label) {
+  const obj = new THREE.Group();
+  let any = false;
+  for (const part of def?.meshes || []) {
+    const m = modelFor(part.mesh); if (!m) continue;
+    any = true;
+    const holder = new THREE.Group();
+    holder.position.set(part.t[0] / 100, part.t[2] / 100, part.t[1] / 100);
+    holder.quaternion.copy(ueToThreeQuat(part.q ? { x: part.q[0], y: part.q[1], z: part.q[2], w: part.q[3] } : rotToQuat(part.r[0], part.r[1], part.r[2])));
+    holder.scale.set(part.s[0], part.s[2], part.s[1]);
+    obj.add(holder);
+    loadMesh(m).then(root => holder.add(root.clone(true))).catch(() => {});
+  }
+  if (!any) {
+    const b = def?.bounds;
+    const box = new THREE.Mesh(b ? new THREE.BoxGeometry(b[3] / 50, b[5] / 50, b[4] / 50) : new THREE.BoxGeometry(0.4, 0.4, 0.4), standinMat);
+    if (b) box.position.set(b[0] / 100, b[2] / 100, b[1] / 100);
+    obj.add(box);
+  }
+  obj.userData.piece = def?.name || label;
+  return obj;
+}
+// pieces: [{ def, label, X, Y, Z, Yaw }] in game cm.
+function showPieces(pieces) {
   baseGroup.clear();
+  for (const p of pieces) {
+    const obj = pieceObject(p.def, p.label);
+    obj.position.copy(toScene(p.X, p.Y, p.Z));
+    obj.quaternion.copy(ueToThreeQuat(rotToQuat(0, p.Yaw, 0)));
+    baseGroup.add(obj);
+  }
+}
+
+// base.txt (written by "cb anchor"): piece|x|y|z|yaw for the pieces around the anchor.
+async function loadBase() {
+  if (savePieces) return;   // a save file shows the whole base already
   const text = await readText('base.txt');
-  if (!text) return;
-  const greyMat = new THREE.MeshStandardMaterial({ color: 0x8c96a5, transparent: true, opacity: 0.55 });
-  let n = 0;
+  if (!text) { baseGroup.clear(); return; }
+  const defs = await loadPieceDefs();
+  const pieces = [];
   for (const line of text.split(/\r?\n/)) {
     const p = line.split('|'); if (p.length < 5 || line.startsWith('#')) continue;
-    const [name, x, y, z, yaw] = [p[0], +p[1], +p[2], +p[3], +p[4]];
-    const obj = new THREE.Group();
-    obj.position.copy(toScene(x, y, z));
-    obj.quaternion.copy(ueToThreeQuat(rotToQuat(0, yaw, 0)));
-    const m = guessPieceModel(name);
-    if (m) loadMesh(m).then(root => { const c = root.clone(true); c.traverse(o => { if (o.isMesh) o.material = greyMat; }); obj.add(c); });
-    else obj.add(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), greyMat));
-    obj.userData.piece = name;
-    baseGroup.add(obj); n++;
+    pieces.push({ def: defs.byAsset.get(p[0].toLowerCase()) || guessPieceDef(p[0]), label: p[0], X: +p[1], Y: +p[2], Z: +p[3], Yaw: +p[4] });
   }
-  $('baseInfo').textContent += ` ${n} building pieces shown.`;
+  showPieces(pieces);
+  $('baseInfo').textContent += ` ${pieces.length} building pieces shown.`;
 }
+// No pieces.json entry: fall back to the mesh whose name shares the most words with the piece.
+function guessPieceDef(piece) {
+  const m = guessPieceModel(piece);
+  return m ? { name: piece, meshes: [{ mesh: m.path, t: [0, 0, 0], q: [0, 0, 0, 1], s: [1, 1, 1] }] } : null;
+}
+
+// Wilds.sav is a SPUD save. The building manager keeps every piece in a custom "Pces" block:
+//   u32 length, u32 version, then per piece: FString type id, f64 x y z, f32 yaw, f32 health, f32 build progress,
+//   i32 n + n FString materials, 2 x i32 per material, u8, i32 n + n i32 (linked pieces), i32.
+function parseSave(buf) {
+  const v = new DataView(buf), u8 = new Uint8Array(buf), dec = new TextDecoder();
+  const out = [];
+  for (let at = 0; (at = u8.indexOf(0x50, at)) >= 0 && at < u8.length - 12; at++) {
+    if (u8[at + 1] !== 0x63 || u8[at + 2] !== 0x65 || u8[at + 3] !== 0x73) continue;   // "Pces"
+    let o = at + 4;
+    const len = v.getUint32(o, true); o += 8;
+    const end = o + len;
+    if (end > u8.length) continue;
+    const str = () => {
+      const n = v.getInt32(o, true); o += 4;
+      if (n < 1 || n > 512) throw new Error('bad string');
+      const s = dec.decode(u8.subarray(o, o + n - 1)); o += n; return s;
+    };
+    try {
+      while (o < end) {
+        const type = str();
+        if (!/^[\w-]{22}$/.test(type)) throw new Error('bad id');
+        const X = v.getFloat64(o, true), Y = v.getFloat64(o + 8, true), Z = v.getFloat64(o + 16, true); o += 24;
+        const Yaw = v.getFloat32(o, true); o += 12;
+        const nm = v.getInt32(o, true); o += 4;
+        if (nm < 0 || nm > 64) throw new Error('bad count');
+        for (let i = 0; i < nm; i++) str();
+        o += nm * 8 + 1;
+        const nl = v.getInt32(o, true);
+        if (nl < 0 || nl > 4096) throw new Error('bad count');
+        o += 4 + nl * 4 + 4;
+        out.push({ type, X, Y, Z, Yaw });
+      }
+    } catch { }
+    at = o;
+  }
+  return out;
+}
+// Group pieces that are within ~40 m of each other into bases, biggest first.
+function findBases(pieces) {
+  const cell = 4000, cells = new Map(), key = (x, y) => x + ',' + y;
+  for (const p of pieces) {
+    const k = key(Math.floor(p.X / cell), Math.floor(p.Y / cell));
+    if (!cells.has(k)) cells.set(k, []);
+    cells.get(k).push(p);
+  }
+  const seen = new Set(), bases = [];
+  for (const start of cells.keys()) {
+    if (seen.has(start)) continue;
+    const list = [], todo = [start]; seen.add(start);
+    while (todo.length) {
+      const k = todo.pop(); list.push(...cells.get(k));
+      const [cx, cy] = k.split(',').map(Number);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        const n = key(cx + dx, cy + dy);
+        if (cells.has(n) && !seen.has(n)) { seen.add(n); todo.push(n); }
+      }
+    }
+    const zs = list.map(p => p.Z).sort((a, b) => a - b);
+    bases.push({ pieces: list, X: list.reduce((s, p) => s + p.X, 0) / list.length, Y: list.reduce((s, p) => s + p.Y, 0) / list.length, Z: zs[zs.length >> 1] });
+  }
+  return bases.sort((a, b) => b.pieces.length - a.pieces.length);
+}
+let savePieces = null, saveBases = [], anchorFromGame = false;
+function showBase(i, moveAnchor) {
+  const b = saveBases[i]; if (!b) return;
+  if (moveAnchor) {
+    anchor = { X: b.X, Y: b.Y, Z: b.Z, Yaw: 0 };
+    anchorFromGame = false;
+    rebuildAll();
+    camera.position.copy(toScene(b.X - 2500, b.Y - 2500, b.Z + 2000)); orbit.target.set(0, 0, 0);
+  }
+  showPieces(b.pieces);
+  if (moveAnchor || !worldShown) loadWorld();
+  const unknown = b.pieces.filter(p => !p.def).length;
+  $('baseInfo').textContent = `${b.pieces.length} building pieces from your save` + (unknown ? ` (${unknown} unknown)` : '') +
+    (anchorFromGame ? '. Lined up with your in-game anchor.' : '.');
+}
+async function openSave(file) {
+  const defs = await loadPieceDefs();
+  const raw = parseSave(await file.arrayBuffer());
+  if (!raw.length) { status('No building pieces found in that file. Pick Wilds.sav from your SaveGames folder.', 'bad'); return; }
+  savePieces = raw.map(p => ({ ...p, def: defs.byId.get(p.type) || null, label: p.type }));
+  saveBases = findBases(savePieces);
+  const sel = $('baseSel');
+  sel.innerHTML = saveBases.map((b, i) => `<option value="${i}">Base ${i + 1}: ${b.pieces.length} pieces</option>`).join('');
+  sel.hidden = saveBases.length < 2;
+  // With the game connected, keep its anchor and show the base it's in; otherwise centre on the biggest base.
+  let pick = 0;
+  if (anchorFromGame) {
+    let best = Infinity;
+    saveBases.forEach((b, i) => { for (const p of b.pieces) { const d = Math.hypot(p.X - anchor.X, p.Y - anchor.Y); if (d < best) { best = d; pick = i; } } });
+    if (best > 8000) anchorFromGame = false;
+  }
+  sel.value = pick;
+  showBase(pick, !anchorFromGame);
+  $('showBase').checked = true; baseGroup.visible = true;
+  status(`Loaded ${savePieces.length} building pieces from ${file.name}` + (dir ? '.' : '. Connect the game folder to send new models to the game.'), 'ok');
+}
+$('baseSel').addEventListener('change', e => showBase(+e.target.value, true));
+
+// ---------------------------------------------------------------------------
+// The game world around the anchor: the landscape and the world's own meshes (rocks, trees, ruins),
+// from ModelExporter "world" (world/terrain.json, world/terrain/*.bin, world/objects/*.json, world/meshes.json).
+// ---------------------------------------------------------------------------
+const terrainGroup = new THREE.Group(), worldGroup = new THREE.Group();
+scene.add(terrainGroup, worldGroup);
+const SQUARE = 25600;   // cm per objects file
+let worldIndex = null;  // { tiles, meshes } once loaded, false when the site has no world data
+// Ground cover (flowers, grass, fallen branches): tens of thousands per square, off unless asked for.
+const isPlant = p => /\/SM_GF_|\/SM_Branches_/i.test(p);
+async function worldData() {
+  if (worldIndex !== null) return worldIndex;
+  try {
+    const [tiles, meshes] = await Promise.all(['terrain.json', 'meshes.json'].map(f => fetch(DATA_BASE + 'world/' + f).then(r => r.ok ? r.json() : null)));
+    worldIndex = tiles ? { tiles, meshes: meshes || [] } : false;
+  } catch { worldIndex = false; }
+  return worldIndex;
+}
+const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, side: THREE.DoubleSide });
+const grassCol = new THREE.Color(0x5b6f38), dirtCol = new THREE.Color(0x6d5f45), rockCol = new THREE.Color(0x77736b);
+// One landscape tile as a mesh, coloured by slope (grass on the flat, earth, then rock on steep ground).
+function terrainMesh(t, h) {
+  const n = t.n, pos = new Float32Array(n * n * 3);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const k = j * n + i, v = toScene(t.x + i * t.step, t.y + j * t.step, t.z + (h[k] - 32768) * t.zs);
+    pos[k * 3] = v.x; pos[k * 3 + 1] = v.y; pos[k * 3 + 2] = v.z;
+  }
+  const idx = new Uint32Array((n - 1) * (n - 1) * 6);
+  let q = 0;
+  for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) {
+    const a = j * n + i, b = a + 1, c = a + n, d = c + 1;
+    idx.set([a, b, c, b, d, c], q); q += 6;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeVertexNormals();
+  // The game-to-scene axis swap mirrors the winding; make the normals face up.
+  const nrm = g.attributes.normal;
+  if (nrm.getY(0) + nrm.getY(n * n - 1) < 0) {
+    for (let k = 0; k < idx.length; k += 3) { const s = idx[k + 1]; idx[k + 1] = idx[k + 2]; idx[k + 2] = s; }
+    g.index.needsUpdate = true; g.computeVertexNormals();
+  }
+  const col = new Float32Array(n * n * 3), c = new THREE.Color();
+  for (let k = 0; k < n * n; k++) {
+    const up = nrm.getY(k);
+    if (up > 0.9) c.copy(grassCol); else if (up > 0.75) c.copy(grassCol).lerp(dirtCol, (0.9 - up) / 0.15); else c.copy(dirtCol).lerp(rockCol, Math.min(1, (0.75 - up) / 0.2));
+    col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeBoundingSphere();
+  return new THREE.Mesh(g, terrainMat);
+}
+const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
+// Every copy of one world mesh as instanced meshes (one per part of the model).
+function addInstances(root, rows) {
+  root.updateMatrixWorld(true);
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    const im = new THREE.InstancedMesh(o.geometry, o.material, rows.length);
+    rows.forEach((r, i) => {
+      _p.copy(toScene(r[1], r[2], r[3]));
+      _s.set(r[8], r[10], r[9]);
+      _m.compose(_p, ueToThreeQuat({ x: r[4], y: r[5], z: r[6], w: r[7] }), _s).multiply(o.matrixWorld);
+      im.setMatrixAt(i, _m);
+    });
+    im.computeBoundingSphere();
+    worldGroup.add(im);
+  });
+}
+function clearWorld() {
+  for (const m of terrainGroup.children) m.geometry.dispose();
+  terrainGroup.clear();
+  for (const m of worldGroup.children) m.dispose();
+  worldGroup.clear();
+}
+let worldToken = 0, worldShown = false;
+async function loadWorld() {
+  const token = ++worldToken;
+  clearWorld();
+  const R = +$('worldRange').value * 100, cx = anchor.X, cy = anchor.Y;
+  scene.fog.far = Math.max(400, R / 100 * 2.5);
+  if (!$('showTerrain').checked && !$('showWorld').checked) { $('worldInfo').textContent = ''; grid.visible = true; return; }
+  const w = await worldData();
+  if (token !== worldToken) return;
+  if (!w) { $('worldInfo').textContent = 'The world map isn\'t on this site yet.'; return; }
+  $('worldInfo').textContent = 'Loading the world...';
+  let tiles = 0, objects = 0;
+  if ($('showTerrain').checked) {
+    const near = w.tiles.filter(t => {
+      const L = t.step * (t.n - 1), dx = Math.max(t.x - cx, 0, cx - (t.x + L)), dy = Math.max(t.y - cy, 0, cy - (t.y + L));
+      return dx * dx + dy * dy < R * R;
+    });
+    await Promise.all(near.map(async t => {
+      try {
+        const buf = await (await fetch(DATA_BASE + 'world/terrain/' + t.f)).arrayBuffer();
+        if (token === worldToken) { terrainGroup.add(terrainMesh(t, new Uint16Array(buf))); tiles++; }
+      } catch { }
+    }));
+  }
+  if ($('showWorld').checked) {
+    const keys = [];
+    for (let ix = Math.floor((cx - R) / SQUARE); ix <= Math.floor((cx + R) / SQUARE); ix++)
+      for (let iy = Math.floor((cy - R) / SQUARE); iy <= Math.floor((cy + R) / SQUARE); iy++) keys.push(ix + '_' + iy);
+    const lists = await Promise.all(keys.map(k => fetch(DATA_BASE + 'world/objects/' + k + '.json').then(r => r.ok ? r.json() : []).catch(() => [])));
+    if (token !== worldToken) return;
+    const plants = $('showPlants').checked, byMesh = new Map();
+    for (const list of lists) for (const r of list) {
+      const dx = r[1] - cx, dy = r[2] - cy;
+      if (dx * dx + dy * dy > R * R || (!plants && isPlant(w.meshes[r[0]]))) continue;
+      if (!byMesh.has(r[0])) byMesh.set(r[0], []);
+      byMesh.get(r[0]).push(r);
+    }
+    for (const [mi, rows] of byMesh) {
+      const m = modelFor(w.meshes[mi]); if (!m) continue;
+      objects += rows.length;
+      loadMesh(m).then(root => { if (token === worldToken) addInstances(root, rows); }).catch(() => { });
+    }
+  }
+  if (token !== worldToken) return;
+  grid.visible = !tiles;
+  worldShown = true;
+  $('worldInfo').textContent = `${R / 100} m around your base: ` + [tiles && 'the ground', objects && `${objects.toLocaleString('en')} rocks, trees and buildings`].filter(Boolean).join(' and ') + '.';
+}
+for (const id of ['showTerrain', 'showWorld', 'showPlants', 'worldRange']) $(id).addEventListener('change', loadWorld);
+
+$('saveBtn').onclick = async () => {
+  try {
+    let file;
+    if (window.showOpenFilePicker) {
+      const [h] = await window.showOpenFilePicker({ id: 'wildssave', types: [{ description: 'Dragonwilds save', accept: { 'application/octet-stream': ['.sav', '.backup'] } }] });
+      file = await h.getFile();
+    } else {
+      file = await new Promise(res => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.sav,.backup'; inp.onchange = () => res(inp.files[0]); inp.click(); });
+    }
+    if (file) await openSave(file);
+  } catch (e) { if (e.name !== 'AbortError') status('Could not read the save: ' + e.message, 'bad'); }
+};
 // "DA_T2_Wall_Pallisades" / "BUILDPIECE_Chest" -> the mesh whose name shares the most words.
 const pieceCache = new Map();
 function guessPieceModel(piece) {
@@ -662,17 +971,41 @@ setInterval(async () => {
   status(`Updated from the game ${new Date().toLocaleTimeString()}`, 'ok');
 }, 2000);
 
+// Accept the game folder or any folder on the way down to the mod (Binaries, Win64, ue4ss, Mods, CustomBuilds).
+const MOD_PATH = ['RSDragonwilds', 'Binaries', 'Win64', 'ue4ss', 'Mods', 'CustomBuilds'];
+async function findModDir(h) {
+  const isMod = async d => { for (const n of ['models.txt', 'models-all.txt', 'placed.txt']) { try { await d.getFileHandle(n); return true; } catch { } } return false; };
+  if (await isMod(h)) return h;
+  for (let i = 0; i < MOD_PATH.length; i++) {
+    let d = h;
+    try { for (const n of MOD_PATH.slice(i)) d = await d.getDirectoryHandle(n); } catch { continue; }
+    if (await isMod(d)) return d;
+  }
+  return null;
+}
 $('connectBtn').onclick = async () => {
-  if (!window.showDirectoryPicker) { alert('Connecting a folder needs Chrome or Edge. You can still Export placed.txt and copy it into the CustomBuilds folder.'); return; }
+  if (!window.showDirectoryPicker) {
+    alert(navigator.brave
+      ? 'Brave turns folder access off by default. Open brave://flags/#file-system-access-api, set it to Enabled, relaunch Brave and try again.\n\nOr use Export and copy placed.txt into the CustomBuilds folder yourself.'
+      : 'Connecting a folder needs Chrome, Edge or Brave (with folder access turned on). You can still Export placed.txt and copy it into the CustomBuilds folder.');
+    return;
+  }
   try {
-    dir = await window.showDirectoryPicker({ id: 'custombuilds', mode: 'readwrite' });
-    if (!(await readText('models.txt')) && !(await readText('models-all.txt'))) {
-      status('That folder has no Custom Builds files. Pick ue4ss\\Mods\\CustomBuilds.', 'bad'); dir = null; return;
+    const picked = await window.showDirectoryPicker({ id: 'custombuilds', mode: 'readwrite' });
+    const found = await findModDir(picked);
+    if (!found) { status('Custom Builds isn\'t in that folder. Pick your RSDragonwilds game folder (with the mod installed).', 'bad'); return; }
+    dir = found;
+    // A copy of placed.txt as it was before this page touched it.
+    let backup = '';
+    const before = await readText('placed.txt');
+    if (before !== null) {
+      backup = 'placed.backup-web-' + new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-') + '.txt';
+      await writeText(backup, before);
     }
     await loadFromFolder();
     $('connectBtn').textContent = 'Reconnect';
-    status(`Connected: ${records.size} placed models. Changes go straight into the game.`, 'ok');
-  } catch (e) { if (e.name !== 'AbortError') status('Could not open the folder: ' + e.message, 'bad'); }
+    status(`Connected: ${records.size} placed models. Changes go straight into the game.` + (backup ? ` Backup: ${backup}` : ''), 'ok');
+  } catch (e) { if (e.name !== 'AbortError') status('Could not open the folder: ' + e.message, 'bad'); dir = null; }
 };
 
 // Without a folder: download / load placed.txt by hand.

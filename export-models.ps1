@@ -117,5 +117,12 @@ Write-Host "Exporting models to $out (re-running resumes where it stopped)..." -
 $code = $LASTEXITCODE
 if ($code -ne 0 -and -not (Test-Path (Join-Path $out "models.json"))) { Write-Error "Export failed (exit code $code)." }
 
-# ---- 4. Open the viewer ----
+# ---- 4. Build-piece list for the base builder (piece ids in save files -> names and meshes) ----
+Write-Host "Writing export\pieces.json..." -ForegroundColor Yellow
+& $dotnet (Join-Path $here "Exporter\bin\Release\net10.0\ModelExporter.dll") pieces $paks $usmap.FullName (Join-Path $out "pieces.json")
+# The world map (landscape heights and the world's meshes) for the base builder's surroundings.
+Write-Host "Writing export\world..." -ForegroundColor Yellow
+& $dotnet (Join-Path $here "Exporter\bin\Release\net10.0\ModelExporter.dll") world $paks $usmap.FullName $out
+
+# ---- 5. Open the viewer ----
 if (-not $NoViewer) { & (Join-Path $here "view.ps1") }

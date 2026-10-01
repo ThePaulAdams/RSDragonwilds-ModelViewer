@@ -30,6 +30,12 @@ if (-not (Test-Path (Join-Path $tools "node_modules"))) {
 Write-Host "Compressing new models..." -ForegroundColor Yellow
 node (Join-Path $tools "compress-glb.mjs") $web
 if ($LASTEXITCODE -ne 0) { Write-Error "Compressing models failed." }
+# Build-piece list for the base builder (written by export-models.ps1).
+$pieces = Join-Path $here "export\pieces.json"
+if (Test-Path $pieces) { Copy-Item $pieces (Join-Path $web "pieces.json") -Force }
+# World map for the base builder (written by export-models.ps1).
+$world = Join-Path $here "export\world"
+if (Test-Path $world) { Copy-Item $world $web -Recurse -Force }
 
 # ---- 2. Upload token (a random secret shared with the site; kept in .deploy-token, never committed) ----
 $tokenFile = Join-Path $here ".deploy-token"

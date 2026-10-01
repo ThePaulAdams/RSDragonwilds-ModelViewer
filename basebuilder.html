@@ -175,9 +175,11 @@
       <div class="field"><span>East (m)</span><input id="fX" type="number" step="0.01"></div>
       <div class="field"><span>North (m)</span><input id="fY" type="number" step="0.01"></div>
       <div class="field"><span>Up (m)</span><input id="fZ" type="number" step="0.01"></div>
-      <div class="field"><span>Turn °</span><input id="fYaw" type="number" step="0.1"></div>
-      <div class="field"><span>Tilt °</span><input id="fPitch" type="number" step="0.1"></div>
-      <div class="field"><span>Roll °</span><input id="fRoll" type="number" step="0.1"></div>
+      <div id="rotFields">
+        <div class="field"><span>Turn °</span><input id="fYaw" type="number" step="0.1"></div>
+        <div class="field"><span>Tilt °</span><input id="fPitch" type="number" step="0.1"></div>
+        <div class="field"><span>Roll °</span><input id="fRoll" type="number" step="0.1"></div>
+      </div>
       <div class="field"><span>Size</span><input id="fScale" type="number" step="0.01" min="0.01"></div>
     </div>
     <h2>Placed <span id="placedCount" class="muted"></span></h2>
@@ -207,8 +209,9 @@
   </ol>
   <h3>Controls</h3>
   <p class="muted">
-    <b>Click</b> place / select &nbsp; <b>Click world object</b> Eyedropper pick &nbsp; <kbd>Alt</kbd>+<b>Click world object</b> Clone into base<br>
-    <b>Drag</b> orbit &nbsp; <b>Right drag</b> pan &nbsp; <b>Wheel</b> zoom &nbsp; <kbd>F</kbd> focus model &nbsp; <kbd>P</kbd> focus player<br>
+    <b>Click</b> place / select &nbsp; <kbd>Shift</kbd>+<b>Click</b> multi-select &nbsp; <kbd>Ctrl+A</kbd> select all<br>
+    <b>Click world object</b> Eyedropper &nbsp; <kbd>Alt</kbd>+<b>Click world object</b> Clone into base<br>
+    <b>Drag</b> orbit &nbsp; <b>Right drag</b> pan &nbsp; <b>Wheel</b> zoom &nbsp; <kbd>F</kbd> focus &nbsp; <kbd>P</kbd> player<br>
     <kbd>W</kbd> move &nbsp; <kbd>E</kbd> rotate &nbsp; <kbd>R</kbd> scale &nbsp; <kbd>G</kbd> grid snap &nbsp; <kbd>M</kbd> magnet connect<br>
     <kbd>Q</kbd> / <kbd>E</kbd> rotate step &nbsp; <kbd>T</kbd> turn 90° &nbsp; <kbd>End</kbd> drop to floor &nbsp; <kbd>Alt</kbd> bypass snap / duplicate drag<br>
     <kbd>Arrows</kbd> nudge &nbsp; <kbd>Shift+Arrows</kbd> fine rotate &nbsp; <kbd>Delete</kbd> delete &nbsp; <kbd>Ctrl+D</kbd> duplicate &nbsp; <kbd>Ctrl+Z</kbd> undo
@@ -436,6 +439,78 @@ function updateGizmoSnapping() {
   }
 }
 updateGizmoSnapping();
+const selectionPivot = new THREE.Group();
+selectionPivot.visible = false;
+scene.add(selectionPivot);
+
+const selection = new Set();
+let selected = null; // primary/last selected id
+
+const selectionHelpers = new Map();
+function updateSelectionHelpers() {
+  for (const [id, helper] of selectionHelpers) {
+    if (!selection.has(id)) {
+      scene.remove(helper);
+      helper.dispose?.();
+      selectionHelpers.delete(id);
+    }
+  }
+  for (const id of selection) {
+    const obj = objects.get(id);
+    if (!obj) continue;
+    let helper = selectionHelpers.get(id);
+    if (!helper) {
+      helper = new THREE.BoxHelper(obj, 0x38bdf8);
+      helper.material.depthTest = false;
+      helper.material.transparent = true;
+      helper.material.opacity = 0.85;
+      scene.add(helper);
+      selectionHelpers.set(id, helper);
+    } else {
+      helper.update();
+    }
+  }
+}
+
+function updateSelectionPivot() {
+  if (selection.size === 0) {
+    gizmo.detach();
+    selectionPivot.visible = false;
+  } else if (selection.size === 1) {
+    const obj = objects.get(selected);
+    if (obj) {
+      gizmo.attach(obj);
+    } else {
+      gizmo.detach();
+    }
+    selectionPivot.visible = false;
+  } else {
+    const center = new THREE.Vector3();
+    let count = 0;
+    for (const id of selection) {
+      const obj = objects.get(id);
+      if (obj) { center.add(obj.position); count++; }
+    }
+    if (count > 0) {
+      center.divideScalar(count);
+      selectionPivot.position.copy(center);
+      selectionPivot.quaternion.identity();
+      selectionPivot.scale.set(1, 1, 1);
+      selectionPivot.visible = true;
+      gizmo.attach(selectionPivot);
+    } else {
+      gizmo.detach();
+      selectionPivot.visible = false;
+    }
+  }
+  updateSelectionHelpers();
+}
+
+let initialPivotPos = new THREE.Vector3();
+let initialPivotQuat = new THREE.Quaternion();
+let initialPivotScale = new THREE.Vector3();
+let initialObjTransforms = new Map();
+
 gizmo.addEventListener('dragging-changed', e => {
   orbit.enabled = !e.value;
   if (!e.value) {
@@ -443,13 +518,77 @@ gizmo.addEventListener('dragging-changed', e => {
   } else {
     if (lastPointerEvent?.altKey) {
       duplicate();
-      toast('Alt+Drag: Duplicated object');
+      toast('Alt+Drag: Duplicated object' + (selection.size > 1 ? 's' : ''));
     } else {
       pushUndo();
     }
+    if (selection.size > 1) {
+      initialPivotPos.copy(selectionPivot.position);
+      initialPivotQuat.copy(selectionPivot.quaternion);
+      initialPivotScale.copy(selectionPivot.scale);
+      initialObjTransforms.clear();
+      for (const id of selection) {
+        const obj = objects.get(id);
+        if (obj) {
+          initialObjTransforms.set(id, {
+            pos: obj.position.clone(),
+            quat: obj.quaternion.clone(),
+            scale: obj.scale.clone()
+          });
+        }
+      }
+    }
   }
 });
-gizmo.addEventListener('objectChange', () => { if (gizmo.mode === 'scale') { const o = gizmo.object; const s = o.scale.x; o.scale.set(s, s, s); } showSelection(); });
+
+gizmo.addEventListener('objectChange', () => {
+  if (selection.size > 1) {
+    if (gizmo.mode === 'translate') {
+      const delta = selectionPivot.position.clone().sub(initialPivotPos);
+      for (const id of selection) {
+        const init = initialObjTransforms.get(id);
+        const obj = objects.get(id);
+        if (init && obj) {
+          obj.position.copy(init.pos.clone().add(delta));
+        }
+      }
+    } else if (gizmo.mode === 'rotate') {
+      const deltaQuat = selectionPivot.quaternion.clone().multiply(initialPivotQuat.clone().invert());
+      for (const id of selection) {
+        const init = initialObjTransforms.get(id);
+        const obj = objects.get(id);
+        if (init && obj) {
+          const offset = init.pos.clone().sub(initialPivotPos).applyQuaternion(deltaQuat);
+          obj.position.copy(initialPivotPos.clone().add(offset));
+          obj.quaternion.copy(deltaQuat.clone().multiply(init.quat));
+        }
+      }
+    } else if (gizmo.mode === 'scale') {
+      const s = selectionPivot.scale.x;
+      selectionPivot.scale.set(s, s, s);
+      const ratio = s / (initialPivotScale.x || 1);
+      for (const id of selection) {
+        const init = initialObjTransforms.get(id);
+        const obj = objects.get(id);
+        if (init && obj) {
+          const offset = init.pos.clone().sub(initialPivotPos).multiplyScalar(ratio);
+          obj.position.copy(initialPivotPos.clone().add(offset));
+          obj.scale.copy(init.scale.clone().multiplyScalar(ratio));
+        }
+      }
+    }
+    updateSelectionHelpers();
+    showSelection();
+  } else if (selection.size === 1) {
+    if (gizmo.mode === 'scale') {
+      const o = gizmo.object;
+      const s = o.scale.x;
+      o.scale.set(s, s, s);
+    }
+    updateSelectionHelpers();
+    showSelection();
+  }
+});
 scene.add(gizmo.getHelper());
 
 function resize() {
@@ -553,38 +692,110 @@ function rebuildAll() {
 // ---------------------------------------------------------------------------
 // Selection, gizmo, list
 // ---------------------------------------------------------------------------
-let selected = null;   // id
-function select(id) {
-  selected = id && objects.has(id) ? id : null;
-  if (selected) gizmo.attach(objects.get(selected)); else gizmo.detach();
-  showSelection(); refreshList();
+function select(id, shiftKey = false) {
+  if (shiftKey) {
+    if (!id || !objects.has(id)) return;
+    if (selection.has(id)) {
+      selection.delete(id);
+      selected = selection.size ? [...selection][selection.size - 1] : null;
+    } else {
+      selection.add(id);
+      selected = id;
+    }
+  } else {
+    selection.clear();
+    if (id && objects.has(id)) {
+      selection.add(id);
+      selected = id;
+    } else {
+      selected = null;
+    }
+  }
+  updateSelectionPivot();
+  showSelection();
+  refreshList();
+}
+function selectAll() {
+  if (!records.size) return;
+  selection.clear();
+  for (const id of records.keys()) selection.add(id);
+  selected = [...selection][selection.size - 1];
+  updateSelectionPivot();
+  showSelection();
+  refreshList();
+  toast(`Selected all (${selection.size} objects)`);
 }
 function showSelection() {
-  $('noSel').hidden = !!selected; $('selBox').hidden = !selected;
-  if (!selected) return;
-  const r = records.get(selected), obj = objects.get(selected);
-  const tmp = { ...r }; readObject(obj, tmp);
-  const m = byGamePath.get(r.Mesh.toLowerCase());
-  $('selName').textContent = m ? m.title : r.Mesh.split('/').pop();
-  $('selPath').textContent = r.Mesh;
-  const rel = obj.position;
-  $('fX').value = rel.x.toFixed(2); $('fY').value = rel.z.toFixed(2); $('fZ').value = rel.y.toFixed(2);
-  $('fYaw').value = +(tmp.Yaw.toFixed(2)); $('fPitch').value = +(tmp.Pitch.toFixed(2)); $('fRoll').value = +(tmp.Roll.toFixed(2)); $('fScale').value = tmp.Scale;
+  $('noSel').hidden = selection.size > 0;
+  $('selBox').hidden = selection.size === 0;
+  if (!selection.size) return;
+  const rotWrap = $('rotFields');
+  if (selection.size === 1) {
+    if (rotWrap) rotWrap.style.display = '';
+    const r = records.get(selected), obj = objects.get(selected);
+    const tmp = { ...r }; readObject(obj, tmp);
+    const m = byGamePath.get(r.Mesh.toLowerCase());
+    $('selName').textContent = m ? m.title : r.Mesh.split('/').pop();
+    $('selPath').textContent = r.Mesh;
+    const rel = obj.position;
+    $('fX').value = rel.x.toFixed(2); $('fY').value = rel.z.toFixed(2); $('fZ').value = rel.y.toFixed(2);
+    $('fYaw').value = +(tmp.Yaw.toFixed(2)); $('fPitch').value = +(tmp.Pitch.toFixed(2)); $('fRoll').value = +(tmp.Roll.toFixed(2)); $('fScale').value = tmp.Scale;
+  } else {
+    if (rotWrap) rotWrap.style.display = 'none';
+    $('selName').textContent = `${selection.size} objects selected`;
+    $('selPath').textContent = 'Shift+click to add/remove. Ctrl+D duplicate, Del delete, T rotate.';
+    const center = selectionPivot.position;
+    $('fX').value = center.x.toFixed(2); $('fY').value = center.z.toFixed(2); $('fZ').value = center.y.toFixed(2);
+    $('fYaw').value = 0; $('fPitch').value = 0; $('fRoll').value = 0; $('fScale').value = 1;
+  }
 }
 for (const k of ['fX', 'fY', 'fZ', 'fYaw', 'fPitch', 'fRoll', 'fScale']) $(k).addEventListener('change', () => {
-  if (!selected) return;
+  if (!selection.size) return;
   pushUndo();
-  const obj = objects.get(selected), r = records.get(selected);
-  obj.position.set(+$('fX').value, +$('fZ').value, +$('fY').value);
-  readObject(obj, r);
-  r.Yaw = +$('fYaw').value; r.Pitch = +$('fPitch').value; r.Roll = +$('fRoll').value; r.Scale = Math.max(0.05, +$('fScale').value || 1);
-  applyRecord(obj, r);
+  if (selection.size === 1) {
+    const obj = objects.get(selected), r = records.get(selected);
+    obj.position.set(+$('fX').value, +$('fZ').value, +$('fY').value);
+    readObject(obj, r);
+    r.Yaw = +$('fYaw').value; r.Pitch = +$('fPitch').value; r.Roll = +$('fRoll').value; r.Scale = Math.max(0.05, +$('fScale').value || 1);
+    applyRecord(obj, r);
+  } else {
+    if (k === 'fScale') {
+      const newScale = Math.max(0.05, +$('fScale').value || 1);
+      const center = selectionPivot.position;
+      for (const id of selection) {
+        const obj = objects.get(id), r = records.get(id);
+        const offset = obj.position.clone().sub(center).multiplyScalar(newScale);
+        obj.position.copy(center.clone().add(offset));
+        obj.scale.multiplyScalar(newScale);
+        readObject(obj, r);
+        applyRecord(obj, r);
+      }
+      $('fScale').value = 1;
+    } else if (k === 'fX' || k === 'fY' || k === 'fZ') {
+      const newCenter = new THREE.Vector3(+$('fX').value, +$('fZ').value, +$('fY').value);
+      const delta = newCenter.clone().sub(selectionPivot.position);
+      for (const id of selection) {
+        const obj = objects.get(id), r = records.get(id);
+        obj.position.add(delta);
+        readObject(obj, r);
+        applyRecord(obj, r);
+      }
+      selectionPivot.position.copy(newCenter);
+    }
+  }
   changed();
+  updateSelectionPivot();
+  showSelection();
 });
 function commitGizmo() {
-  if (!selected) return;
-  readObject(objects.get(selected), records.get(selected));
+  if (!selection.size) return;
+  for (const id of selection) {
+    const obj = objects.get(id), r = records.get(id);
+    if (obj && r) readObject(obj, r);
+  }
   changed();
+  updateSelectionPivot();
+  showSelection();
 }
 function refreshList() {
   const list = $('list'); list.textContent = '';
@@ -593,16 +804,19 @@ function refreshList() {
     const m = byGamePath.get(r.Mesh.toLowerCase());
     const d = document.createElement('div');
     d.textContent = m ? m.title : r.Mesh.split('/').pop();
-    if (id === selected) d.className = 'sel';
-    d.onclick = () => { select(id); focusSelected(); };
+    if (selection.has(id)) d.className = 'sel';
+    d.onclick = (e) => { select(id, e.shiftKey); focusSelected(); };
     list.append(d);
   }
 }
 function focusSelected() {
-  if (!selected) return;
-  const box = new THREE.Box3().setFromObject(objects.get(selected));
-  // Aim at the pivot (where the gizmo is); some game models sit far from their pivot.
-  const c = objects.get(selected).position.clone();
+  if (!selection.size) return;
+  const box = new THREE.Box3();
+  for (const id of selection) {
+    const obj = objects.get(id);
+    if (obj) box.expandByObject(obj);
+  }
+  const c = box.isEmpty() ? (selection.size === 1 ? objects.get(selected).position.clone() : selectionPivot.position.clone()) : box.getCenter(new THREE.Vector3());
   const size = box.isEmpty() ? 4 : box.getSize(new THREE.Vector3()).length();
   orbit.target.copy(c);
   camera.position.copy(c).add(new THREE.Vector3(1, 0.8, 1).normalize().multiplyScalar(Math.max(4, size * 1.4)));
@@ -800,7 +1014,7 @@ function findSnapConnection(rawPos, ghostBounds) {
   // 1. Placed models
   for (const [id, r] of records) {
     const obj = objects.get(id);
-    if (!obj || (selected && id === selected)) continue;
+    if (!obj || selection.has(id)) continue;
     if (obj.position.distanceTo(rawPos) > maxSearchDist) continue;
 
     const tb = getObjectLocalBounds(obj, r.Mesh);
@@ -982,7 +1196,8 @@ renderer.domElement.addEventListener('pointerup', e => {
     }
   }
 
-  select(id);
+  if (!id && e.shiftKey) return;
+  select(id, e.shiftKey);
 });
 
 // ---------------------------------------------------------------------------
@@ -1614,17 +1829,44 @@ try {
   updateGizmoSnapping();
 } catch {}
 function del() {
-  if (!selected) return;
+  if (!selection.size) return;
   pushUndo();
-  const id = selected; select(null);
-  placedGroup.remove(objects.get(id)); objects.delete(id); records.delete(id);
+  const count = selection.size;
+  const toDelete = [...selection];
+  select(null);
+  for (const id of toDelete) {
+    const obj = objects.get(id);
+    if (obj) placedGroup.remove(obj);
+    objects.delete(id);
+    records.delete(id);
+  }
+  refreshList();
   changed();
+  toast(`Deleted ${count} object${count > 1 ? 's' : ''}`);
 }
 function duplicate() {
-  if (!selected) return;
+  if (!selection.size) return;
   pushUndo();
-  const r = { ...records.get(selected) }; r.X += 100;
-  const id = newId(); records.set(id, r); spawn(id, r); select(id); changed();
+  const newIds = [];
+  for (const oldId of [...selection]) {
+    const oldR = records.get(oldId);
+    if (!oldR) continue;
+    const r = { ...oldR };
+    r.X += 100;
+    const id = newId();
+    records.set(id, r);
+    spawn(id, r);
+    newIds.push(id);
+  }
+  refreshList();
+  changed();
+  selection.clear();
+  for (const id of newIds) selection.add(id);
+  selected = newIds[newIds.length - 1];
+  updateSelectionPivot();
+  showSelection();
+  refreshList();
+  toast(`Duplicated ${newIds.length} object${newIds.length > 1 ? 's' : ''}`);
 }
 $('modeMove').onclick = () => setMode('translate');
 $('modeRotate').onclick = () => setMode('rotate');
@@ -1661,39 +1903,64 @@ try {
 } catch {}
 
 function dropSelectedToFloor() {
-  if (!selected) return;
-  const obj = objects.get(selected), r = records.get(selected);
-  if (!obj || !r) return;
+  if (!selection.size) return;
   pushUndo();
-  const b = new THREE.Box3().setFromObject(obj);
-  const bottomOffset = obj.position.y - b.min.y;
-  const start = new THREE.Vector3(obj.position.x, b.max.y + 0.5, obj.position.z);
-  const downRay = new THREE.Raycaster(start, new THREE.Vector3(0, -1, 0), 0.001, 200);
-  const targets = [ground];
-  if (baseGroup.visible) targets.push(baseGroup);
-  if (terrainGroup.visible) targets.push(terrainGroup);
-  for (const [id, o] of objects) if (id !== selected) targets.push(o);
-  const hits = downRay.intersectObjects(targets, true);
-  if (hits.length) {
-    obj.position.y = hits[0].point.y + bottomOffset;
-    readObject(obj, r);
-    applyRecord(obj, r);
-    changed();
-    toast(`Dropped to floor (${obj.position.y.toFixed(2)}m)`);
+  let count = 0;
+  for (const id of selection) {
+    const obj = objects.get(id), r = records.get(id);
+    if (!obj || !r) continue;
+    const b = new THREE.Box3().setFromObject(obj);
+    const bottomOffset = obj.position.y - b.min.y;
+    const start = new THREE.Vector3(obj.position.x, b.max.y + 0.5, obj.position.z);
+    const downRay = new THREE.Raycaster(start, new THREE.Vector3(0, -1, 0), 0.001, 200);
+    const targets = [ground];
+    if (baseGroup.visible) targets.push(baseGroup);
+    if (terrainGroup.visible) targets.push(terrainGroup);
+    for (const [oid, o] of objects) if (!selection.has(oid)) targets.push(o);
+    const hits = downRay.intersectObjects(targets, true);
+    if (hits.length) {
+      obj.position.y = hits[0].point.y + bottomOffset;
+      readObject(obj, r);
+      applyRecord(obj, r);
+      count++;
+    }
+  }
+  changed();
+  commitGizmo();
+  if (count > 0) {
+    toast(`Dropped ${count} object${count > 1 ? 's' : ''} to floor`);
   } else {
-    toast('No floor found beneath object');
+    toast('No floor found beneath object' + (selection.size > 1 ? 's' : ''));
   }
 }
 $('dropBtn')?.addEventListener('click', dropSelectedToFloor);
-$('turn90Btn')?.addEventListener('click', () => {
-  if (!selected) return;
+
+function turnSelected90() {
+  if (!selection.size) return;
   pushUndo();
-  const obj = objects.get(selected), r = records.get(selected);
-  r.Yaw = norm(r.Yaw + 90);
-  applyRecord(obj, r);
+  if (selection.size === 1) {
+    const obj = objects.get(selected), r = records.get(selected);
+    r.Yaw = norm(r.Yaw + 90);
+    applyRecord(obj, r);
+    readObject(obj, r);
+  } else {
+    const center = selectionPivot.position.clone();
+    const q90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -90 * D);
+    for (const id of selection) {
+      const obj = objects.get(id), r = records.get(id);
+      if (!obj || !r) continue;
+      const offset = obj.position.clone().sub(center).applyQuaternion(q90);
+      obj.position.copy(center.clone().add(offset));
+      r.Yaw = norm(r.Yaw + 90);
+      applyRecord(obj, r);
+      readObject(obj, r);
+    }
+  }
   changed();
-  toast(`Turned 90° (${r.Yaw.toFixed(1)}°)`);
-});
+  commitGizmo();
+  toast(`Turned 90° (${selection.size} object${selection.size > 1 ? 's' : ''})`);
+}
+$('turn90Btn')?.addEventListener('click', turnSelected90);
 
 let recentModels = [];
 try { recentModels = JSON.parse(localStorage.getItem('bb.recent') || '[]'); } catch {}
@@ -1728,6 +1995,7 @@ addEventListener('keydown', e => {
   else if (k === 'delete' || k === 'backspace') { e.preventDefault(); del(); }
   else if (k === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
   else if (k === 'd' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); duplicate(); }
+  else if (k === 'a' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); selectAll(); }
   else if (k === 'w' && !picked) setMode('translate');
   else if (k === 'e' && !picked) setMode('rotate');
   else if (k === 'r') setMode('scale');
@@ -1738,13 +2006,8 @@ addEventListener('keydown', e => {
       ghostYaw = norm(ghostYaw + 90);
       updateGhost();
       toast(`Turned 90° (${ghostYaw}°)`);
-    } else if (selected) {
-      pushUndo();
-      const obj = objects.get(selected), r = records.get(selected);
-      r.Yaw = norm(r.Yaw + 90);
-      applyRecord(obj, r);
-      changed();
-      toast(`Turned 90° (${r.Yaw.toFixed(1)}°)`);
+    } else if (selection.size) {
+      turnSelected90();
     }
   }
   else if (k === 'end') {
@@ -1763,28 +2026,57 @@ addEventListener('keydown', e => {
     ghostYaw = norm(ghostYaw + step);
     updateGhost();
   }
-  else if (selected && !picked && (k === 'arrowleft' || k === 'arrowright' || k === 'arrowup' || k === 'arrowdown' || k === 'pageup' || k === 'pagedown')) {
+  else if (selection.size && !picked && (k === 'arrowleft' || k === 'arrowright' || k === 'arrowup' || k === 'arrowdown' || k === 'pageup' || k === 'pagedown')) {
     e.preventDefault();
     pushUndo();
-    const obj = objects.get(selected), r = records.get(selected);
     const mStep = moveSnapVal || 0.1;
     const rStep = rotSnapVal || 1.0;
     if (e.shiftKey) {
-      if (k === 'arrowleft') r.Yaw = norm(r.Yaw - rStep);
-      else if (k === 'arrowright') r.Yaw = norm(r.Yaw + rStep);
-      else if (k === 'arrowup') r.Pitch = norm(r.Pitch + rStep);
-      else if (k === 'arrowdown') r.Pitch = norm(r.Pitch - rStep);
+      if (selection.size === 1) {
+        const obj = objects.get(selected), r = records.get(selected);
+        if (k === 'arrowleft') r.Yaw = norm(r.Yaw - rStep);
+        else if (k === 'arrowright') r.Yaw = norm(r.Yaw + rStep);
+        else if (k === 'arrowup') r.Pitch = norm(r.Pitch + rStep);
+        else if (k === 'arrowdown') r.Pitch = norm(r.Pitch - rStep);
+        applyRecord(obj, r);
+        readObject(obj, r);
+      } else {
+        const center = selectionPivot.position.clone();
+        let angleDeg = 0;
+        let axis = new THREE.Vector3(0, 1, 0);
+        if (k === 'arrowleft') angleDeg = rStep;
+        else if (k === 'arrowright') angleDeg = -rStep;
+        else if (k === 'arrowup') { angleDeg = rStep; axis = new THREE.Vector3(1, 0, 0); }
+        else if (k === 'arrowdown') { angleDeg = -rStep; axis = new THREE.Vector3(1, 0, 0); }
+        const qNudge = new THREE.Quaternion().setFromAxisAngle(axis, angleDeg * D);
+        for (const id of selection) {
+          const obj = objects.get(id), r = records.get(id);
+          if (!obj || !r) continue;
+          const offset = obj.position.clone().sub(center).applyQuaternion(qNudge);
+          obj.position.copy(center.clone().add(offset));
+          obj.quaternion.premultiply(qNudge);
+          readObject(obj, r);
+          applyRecord(obj, r);
+        }
+      }
     } else {
-      if (k === 'arrowleft') obj.position.x -= mStep;
-      else if (k === 'arrowright') obj.position.x += mStep;
-      else if (k === 'arrowup') obj.position.z += mStep;
-      else if (k === 'arrowdown') obj.position.z -= mStep;
-      else if (k === 'pageup') obj.position.y += mStep;
-      else if (k === 'pagedown') obj.position.y -= mStep;
-      readObject(obj, r);
+      const delta = new THREE.Vector3();
+      if (k === 'arrowleft') delta.x -= mStep;
+      else if (k === 'arrowright') delta.x += mStep;
+      else if (k === 'arrowup') delta.z += mStep;
+      else if (k === 'arrowdown') delta.z -= mStep;
+      else if (k === 'pageup') delta.y += mStep;
+      else if (k === 'pagedown') delta.y -= mStep;
+      for (const id of selection) {
+        const obj = objects.get(id), r = records.get(id);
+        if (!obj || !r) continue;
+        obj.position.add(delta);
+        readObject(obj, r);
+        applyRecord(obj, r);
+      }
     }
-    applyRecord(obj, r);
     changed();
+    commitGizmo();
   }
 });
 addEventListener('beforeunload', e => { if (!dir && records.size) { e.preventDefault(); } });

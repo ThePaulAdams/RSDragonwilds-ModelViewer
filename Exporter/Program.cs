@@ -14,6 +14,7 @@ using CUE4Parse_Conversion;
 using CUE4Parse_Conversion.Options;
 using CUE4Parse_Conversion.Writers.UEFormat.Enums;
 
+if (args.Length > 0 && args[0].StartsWith("pieces")) return PieceTools.Run(args[0], args[1..]);
 if (args.Length > 0 && args[0] == "web") return WebTools.Build(args[1..]);
 if (args.Length > 0 && args[0] == "icons") return WebTools.Icons(args[1..]);
 if (args.Length > 0 && args[0] == "sync") return await WebTools.Sync(args[1..]);

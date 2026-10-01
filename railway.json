@@ -1,6 +1,6 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
-  "build": { "builder": "RAILPACK", "watchPatterns": ["server.js", "index.html", "package.json", "railway.json"] },
+  "build": { "builder": "RAILPACK", "watchPatterns": ["server.js", "index.html", "home.html", "basebuilder.html", "static/**", "package.json", "railway.json"] },
   "deploy": {
     "startCommand": "node server.js",
     "healthcheckPath": "/healthz",

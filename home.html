@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--seo-->
+<title>Ashenfallen: tools for RuneScape: Dragonwilds</title>
+<!--/seo-->
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#14161a">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #14161a; --panel: #1c1f25; --panel2: #23272f; --line: #2f343d;
+    --text: #e6e6e6; --muted: #9aa3ae; --accent: #e0b64a; --accent2: #6cb4ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { min-height: 100vh; display: flex; flex-direction: column;
+    background: radial-gradient(ellipse at 50% -10%, #2a2416 0%, transparent 55%), var(--bg); }
+  a { color: inherit; }
+  .wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+
+  header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 0; }
+  .brand { white-space: nowrap; font-weight: 700; letter-spacing: .4px; font-size: 18px; text-decoration: none; }
+  .brand b { color: var(--accent); font-weight: 700; }
+  nav.links { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav.links a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 6px; font-size: 14px; }
+  nav.links a:hover { color: var(--text); background: var(--panel2); }
+
+  .hero { padding: 48px 0 36px; text-align: center; }
+  .hero h1 { margin: 0 0 10px; font-size: clamp(30px, 6vw, 48px); line-height: 1.1; letter-spacing: .3px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { margin: 0 auto; max-width: 600px; color: var(--muted); font-size: 17px; }
+
+  .tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; padding-bottom: 48px; }
+  .tool { position: relative; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; overflow: hidden; text-decoration: none; transition: border-color .15s, transform .15s; }
+  a.tool:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .tool .art { height: 170px; background: #101216; border-bottom: 1px solid var(--line); position: relative; overflow: hidden; }
+  .tool .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .tool h2 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 8px; }
+  .tool p { margin: 0; color: var(--muted); font-size: 14px; flex: 1; }
+  .tool .go { margin-top: 10px; color: var(--accent); font-weight: 600; font-size: 14px; }
+  .tool.soon { opacity: .75; }
+  .tool.soon .go { color: var(--muted); }
+  .badge { white-space: nowrap; font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
+    background: var(--accent); color: #1a1405; }
+  .badge.dim { background: var(--panel2); color: var(--muted); border: 1px solid var(--line); }
+
+  /* Viewer card: a mosaic of real model previews */
+  .mosaic { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); height: 100%; gap: 2px; }
+  .mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; background: #171a1f; }
+  /* Builder card: a little isometric base */
+  .art svg { width: 100%; height: 100%; display: block; }
+
+  footer { margin-top: auto; border-top: 1px solid var(--line); padding: 18px 0; color: var(--muted); font-size: 13px; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  @media (max-width: 520px) {
+    .hero { padding: 28px 0 24px; }
+    .tools { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/">&#9670; <b>Ashenfallen</b></a>
+    <nav class="links">
+      <a href="/viewer">Model Viewer</a>
+      <a href="/base-builder">Base Builder</a>
+      <a href="https://discord.gg/3Xmj3Tx" target="_blank" rel="noopener">Discord</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <h1>Tools for <span>RuneScape: Dragonwilds</span></h1>
+    <p>Explore the game's models in 3D and plan your base. Everything runs in your browser.</p>
+  </section>
+
+  <section class="tools">
+    <a class="tool" href="/viewer">
+      <div class="art"><div class="mosaic"><!--viewer-thumbs--></div></div>
+      <div class="body">
+        <h2>Model Viewer</h2>
+        <p>Search and explore <!--model-count--> buildings, props, creatures and items in 3D. Rotate, zoom and copy any model's in-game path.</p>
+        <span class="go">Open the viewer &rarr;</span>
+      </div>
+    </a>
+
+    <a class="tool" href="/base-builder">
+      <div class="art">
+        <svg viewBox="0 0 320 170" aria-hidden="true">
+          <defs>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d2230"/><stop offset="1" stop-color="#101216"/></linearGradient>
+          </defs>
+          <rect width="320" height="170" fill="url(#sky)"/>
+          <g stroke="#2f343d" stroke-width="1" opacity=".9">
+            <path d="M40 120 L160 60 L280 120 L160 180 Z" fill="#171a1f"/>
+            <path d="M70 120 L160 75 M100 120 L190 75 M130 120 L220 75 M100 135 L190 90 M130 150 L220 105" fill="none" opacity=".5"/>
+          </g>
+          <!-- floor -->
+          <path d="M110 112 L160 87 L210 112 L160 137 Z" fill="#6b5a3e"/>
+          <!-- walls -->
+          <path d="M110 112 L160 137 L160 107 L110 82 Z" fill="#8c96a5"/>
+          <path d="M160 137 L210 112 L210 82 L160 107 Z" fill="#6f7886"/>
+          <!-- roof -->
+          <path d="M104 84 L160 112 L160 92 L134 52 Z" fill="#a0503a"/>
+          <path d="M160 112 L216 84 L186 44 L160 92 Z" fill="#7d3d2c"/>
+          <path d="M134 52 L186 44 L160 92 Z" fill="#8f4632"/>
+          <!-- door -->
+          <path d="M128 113 L142 120 L142 104 L128 97 Z" fill="#3b2d1d"/>
+          <!-- ghost piece being placed -->
+          <g opacity=".85">
+            <path d="M222 122 L252 107 L252 79 L222 94 Z" fill="none" stroke="#e0b64a" stroke-width="2" stroke-dasharray="5 4"/>
+            <path d="M236 70 l0 -14 M230 62 l6 -6 6 6" fill="none" stroke="#e0b64a" stroke-width="2" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+      <div class="body">
+        <h2>Base Builder <span class="badge">New</span></h2>
+        <p>Open your save to see your base in 3D, then decorate it with any model from the game. With the Custom Builds mod, changes go straight into your world.</p>
+        <span class="go">Start building &rarr;</span>
+      </div>
+    </a>
+
+    <div class="tool soon">
+      <div class="art">
+        <svg viewBox="0 0 320 170" aria-hidden="true">
+          <rect width="320" height="170" fill="#101216"/>
+          <g fill="none" stroke="#3a404b" stroke-width="2">
+            <rect x="60" y="40" width="200" height="96" rx="8" fill="#171a1f"/>
+            <path d="M60 60 H260"/>
+          </g>
+          <circle cx="74" cy="50" r="3" fill="#a0503a"/><circle cx="86" cy="50" r="3" fill="#e0b64a"/><circle cx="98" cy="50" r="3" fill="#5f8f5a"/>
+          <g fill="#2a2f38"><rect x="76" y="74" width="80" height="8" rx="3"/><rect x="76" y="90" width="120" height="8" rx="3"/><rect x="76" y="106" width="96" height="8" rx="3"/></g>
+          <g fill="#e0b64a"><rect x="208" y="72" width="36" height="12" rx="6"/><rect x="208" y="88" width="36" height="12" rx="6" opacity=".6"/><rect x="208" y="104" width="36" height="12" rx="6"/></g>
+        </svg>
+      </div>
+      <div class="body">
+        <h2>Dragonwilds Toolkit <span class="badge dim">Coming soon</span></h2>
+        <p>A pack of quality-of-life mods: OSRS-style minimap, chest sorting, crosshair, auto run, home recall, place-any-model building and more.</p>
+        <span class="go">Coming to CurseForge</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Fan-made, not affiliated with Jagex. RuneScape is a trademark of Jagex Ltd.</span>
+    <span><a href="https://discord.gg/3Xmj3Tx" target="_blank" rel="noopener">Discord</a> &middot; <a href="https://ko-fi.com/paulbuilds" target="_blank" rel="noopener">Support on Ko-fi</a></span>
+  </div>
+</footer>
+</body>
+</html>

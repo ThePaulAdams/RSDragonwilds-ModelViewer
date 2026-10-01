@@ -330,7 +330,9 @@ createServer(async (req, res) => {
       }
       // models.json changes with each upload. Models, textures and previews keep their path for life, so browsers
       // and Cloudflare may cache them for a year (a replaced file needs a Cloudflare cache purge).
-      return sendFile(req, res, file, file.endsWith('models.json') ? 'no-cache' : 'public, max-age=31536000, immutable');
+      // The world map is re-exported in place after game updates, so it may only be cached for a day.
+      const world = file.startsWith(join(DATA, 'world') + sep);
+      return sendFile(req, res, file, file.endsWith('models.json') ? 'no-cache' : world ? 'public, max-age=86400' : 'public, max-age=31536000, immutable');
     }
     send(res, 404, 'Not found');
   } catch (e) {

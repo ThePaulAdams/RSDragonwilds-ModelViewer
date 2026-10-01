@@ -47,6 +47,32 @@ public static class PieceTools
             return 0;
         }
         if (mode == "pieces") return Export(p, a[2]);
+        if (mode == "pieces-probe")
+        {
+            // Dump members of the export whose type is a[3] in package a[2], and any byte[] bulk data to <a[4]>.
+            var pkg = p.LoadPackage(a[2]);
+            foreach (var e in pkg.GetExports().Where(x => x.ExportType == a[3]))
+            {
+                Console.WriteLine($"{e.GetType().FullName} {e.Name}");
+                void Dump(object o, string pre, int depth)
+                {
+                    if (o == null || depth > 4) return;
+                    foreach (var m in o.GetType().GetMembers(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+                    {
+                        object? v = null;
+                        try { v = m is System.Reflection.FieldInfo fi ? fi.GetValue(o) : m is System.Reflection.PropertyInfo pi && pi.GetIndexParameters().Length == 0 ? pi.GetValue(o) : null; } catch { continue; }
+                        if (v == null || m.DeclaringType == typeof(object)) continue;
+                        if (m.DeclaringType?.Namespace?.StartsWith("CUE4Parse.UE4.Assets.Exports") == true && m.DeclaringType.Name == "UObject" ) continue;
+                        Console.WriteLine($"{pre}{m.Name}: {v.GetType().Name} {(v is byte[] b ? b.Length + " bytes" : v is Array ar ? "len " + ar.Length : "")}");
+                        if (v is byte[] bytes && a.Length > 4) { File.WriteAllBytes(a[4] + "." + System.Text.RegularExpressions.Regex.Replace(pre, "[^0-9A-Za-z]+", "_") + m.Name + ".bin", bytes); continue; }
+                        if (v is Array arr && arr.Length > 0 && arr.Length < 20) { int i = 0; foreach (var x in arr) Dump(x, pre + "  [" + (i++) + "] ", depth + 1); }
+                        else if (!v.GetType().IsPrimitive && v is not string && v.GetType().Namespace?.StartsWith("CUE4Parse") == true) Dump(v, pre + "  ", depth + 1);
+                    }
+                }
+                Dump(e, "  ", 0);
+            }
+            return 0;
+        }
         if (mode == "pieces-scan")
         {
             // Export types across every package whose path contains a[2].

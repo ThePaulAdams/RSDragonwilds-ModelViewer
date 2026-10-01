@@ -148,13 +148,19 @@
     <div class="muted" id="baseInfo">Open your save to see your base, or connect the game folder.</div>
     <select id="baseSel" hidden></select>
     <label class="muted"><input id="showBase" type="checkbox" checked> Show my building pieces</label>
+    <h2>World</h2>
+    <label class="muted"><input id="showTerrain" type="checkbox" checked> Ground</label>
+    <label class="muted"><input id="showWorld" type="checkbox" checked> Rocks, trees and buildings</label>
+    <label class="muted"><input id="showPlants" type="checkbox"> Flowers and small plants</label>
+    <div class="field"><span>Range</span><select id="worldRange"><option value="100">100 m</option><option value="200" selected>200 m</option><option value="400">400 m</option></select></div>
+    <div class="muted" id="worldInfo">Open your save or connect the game folder to see the world around your base.</div>
   </aside>
 </div>
 
 <div id="help" hidden><div>
   <h3>Build your base here, see it in your game</h3>
   <p class="muted">Needs the <b>Custom Builds</b> mod (in the RuneScape: Dragonwilds Toolkit) and Chrome or Edge.</p>
-  <p><b>Just looking?</b> Click <b>Open save</b> and pick <code>Wilds.sav</code> from <code>%LOCALAPPDATA%\RSDragonwilds\Saved\SaveGames</code> to see your base in 3D. The save is only read, never changed, and nothing is uploaded.</p>
+  <p><b>Just looking?</b> Click <b>Open save</b> and pick <code>Wilds.sav</code> from <code>%LOCALAPPDATA%\RSDragonwilds\Saved\SaveGames</code> to see your base in 3D. The save is only read, never changed, and nothing is uploaded. The ground, rocks and buildings around your base come from the game's own map (see <b>World</b> on the right).</p>
   <p><b>To build:</b></p>
   <ol>
     <li>In the game, stand where you want to build (or aim at the spot) and type <code>cb anchor</code> in the UE4SS console (F10). That saves the spot and your building pieces around it.</li>
@@ -490,7 +496,7 @@ let ghost = null;
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function pointer(e) { const b = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1); ray.setFromCamera(ndc, camera); }
 function hitPoint() {
-  const hits = ray.intersectObjects([placedGroup, baseGroup, ground], true).filter(h => !ghost || !isInside(h.object, ghost));
+  const hits = ray.intersectObjects([placedGroup, baseGroup, terrainGroup, ground], true).filter(h => !ghost || !isInside(h.object, ghost));
   return hits[0]?.point || null;
 }
 const isInside = (o, root) => { for (; o; o = o.parent) if (o === root) return true; return false; };
@@ -618,6 +624,7 @@ async function loadFromFolder() {
   camera.position.copy(back); orbit.target.set(0, 0, 0);
   rebuildAll();
   await loadBase();
+  loadWorld();
   if (savePieces) { showBase(+$('baseSel').value || 0, false); return; }
   if (!a && records.size) { $('baseInfo').textContent = 'Centred on your placed models. Type "cb anchor" in the game console to line up with a spot in game, or Open save to see your base.'; return; }
   $('baseInfo').textContent = a ? `Anchor at ${anchor.X.toFixed(0)}, ${anchor.Y.toFixed(0)}, ${anchor.Z.toFixed(0)} (game cm).` : 'No anchor yet: type "cb anchor" in the game console (F10), then reconnect.';
@@ -769,6 +776,7 @@ function showBase(i, moveAnchor) {
     camera.position.copy(toScene(b.X - 2500, b.Y - 2500, b.Z + 2000)); orbit.target.set(0, 0, 0);
   }
   showPieces(b.pieces);
+  if (moveAnchor || !worldShown) loadWorld();
   const unknown = b.pieces.filter(p => !p.def).length;
   $('baseInfo').textContent = `${b.pieces.length} building pieces from your save` + (unknown ? ` (${unknown} unknown)` : '') +
     (anchorFromGame ? '. Lined up with your in-game anchor.' : '.');
@@ -795,6 +803,133 @@ async function openSave(file) {
   status(`Loaded ${savePieces.length} building pieces from ${file.name}` + (dir ? '.' : '. Connect the game folder to send new models to the game.'), 'ok');
 }
 $('baseSel').addEventListener('change', e => showBase(+e.target.value, true));
+
+// ---------------------------------------------------------------------------
+// The game world around the anchor: the landscape and the world's own meshes (rocks, trees, ruins),
+// from ModelExporter "world" (world/terrain.json, world/terrain/*.bin, world/objects/*.json, world/meshes.json).
+// ---------------------------------------------------------------------------
+const terrainGroup = new THREE.Group(), worldGroup = new THREE.Group();
+scene.add(terrainGroup, worldGroup);
+const SQUARE = 25600;   // cm per objects file
+let worldIndex = null;  // { tiles, meshes } once loaded, false when the site has no world data
+// Ground cover (flowers, grass, fallen branches): tens of thousands per square, off unless asked for.
+const isPlant = p => /\/SM_GF_|\/SM_Branches_/i.test(p);
+async function worldData() {
+  if (worldIndex !== null) return worldIndex;
+  try {
+    const [tiles, meshes] = await Promise.all(['terrain.json', 'meshes.json'].map(f => fetch(DATA_BASE + 'world/' + f).then(r => r.ok ? r.json() : null)));
+    worldIndex = tiles ? { tiles, meshes: meshes || [] } : false;
+  } catch { worldIndex = false; }
+  return worldIndex;
+}
+const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, side: THREE.DoubleSide });
+const grassCol = new THREE.Color(0x5b6f38), dirtCol = new THREE.Color(0x6d5f45), rockCol = new THREE.Color(0x77736b);
+// One landscape tile as a mesh, coloured by slope (grass on the flat, earth, then rock on steep ground).
+function terrainMesh(t, h) {
+  const n = t.n, pos = new Float32Array(n * n * 3);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const k = j * n + i, v = toScene(t.x + i * t.step, t.y + j * t.step, t.z + (h[k] - 32768) * t.zs);
+    pos[k * 3] = v.x; pos[k * 3 + 1] = v.y; pos[k * 3 + 2] = v.z;
+  }
+  const idx = new Uint32Array((n - 1) * (n - 1) * 6);
+  let q = 0;
+  for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) {
+    const a = j * n + i, b = a + 1, c = a + n, d = c + 1;
+    idx.set([a, b, c, b, d, c], q); q += 6;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeVertexNormals();
+  // The game-to-scene axis swap mirrors the winding; make the normals face up.
+  const nrm = g.attributes.normal;
+  if (nrm.getY(0) + nrm.getY(n * n - 1) < 0) {
+    for (let k = 0; k < idx.length; k += 3) { const s = idx[k + 1]; idx[k + 1] = idx[k + 2]; idx[k + 2] = s; }
+    g.index.needsUpdate = true; g.computeVertexNormals();
+  }
+  const col = new Float32Array(n * n * 3), c = new THREE.Color();
+  for (let k = 0; k < n * n; k++) {
+    const up = nrm.getY(k);
+    if (up > 0.9) c.copy(grassCol); else if (up > 0.75) c.copy(grassCol).lerp(dirtCol, (0.9 - up) / 0.15); else c.copy(dirtCol).lerp(rockCol, Math.min(1, (0.75 - up) / 0.2));
+    col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeBoundingSphere();
+  return new THREE.Mesh(g, terrainMat);
+}
+const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
+// Every copy of one world mesh as instanced meshes (one per part of the model).
+function addInstances(root, rows) {
+  root.updateMatrixWorld(true);
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    const im = new THREE.InstancedMesh(o.geometry, o.material, rows.length);
+    rows.forEach((r, i) => {
+      _p.copy(toScene(r[1], r[2], r[3]));
+      _s.set(r[8], r[10], r[9]);
+      _m.compose(_p, ueToThreeQuat({ x: r[4], y: r[5], z: r[6], w: r[7] }), _s).multiply(o.matrixWorld);
+      im.setMatrixAt(i, _m);
+    });
+    im.computeBoundingSphere();
+    worldGroup.add(im);
+  });
+}
+function clearWorld() {
+  for (const m of terrainGroup.children) m.geometry.dispose();
+  terrainGroup.clear();
+  for (const m of worldGroup.children) m.dispose();
+  worldGroup.clear();
+}
+let worldToken = 0, worldShown = false;
+async function loadWorld() {
+  const token = ++worldToken;
+  clearWorld();
+  const R = +$('worldRange').value * 100, cx = anchor.X, cy = anchor.Y;
+  scene.fog.far = Math.max(400, R / 100 * 2.5);
+  if (!$('showTerrain').checked && !$('showWorld').checked) { $('worldInfo').textContent = ''; grid.visible = true; return; }
+  const w = await worldData();
+  if (token !== worldToken) return;
+  if (!w) { $('worldInfo').textContent = 'The world map isn\'t on this site yet.'; return; }
+  $('worldInfo').textContent = 'Loading the world...';
+  let tiles = 0, objects = 0;
+  if ($('showTerrain').checked) {
+    const near = w.tiles.filter(t => {
+      const L = t.step * (t.n - 1), dx = Math.max(t.x - cx, 0, cx - (t.x + L)), dy = Math.max(t.y - cy, 0, cy - (t.y + L));
+      return dx * dx + dy * dy < R * R;
+    });
+    await Promise.all(near.map(async t => {
+      try {
+        const buf = await (await fetch(DATA_BASE + 'world/terrain/' + t.f)).arrayBuffer();
+        if (token === worldToken) { terrainGroup.add(terrainMesh(t, new Uint16Array(buf))); tiles++; }
+      } catch { }
+    }));
+  }
+  if ($('showWorld').checked) {
+    const keys = [];
+    for (let ix = Math.floor((cx - R) / SQUARE); ix <= Math.floor((cx + R) / SQUARE); ix++)
+      for (let iy = Math.floor((cy - R) / SQUARE); iy <= Math.floor((cy + R) / SQUARE); iy++) keys.push(ix + '_' + iy);
+    const lists = await Promise.all(keys.map(k => fetch(DATA_BASE + 'world/objects/' + k + '.json').then(r => r.ok ? r.json() : []).catch(() => [])));
+    if (token !== worldToken) return;
+    const plants = $('showPlants').checked, byMesh = new Map();
+    for (const list of lists) for (const r of list) {
+      const dx = r[1] - cx, dy = r[2] - cy;
+      if (dx * dx + dy * dy > R * R || (!plants && isPlant(w.meshes[r[0]]))) continue;
+      if (!byMesh.has(r[0])) byMesh.set(r[0], []);
+      byMesh.get(r[0]).push(r);
+    }
+    for (const [mi, rows] of byMesh) {
+      const m = modelFor(w.meshes[mi]); if (!m) continue;
+      objects += rows.length;
+      loadMesh(m).then(root => { if (token === worldToken) addInstances(root, rows); }).catch(() => { });
+    }
+  }
+  if (token !== worldToken) return;
+  grid.visible = !tiles;
+  worldShown = true;
+  $('worldInfo').textContent = `${R / 100} m around your base: ` + [tiles && 'the ground', objects && `${objects.toLocaleString('en')} rocks, trees and buildings`].filter(Boolean).join(' and ') + '.';
+}
+for (const id of ['showTerrain', 'showWorld', 'showPlants', 'worldRange']) $(id).addEventListener('change', loadWorld);
+
 $('saveBtn').onclick = async () => {
   try {
     let file;

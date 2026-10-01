@@ -121,11 +121,22 @@ export function patchSave(doc, changes) {
       const parentSpan = doc.spans.get(pathKey(path.slice(0, -1)));
       const parent = getAt(doc.data, path.slice(0, -1));
       if (!parentSpan || !parent || typeof parent !== 'object' || Array.isArray(parent)) throw new Error('Cannot add ' + path.join('.'));
+      const key = path[path.length - 1];
+      // A new numbered slot goes where the game would put it: before the next higher slot or the first named key.
+      if (/^\d+$/.test(String(key))) {
+        const next = Object.keys(parent).find(k => !/^\d+$/.test(k) || Number(k) > Number(key));
+        if (next !== undefined) {
+          const ns = doc.spans.get(pathKey([...path.slice(0, -1), next]))[0];
+          const ks = doc.text.lastIndexOf(JSON.stringify(next), ns);
+          const indent = lineIndent(doc.text, ks);
+          edits.push([ks, ks, JSON.stringify(String(key)) + ':' + formatAfterKey(value, indent, doc) + ',' + doc.nl + indent]);
+          continue;
+        }
+      }
       const close = parentSpan[1] - 1;   // the "}"
       let end = close; while (/\s/.test(doc.text[end - 1])) end--;
       const empty = doc.text[end - 1] === '{';
       const indent = lineIndent(doc.text, close) + doc.unit;
-      const key = path[path.length - 1];
       const ins = (empty ? '' : ',') + doc.nl + indent + JSON.stringify(String(key)) + ':' + formatAfterKey(value, indent, doc) + (empty ? doc.nl + lineIndent(doc.text, close) : '');
       edits.push([end, empty ? close : end, ins]);
     }

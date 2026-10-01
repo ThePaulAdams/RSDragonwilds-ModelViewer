@@ -59,6 +59,16 @@ assert.ok(!out4.includes('Kebbit') && out4.includes(`],${N}${T}${T}${T}"SpellsUn
 const out5 = patchSave(doc, [{ path: food, value: undefined }]);
 assert.ok(out5.includes(`0.55555558204650879${N}${T}${T}},`));
 
+// New numbered slots go in slot order, before named keys like MaxSlotIndex.
+const bag = ['{', `${T}"Inventory":`, `${T}{`, `${T}${T}"0":`, `${T}${T}{`, `${T}${T}${T}"Count": 1`, `${T}${T}},`, `${T}${T}"7":`, `${T}${T}{`, `${T}${T}${T}"Count": 7`, `${T}${T}},`, `${T}${T}"MaxSlotIndex": 7`, `${T}}`, '}'].join(N);
+const bd = parseSave(bag);
+const bo = patchSave(bd, [{ path: ['Inventory', '3'], value: { Count: 3 } }, { path: ['Inventory', '9'], value: { Count: 9 } }, { path: ['Inventory', 'MaxSlotIndex'], value: 9 }]);
+assert.deepEqual(Object.keys(parseSave(bo).data.Inventory), ['0', '3', '7', '9', 'MaxSlotIndex']);
+assert.ok(bo.includes(`${T}${T}},${N}${T}${T}"3":${N}${T}${T}{${N}${T}${T}${T}"Count": 3${N}${T}${T}},${N}${T}${T}"7":`));
+assert.ok(bo.includes(`"Count": 7${N}${T}${T}},${N}${T}${T}"9":${N}${T}${T}{${N}${T}${T}${T}"Count": 9${N}${T}${T}},${N}${T}${T}"MaxSlotIndex": 9${N}${T}}`));
+// The text order matches the order the game writes: slots ascending, then MaxSlotIndex.
+assert.ok(bo.indexOf('"3"') < bo.indexOf('"7"') && bo.indexOf('"9"') < bo.indexOf('MaxSlotIndex'));
+
 // Ids
 assert.equal(idToHex('mKIxNUr0C8E6YXOL8OSRkQ'), '98A231354AF40BC13A61738BF0E49191');
 assert.equal(hexToId('98A231354AF40BC13A61738BF0E49191'), 'mKIxNUr0C8E6YXOL8OSRkQ');

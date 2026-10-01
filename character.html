@@ -161,6 +161,32 @@
   .skill .was { font-size: 11px; color: var(--muted); }
   @media (max-width: 700px) { .skill { grid-template-columns: 1fr 80px; } .skill .bar, .skill .was { display: none; } }
 
+  /* Inventory */
+  #invLayout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+  .bag { margin-bottom: 16px; }
+  .cells { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 4px; }
+  .cell { position: relative; aspect-ratio: 1; padding: 0; border-radius: 6px; background: #101216; border: 1px solid var(--line); overflow: hidden; }
+  .cell img { width: 100%; height: 100%; object-fit: contain; padding: 4px; pointer-events: none; }
+  .cell .q { position: absolute; right: 3px; bottom: 1px; font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px #000; pointer-events: none; }
+  .cell .ix { position: absolute; left: 3px; top: 1px; font-size: 9px; color: #5c6370; pointer-events: none; }
+  .cell .dur { position: absolute; left: 4px; right: 4px; bottom: 3px; height: 3px; border-radius: 2px; background: #3a404b; pointer-events: none; }
+  .cell .dur i { display: block; height: 100%; border-radius: 2px; background: var(--ok); }
+  .cell .ab { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10px; color: var(--muted); padding: 2px; text-align: center; pointer-events: none; }
+  .cell.ref { border-style: dashed; }
+  .cell.sel { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(224, 182, 74, .4); }
+  .cell.changed::after { content: ""; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+  .cell.over { border-color: var(--accent2); }
+  #itemPanel { position: sticky; top: 64px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  #itemPanel .head { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; }
+  #itemPanel .head img, #itemPanel .head .noimg { width: 64px; height: 64px; object-fit: contain; background: #101216; border-radius: 8px; display: grid; place-items: center; color: var(--muted); }
+  #itemPanel .field { display: grid; grid-template-columns: 80px 1fr auto; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+  #itemPanel .field input { width: 100%; }
+  #itemPanel .results { display: flex; flex-direction: column; gap: 3px; max-height: 420px; overflow-y: auto; }
+  #itemPanel .results button { display: grid; grid-template-columns: 32px 1fr; gap: 8px; align-items: center; text-align: left; padding: 4px 6px; }
+  #itemPanel .results img, #itemPanel .results .noimg { width: 32px; height: 32px; object-fit: contain; }
+  #itemPanel .results small { color: var(--muted); display: block; font-size: 11px; }
+  @media (max-width: 1100px) { #invLayout { grid-template-columns: 1fr; } #itemPanel { position: static; } }
+
   /* Changes */
   .change { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
   .change h3 { margin: 0 0 6px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
@@ -242,6 +268,7 @@
         <div><b>Spellbooks</b>Drag spells onto all four spell wheels, see the rune cost of each book, unlock any spell.</div>
         <div><b>Recipes</b>Search every recipe, filter by station, unlock one, a whole station or everything at once.</div>
         <div><b>Skills</b>Set any skill by level or XP, see progress to the next level, or set every skill at once.</div>
+        <div><b>Inventory</b>Add any item, change amounts, repair, move things between bags. Shortcuts follow their item.</div>
         <div><b>Undo and checks</b>Undo any step. Every id is checked against the game's data before saving.</div>
         <div><b>Safe saving</b>A backup of the original is made before anything is written, and only the parts you changed are touched.</div>
       </div>
@@ -253,7 +280,7 @@
         <button data-tab="recipes">Recipes</button>
         <button data-tab="changes">Changes<span class="count" id="changeCount" hidden></span></button>
         <button data-tab="skills">Skills</button>
-        <button disabled title="Coming next">Inventory<span class="soon">soon</span></button>
+        <button data-tab="inventory">Inventory</button>
         <button disabled title="Coming next">Quests<span class="soon">soon</span></button>
       </nav>
 
@@ -314,6 +341,18 @@
         </div>
         <div class="list" id="skillList"></div>
         <p class="muted" style="margin-top:12px">XP is what the save stores; the level follows from it. Lowering a skill can lock you out of things you already built or learned with it.</p>
+      </div>
+
+      <div id="invTab" data-panel="inventory" hidden>
+        <div class="toolbar">
+          <span class="summary grow" id="invSummary"></span>
+          <button id="repairAll">Repair everything</button>
+          <button id="fillStacks">Fill every stack</button>
+        </div>
+        <div id="invLayout">
+          <div id="bags"></div>
+          <div id="itemPanel"></div>
+        </div>
       </div>
 
       <div id="changesTab" data-panel="changes" hidden>
@@ -404,7 +443,10 @@ const spellName = id => cat.spells.get(id)?.name || null;
 
 // ---------- state ----------
 // The fields the editor changes. Found by key, so a moved field still works.
-const FIELDS = { recipes: 'RecipesUnlocked', recipesNew: 'RecipesNew', spells: 'SpellsUnlocked', spellsNew: 'SpellsNew', selected: 'SelectedSpells', skills: 'Skills' };
+const FIELDS = { recipes: 'RecipesUnlocked', recipesNew: 'RecipesNew', spells: 'SpellsUnlocked', spellsNew: 'SpellsNew', selected: 'SelectedSpells', skills: 'Skills',
+  inventory: 'Inventory', personal: 'PersonalInventory', loadout: 'Loadout' };
+// Containers are objects keyed by slot index ("0", "1", ...) plus "MaxSlotIndex"; the rest are lists.
+const BAGS = ['inventory', 'personal', 'loadout'];
 let file = null;     // { name, handle, dir, lastModified, original, backedUp }
 let doc = null;      // the parsed save as it is on disk
 let paths = {};      // field -> path in the save (null when the save doesn't have it)
@@ -421,7 +463,8 @@ function readFields(d) {
     // Skills sit one level down: GameProgress.Skills.Skills = [{ Id, Xp }].
     if (f === 'skills' && p[f] && !Array.isArray(getAt(d.data, p[f]))) p[f] = Array.isArray(getAt(d.data, [...p[f], 'Skills'])) ? [...p[f], 'Skills'] : null;
     const val = p[f] && getAt(d.data, p[f]);
-    v[f] = Array.isArray(val) ? structuredClone(val) : [];
+    v[f] = BAGS.includes(f) ? (val && typeof val === 'object' && !Array.isArray(val) ? structuredClone(val) : null) : Array.isArray(val) ? structuredClone(val) : [];
+    if (BAGS.includes(f) && !v[f]) p[f] = null;
   }
   // Fields the editor may add when missing: the "new" lists live next to their unlocked lists.
   if (!p.recipesNew && p.recipes) p.recipesNew = [...p.recipes.slice(0, -1), FIELDS.recipesNew];
@@ -590,6 +633,9 @@ function patchList(fields) {
     const a = base[f], b = state[f];
     if (f === 'skills' && a.length === b.length && a.every((x, i) => x?.Id === b[i]?.Id)) {
       b.forEach((x, i) => { if (x.Xp !== a[i].Xp) out.push({ path: [...paths[f], i, 'Xp'], value: x.Xp }); });
+    } else if (BAGS.includes(f)) {
+      // Slot by slot: changed, added and removed slots, so untouched slots keep their exact text.
+      for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (!same(a[k], b[k])) out.push({ path: [...paths[f], k], value: b[k] });
     } else out.push({ path: paths[f], value: b });
   }
   return out;
@@ -688,6 +734,17 @@ function issues() {
     const u = state.skills.filter(x => !cat.skills.has(x.Id));
     if (u.length) out.push({ level: 'warn', text: `${u.length} skill id${u.length > 1 ? 's are' : ' is'} not in the game data.` });
   }
+  for (const b of BAGS) {
+    if (!paths[b]) continue;
+    for (const k of slotKeys(state[b])) {
+      const e = state[b][k], it = itemOf(e);
+      if (e?.PlayerInventoryItemIndex != null && !state.inventory?.[e.PlayerInventoryItemIndex]?.ItemData) out.push({ level: 'warn', text: `${BAG_TITLE[b]} slot ${k + 1} is a shortcut to an empty backpack slot.` });
+      if (!e?.ItemData) continue;
+      if (cat.items.size && !it) out.push({ level: 'warn', text: `${BAG_TITLE[b]} slot ${k + 1} holds an item that isn't in the game data.` });
+      if (it?.maxStack && e.Count > it.maxStack) out.push({ level: 'warn', text: `${it.name} (${BAG_TITLE[b].toLowerCase()} ${k + 1}): ${e.Count} is more than a stack of ${it.maxStack}.`, fix: 'Cap it', run: () => edit(`Cap ${it.name}`, s => { s[b][k].Count = it.maxStack; }) });
+      if (it?.durability && e.Durability > it.durability) out.push({ level: 'warn', text: `${it.name} (${BAG_TITLE[b].toLowerCase()} ${k + 1}) has more durability than it can.`, fix: 'Cap it', run: () => edit(`Cap ${it.name}`, s => { s[b][k].Durability = it.durability; }) });
+    }
+  }
   if (!paths.recipes) out.push({ level: 'warn', text: 'This save has no recipe list, so recipes can\'t be edited.' });
   if (!paths.selected) out.push({ level: 'warn', text: 'This save has no spellbooks, so spells can\'t be placed.' });
   return out;
@@ -715,9 +772,11 @@ function render() {
   if (tab === 'spells') renderSpells();
   if (tab === 'recipes') renderRecipes();
   if (tab === 'skills') renderSkills();
+  if (tab === 'inventory') renderInventory();
   if (tab === 'changes') renderChanges();
 }
 function diffCount(f) {
+  if (BAGS.includes(f)) return [...new Set([...Object.keys(base[f]), ...Object.keys(state[f])])].filter(k => k !== 'MaxSlotIndex' && !same(base[f][k], state[f][k])).length;
   if (f === 'skills') return state.skills.filter((x, i) => !same(x, base.skills[i])).length;
   if (f === 'selected') return state.selected.reduce((a, x, i) => a + (x !== base.selected[i] ? 1 : 0), 0) + Math.abs(state.selected.length - base.selected.length);
   if (f === 'recipesNew' || f === 'spellsNew') return 0;   // follows the unlock changes
@@ -992,6 +1051,145 @@ $('allLevelBtn').onclick = () => {
   edit(`Set every skill to level ${v}`, s => { for (const x of s.skills) x.Xp = xpFor(v); });
 };
 
+// ----- inventory -----
+const BAG_TITLE = { loadout: 'Equipped and quick slots', inventory: 'Backpack', personal: 'Personal storage' };
+const BAG_MIN = { loadout: 10, inventory: 40, personal: 20 };
+let selCell = null;   // { bag, slot }
+const slotKeys = o => Object.keys(o || {}).filter(k => /^\d+$/.test(k)).map(Number);
+function cellsFor(bag) {
+  const o = state[bag], used = Math.max(-1, o?.MaxSlotIndex ?? -1, ...slotKeys(o)) + 1;
+  return bag === 'loadout' ? Math.max(used, BAG_MIN.loadout) : Math.ceil(Math.max(used, BAG_MIN[bag]) / 10) * 10 + 10;
+}
+const itemOf = e => (e?.ItemData ? cat.items.get(e.ItemData) : null);
+const stackable = (e, it) => e?.Count != null || (it?.maxStack ?? 1) > 1;
+function newGuid() { const b = crypto.getRandomValues(new Uint8Array(16)); return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function cellHtml(bag, i) {
+  const e = state[bag]?.[i], was = base[bag]?.[i];
+  const sel = selCell && selCell.bag === bag && selCell.slot === i;
+  let inner = `<span class="ix">${i + 1}</span>`, cls = '', title = 'Empty slot';
+  if (e?.PlayerInventoryItemIndex != null) {
+    const t = state.inventory?.[e.PlayerInventoryItemIndex], it = itemOf(t);
+    cls = ' ref'; title = `Shortcut to backpack slot ${e.PlayerInventoryItemIndex + 1}${it ? ': ' + it.name : ''}`;
+    inner += it?.icon ? `<img src="${esc(iconUrl(it.icon))}" alt="" loading="lazy" style="opacity:.7">` : `<span class="ab">&#8599; ${e.PlayerInventoryItemIndex + 1}</span>`;
+  } else if (e?.ItemData) {
+    const it = itemOf(e);
+    title = (it?.name || e.ItemData) + (e.Count != null ? ` × ${e.Count}` : '') + (e.Durability != null ? ` · durability ${e.Durability}${it?.durability ? ' / ' + it.durability : ''}` : '');
+    inner += it?.icon ? `<img src="${esc(iconUrl(it.icon))}" alt="" loading="lazy">` : `<span class="ab">${esc(it ? it.name : '?')}</span>`;
+    if (e.Count != null) inner += `<span class="q">${e.Count.toLocaleString('en')}</span>`;
+    else if (e.Durability != null && it?.durability) inner += `<span class="dur"><i style="width:${Math.min(100, Math.round((e.Durability / it.durability) * 100))}%;${e.Durability < it.durability * .25 ? 'background:var(--bad)' : ''}"></i></span>`;
+  }
+  return `<button class="cell${cls}${sel ? ' sel' : ''}${same(e, was) ? '' : ' changed'}" data-bag="${bag}" data-slot="${i}" draggable="${!!e}" title="${esc(title)}">${inner}</button>`;
+}
+function renderInventory() {
+  const bags = ['loadout', 'inventory', 'personal'].filter(b => paths[b]);
+  let items = 0;
+  for (const b of bags) items += slotKeys(state[b]).filter(k => state[b][k]?.ItemData).length;
+  $('invSummary').innerHTML = bags.length ? `<b>${items}</b> items. Click a slot to change it, drag to move.` : 'This save has no inventory.';
+  $('bags').innerHTML = bags.map(b => `<section class="bag"><div class="h2">${BAG_TITLE[b]}</div><div class="cells">${Array.from({ length: cellsFor(b) }, (_, i) => cellHtml(b, i)).join('')}</div></section>`).join('');
+  renderItemPanel();
+}
+function renderItemPanel() {
+  const P = $('itemPanel');
+  if (!selCell) { P.innerHTML = '<span class="muted">Pick a slot to see or change what is in it. Pick an empty slot to add an item.</span>'; return; }
+  const { bag, slot } = selCell, e = state[bag]?.[slot], where = `${BAG_TITLE[bag]}, slot ${slot + 1}`;
+  if (e?.PlayerInventoryItemIndex != null) {
+    const it = itemOf(state.inventory?.[e.PlayerInventoryItemIndex]);
+    P.innerHTML = `<div class="muted">${esc(where)}</div><div>A shortcut to backpack slot ${e.PlayerInventoryItemIndex + 1}${it ? ` (<b>${esc(it.name)}</b>)` : ' (empty)'}. Change the item in the backpack.</div>
+      <button data-act="goto">Go to backpack slot ${e.PlayerInventoryItemIndex + 1}</button><button data-act="remove">Remove shortcut</button>`;
+    return;
+  }
+  if (e?.ItemData) {
+    const it = itemOf(e);
+    P.innerHTML = `<div class="muted">${esc(where)}</div>
+      <div class="head">${it?.icon ? `<img src="${esc(iconUrl(it.icon))}" alt="">` : '<span class="noimg">?</span>'}<div><b>${esc(it?.name || 'Unknown item')}</b><br><span class="muted">${esc(it?.categoryName || '')}${it ? '' : `<code>${esc(e.ItemData)}</code>`}</span></div></div>
+      ${it?.description ? `<div class="muted">${esc(it.description)}</div>` : ''}
+      ${stackable(e, it) ? `<label class="field">Amount <input type="number" min="1" step="1" data-k="Count" value="${e.Count ?? 1}"><button data-act="maxCount" ${it?.maxStack ? '' : 'disabled'}>Max${it?.maxStack ? ' ' + it.maxStack : ''}</button></label>` : ''}
+      ${e.Durability != null || it?.durability ? `<label class="field">Durability <input type="number" min="0" step="1" data-k="Durability" value="${e.Durability ?? it.durability}"><button data-act="repair" ${it?.durability ? '' : 'disabled'}>Repair${it?.durability ? ' ' + it.durability : ''}</button></label>` : ''}
+      ${e.NumUpgradesApplied != null ? `<label class="field">Upgrades <input type="number" min="0" step="1" data-k="NumUpgradesApplied" value="${e.NumUpgradesApplied}"><span></span></label>` : ''}
+      <div class="row" style="display:flex;gap:6px;background:none;border:0;padding:0"><button data-act="remove">Remove item</button><button data-act="replace">Swap for another item</button></div>
+      <div id="pickBox" hidden></div>`;
+    return;
+  }
+  P.innerHTML = `<div class="muted">${esc(where)} is empty.</div><div id="pickBox"></div>`;
+  showPicker();
+}
+let pickQuery = '';
+function showPicker() {
+  const box = $('pickBox'); if (!box) return;
+  box.hidden = false;
+  box.innerHTML = `<input type="search" id="pickSearch" placeholder="Search ${cat.items.size.toLocaleString('en')} items to add..." style="width:100%" value="${esc(pickQuery)}"><div class="results" id="pickResults" style="margin-top:6px"></div>`;
+  const run = () => {
+    pickQuery = $('pickSearch').value; const q = pickQuery.trim().toLowerCase();
+    const list = [...cat.items.values()].filter(it => !it.unnamed && (!q || it.name.toLowerCase().includes(q) || (it.categoryName || '').toLowerCase().includes(q))).slice(0, 80);
+    $('pickResults').innerHTML = list.map(it => `<button data-id="${esc(it.id)}">${it.icon ? `<img src="${esc(iconUrl(it.icon))}" alt="" loading="lazy">` : '<span class="noimg">?</span>'}<span>${esc(it.name)}<small>${esc(it.categoryName || '')}${it.maxStack > 1 ? ` · stacks to ${it.maxStack}` : ''}</small></span></button>`).join('')
+      || `<span class="muted">${cat.items.size ? 'No items match.' : 'Item names arrive with the game data.'}</span>`;
+  };
+  $('pickSearch').oninput = run; run(); $('pickSearch').focus();
+}
+function putItem(bag, slot, id) {
+  const it = cat.items.get(id), old = state[bag]?.[slot];
+  const e = { GUID: old?.ItemData && old.GUID ? old.GUID : newGuid(), ItemData: id };
+  if ((it?.maxStack ?? 1) > 1) e.Count = it.maxStack;
+  if (it?.durability) e.Durability = it.durability;
+  edit(`${old?.ItemData ? 'Swap' : 'Add'} ${it?.name || 'item'} in ${BAG_TITLE[bag].toLowerCase()} slot ${slot + 1}`, s => {
+    s[bag][slot] = e;
+    if ((s[bag].MaxSlotIndex ?? -1) < slot) s[bag].MaxSlotIndex = slot;
+  });
+}
+$('bags').onclick = e => {
+  const c = e.target.closest('.cell'); if (!c) return;
+  selCell = { bag: c.dataset.bag, slot: +c.dataset.slot }; renderInventory();
+};
+$('itemPanel').onclick = e => {
+  const b = e.target.closest('button'); if (!b || !selCell) return;
+  const { bag, slot } = selCell, cur = state[bag][slot], it = itemOf(cur);
+  if (b.dataset.id) return putItem(bag, slot, b.dataset.id);
+  const act = b.dataset.act;
+  if (act === 'goto') { selCell = { bag: 'inventory', slot: cur.PlayerInventoryItemIndex }; return renderInventory(); }
+  if (act === 'replace') return showPicker();
+  if (act === 'maxCount') return edit(`Fill ${it.name}`, s => { s[bag][slot].Count = it.maxStack; });
+  if (act === 'repair') return edit(`Repair ${it.name}`, s => { s[bag][slot].Durability = it.durability; });
+  if (act === 'remove') edit(`Remove ${it?.name || 'shortcut'}`, s => {
+    delete s[bag][slot];
+    // Shortcuts to a removed backpack item would point at nothing.
+    if (bag === 'inventory' && s.loadout) for (const k of slotKeys(s.loadout)) if (s.loadout[k]?.PlayerInventoryItemIndex === slot) delete s.loadout[k];
+  });
+};
+$('itemPanel').onchange = e => {
+  const k = e.target.dataset.k; if (!k || !selCell) return;
+  const { bag, slot } = selCell, v = Math.floor(Number(e.target.value)), it = itemOf(state[bag][slot]);
+  if (!Number.isFinite(v) || v < (k === 'Count' ? 1 : 0)) { toast(k === 'Count' ? 'The amount must be at least 1.' : 'That must be 0 or more.', true); return renderItemPanel(); }
+  edit(`Set ${it?.name || 'item'} ${k === 'Count' ? 'amount' : k === 'Durability' ? 'durability' : 'upgrades'} to ${v}`, s => { s[bag][slot][k] = v; });
+};
+// Drag items between slots (and between backpack and personal storage). Shortcuts follow a moved backpack item.
+let invDrag = null;
+$('bags').addEventListener('dragstart', e => { const c = e.target.closest('.cell'); if (!c) return; invDrag = { bag: c.dataset.bag, slot: +c.dataset.slot }; e.dataTransfer.setData('text/plain', 'item'); });
+$('bags').addEventListener('dragover', e => { const c = e.target.closest('.cell'); if (invDrag && c) { e.preventDefault(); c.classList.add('over'); } });
+$('bags').addEventListener('dragleave', e => e.target.closest('.cell')?.classList.remove('over'));
+$('bags').addEventListener('drop', e => {
+  const c = e.target.closest('.cell'); if (!invDrag || !c) return;
+  e.preventDefault(); e.stopPropagation();
+  const from = invDrag, to = { bag: c.dataset.bag, slot: +c.dataset.slot }; invDrag = null;
+  if (from.bag === to.bag && from.slot === to.slot) return renderInventory();
+  if ((from.bag === 'loadout') !== (to.bag === 'loadout')) { toast('Equipped items move only between equipped slots here.', true); return renderInventory(); }
+  edit('Move item', s => {
+    const a = s[from.bag][from.slot], b = s[to.bag][to.slot];
+    if (b === undefined) delete s[from.bag][from.slot]; else s[from.bag][from.slot] = b;
+    s[to.bag][to.slot] = a;
+    for (const p of [from, to]) if ((s[p.bag].MaxSlotIndex ?? -1) < p.slot && s[p.bag][p.slot] !== undefined) s[p.bag].MaxSlotIndex = p.slot;
+    // Keep shortcuts pointing at the same backpack items.
+    if (s.loadout && (from.bag === 'inventory' || to.bag === 'inventory')) for (const k of slotKeys(s.loadout)) {
+      const r = s.loadout[k]; if (r?.PlayerInventoryItemIndex == null) continue;
+      if (from.bag === 'inventory' && r.PlayerInventoryItemIndex === from.slot) r.PlayerInventoryItemIndex = to.bag === 'inventory' ? to.slot : -1;
+      else if (to.bag === 'inventory' && r.PlayerInventoryItemIndex === to.slot) r.PlayerInventoryItemIndex = from.bag === 'inventory' ? from.slot : -1;
+      if (r.PlayerInventoryItemIndex === -1) delete s.loadout[k];
+    }
+  });
+  selCell = to; render();
+});
+$('repairAll').onclick = () => edit('Repair everything', s => { for (const b of BAGS) for (const k of slotKeys(s[b])) { const e = s[b][k], it = itemOf(e); if (e?.Durability != null && it?.durability && e.Durability < it.durability) e.Durability = it.durability; } });
+$('fillStacks').onclick = () => edit('Fill every stack', s => { for (const b of BAGS) for (const k of slotKeys(s[b])) { const e = s[b][k], it = itemOf(e); if (e?.Count != null && it?.maxStack > e.Count) e.Count = it.maxStack; } });
+
 // ----- changes -----
 function renderChanges() {
   const groups = [];
@@ -1011,6 +1209,12 @@ function renderChanges() {
   const sk = state.skills.map((x, i) => [x, base.skills[i], i]).filter(([x, w]) => !same(x, w));
   if (sk.length) groups.push(`<div class="change"><h3>${sk.length} skill${sk.length > 1 ? 's' : ''}</h3><ul>${sk.map(([x, w, i]) =>
     `<li>${esc(skillName(x.Id, i))}: ${(w?.Xp ?? 0).toLocaleString('en')} &rarr; ${x.Xp.toLocaleString('en')} XP${maxLevel() ? ` (level ${levelFor(w?.Xp ?? 0)} &rarr; ${levelFor(x.Xp)})` : ''}</li>`).join('')}</ul></div>`);
+  for (const b of BAGS) {
+    if (!paths[b]) continue;
+    const desc = e => (e?.PlayerInventoryItemIndex != null ? `shortcut to backpack ${e.PlayerInventoryItemIndex + 1}` : e?.ItemData ? `${itemOf(e)?.name || e.ItemData}${e.Count != null ? ' × ' + e.Count : ''}${e.Durability != null ? ' (' + e.Durability + ')' : ''}` : 'empty');
+    const ch = [...new Set([...slotKeys(base[b]), ...slotKeys(state[b])])].sort((x, y) => x - y).filter(k => !same(base[b][k], state[b][k]));
+    if (ch.length) groups.push(`<div class="change"><h3>${BAG_TITLE[b]}: ${ch.length} slot${ch.length > 1 ? 's' : ''}</h3><ul>${ch.map(k => `<li>Slot ${k + 1}: ${esc(desc(base[b][k]))} &rarr; ${esc(desc(state[b][k]))}</li>`).join('')}</ul></div>`);
+  }
   if (slots.length) groups.push(`<div class="change"><h3>${slots.length} spellbook slot${slots.length > 1 ? 's' : ''}</h3><ul>${slots.join('')}</ul></div>`);
   $('changeList').innerHTML = groups.join('') || '<p class="muted">No changes yet.</p>';
   $('changesSummary').textContent = groups.length ? 'These are written to your save when you click Save. Nothing else in the file changes.' : '';

@@ -91,6 +91,7 @@
   <header>
     <h1><a href="/">&#9670; <span>Ashenfallen</span></a> Base Builder</h1>
     <div class="group">
+      <button id="saveBtn" title="Show your base from your save file (Wilds.sav). Read only: the save is never changed.">Open save</button>
       <button id="connectBtn" class="primary" title="Pick your game's ue4ss\Mods\CustomBuilds folder">Connect game folder</button>
       <span id="sync">Not connected: changes stay in this page until you connect or export.</span>
     </div>
@@ -144,7 +145,8 @@
     <h2>Placed <span id="placedCount" class="muted"></span></h2>
     <div id="list"></div>
     <h2>Base</h2>
-    <div class="muted" id="baseInfo">Connect the game folder to see your base and anchor.</div>
+    <div class="muted" id="baseInfo">Open your save to see your base, or connect the game folder.</div>
+    <select id="baseSel" hidden></select>
     <label class="muted"><input id="showBase" type="checkbox" checked> Show my building pieces</label>
   </aside>
 </div>
@@ -152,6 +154,8 @@
 <div id="help" hidden><div>
   <h3>Build your base here, see it in your game</h3>
   <p class="muted">Needs the <b>Custom Builds</b> mod (in the RuneScape: Dragonwilds Toolkit) and Chrome or Edge.</p>
+  <p><b>Just looking?</b> Click <b>Open save</b> and pick <code>Wilds.sav</code> from <code>%LOCALAPPDATA%\RSDragonwilds\Saved\SaveGames</code> to see your base in 3D. The save is only read, never changed, and nothing is uploaded.</p>
+  <p><b>To build:</b></p>
   <ol>
     <li>In the game, stand where you want to build (or aim at the spot) and type <code>cb anchor</code> in the UE4SS console (F10). That saves the spot and your building pieces around it.</li>
     <li>Here, click <b>Connect game folder</b> and pick <code>RSDragonwilds\Binaries\Win64\ue4ss\Mods\CustomBuilds</code>. Allow editing when the browser asks.</li>
@@ -601,7 +605,7 @@ async function loadFromFolder() {
   const a = await readText('anchor.txt');
   if (a) {
     const line = a.split(/\r?\n/).find(l => /^-?[\d.]+\|/.test(l));
-    if (line) { const [x, y, z, yaw] = line.split('|').map(Number); anchor = { X: x, Y: y, Z: z, Yaw: yaw || 0 }; }
+    if (line) { const [x, y, z, yaw] = line.split('|').map(Number); anchor = { X: x, Y: y, Z: z, Yaw: yaw || 0 }; anchorFromGame = true; }
   }
   const text = await readText('placed.txt');
   if (text !== null) { const p = parsePlaced(text); records = p.out; otherLines = p.other; lastText = text; }
@@ -610,29 +614,194 @@ async function loadFromFolder() {
   camera.position.copy(back); orbit.target.set(0, 0, 0);
   rebuildAll();
   await loadBase();
+  if (savePieces) { showBase(+$('baseSel').value || 0, false); return; }
   $('baseInfo').textContent = a ? `Anchor at ${anchor.X.toFixed(0)}, ${anchor.Y.toFixed(0)}, ${anchor.Z.toFixed(0)} (game cm).` : 'No anchor yet: type "cb anchor" in the game console (F10), then reconnect.';
 }
-// The player's normal building pieces near the anchor (base.txt), as grey stand-ins.
-async function loadBase() {
+// ---------------------------------------------------------------------------
+// The player's own building pieces: from the save file (Wilds.sav) or the mod's base.txt.
+// pieces.json (ModelExporter "pieces", read from the game files) gives each piece type's name and meshes.
+// ---------------------------------------------------------------------------
+let pieceDefs = null;
+async function loadPieceDefs() {
+  if (pieceDefs) return pieceDefs;
+  pieceDefs = { byId: new Map(), byAsset: new Map() };
+  try {
+    for (const p of await (await fetch('pieces.json')).json()) { pieceDefs.byId.set(p.id, p); pieceDefs.byAsset.set(p.asset.toLowerCase(), p); }
+  } catch { }
+  return pieceDefs;
+}
+const byFileName = new Map();
+function modelFor(mesh) {
+  const m = byGamePath.get(gamePath(mesh).toLowerCase());
+  if (m) return m;
+  if (!byFileName.size) for (const x of models) byFileName.set(x.name.toLowerCase(), x);
+  return byFileName.get(mesh.split('/').pop().split('.')[0].toLowerCase()) || null;
+}
+const standinMat = new THREE.MeshStandardMaterial({ color: 0x8c96a5, transparent: true, opacity: 0.55 });
+// One building piece: its meshes at their offsets, or a box the piece's size when there's no model for it.
+function pieceObject(def, label) {
+  const obj = new THREE.Group();
+  let any = false;
+  for (const part of def?.meshes || []) {
+    const m = modelFor(part.mesh); if (!m) continue;
+    any = true;
+    const holder = new THREE.Group();
+    holder.position.set(part.t[0] / 100, part.t[2] / 100, part.t[1] / 100);
+    holder.quaternion.copy(ueToThreeQuat(part.q ? { x: part.q[0], y: part.q[1], z: part.q[2], w: part.q[3] } : rotToQuat(part.r[0], part.r[1], part.r[2])));
+    holder.scale.set(part.s[0], part.s[2], part.s[1]);
+    obj.add(holder);
+    loadMesh(m).then(root => holder.add(root.clone(true))).catch(() => {});
+  }
+  if (!any) {
+    const b = def?.bounds;
+    const box = new THREE.Mesh(b ? new THREE.BoxGeometry(b[3] / 50, b[5] / 50, b[4] / 50) : new THREE.BoxGeometry(0.4, 0.4, 0.4), standinMat);
+    if (b) box.position.set(b[0] / 100, b[2] / 100, b[1] / 100);
+    obj.add(box);
+  }
+  obj.userData.piece = def?.name || label;
+  return obj;
+}
+// pieces: [{ def, label, X, Y, Z, Yaw }] in game cm.
+function showPieces(pieces) {
   baseGroup.clear();
+  for (const p of pieces) {
+    const obj = pieceObject(p.def, p.label);
+    obj.position.copy(toScene(p.X, p.Y, p.Z));
+    obj.quaternion.copy(ueToThreeQuat(rotToQuat(0, p.Yaw, 0)));
+    baseGroup.add(obj);
+  }
+}
+
+// base.txt (written by "cb anchor"): piece|x|y|z|yaw for the pieces around the anchor.
+async function loadBase() {
+  if (savePieces) return;   // a save file shows the whole base already
   const text = await readText('base.txt');
-  if (!text) return;
-  const greyMat = new THREE.MeshStandardMaterial({ color: 0x8c96a5, transparent: true, opacity: 0.55 });
-  let n = 0;
+  if (!text) { baseGroup.clear(); return; }
+  const defs = await loadPieceDefs();
+  const pieces = [];
   for (const line of text.split(/\r?\n/)) {
     const p = line.split('|'); if (p.length < 5 || line.startsWith('#')) continue;
-    const [name, x, y, z, yaw] = [p[0], +p[1], +p[2], +p[3], +p[4]];
-    const obj = new THREE.Group();
-    obj.position.copy(toScene(x, y, z));
-    obj.quaternion.copy(ueToThreeQuat(rotToQuat(0, yaw, 0)));
-    const m = guessPieceModel(name);
-    if (m) loadMesh(m).then(root => { const c = root.clone(true); c.traverse(o => { if (o.isMesh) o.material = greyMat; }); obj.add(c); });
-    else obj.add(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), greyMat));
-    obj.userData.piece = name;
-    baseGroup.add(obj); n++;
+    pieces.push({ def: defs.byAsset.get(p[0].toLowerCase()) || guessPieceDef(p[0]), label: p[0], X: +p[1], Y: +p[2], Z: +p[3], Yaw: +p[4] });
   }
-  $('baseInfo').textContent += ` ${n} building pieces shown.`;
+  showPieces(pieces);
+  $('baseInfo').textContent += ` ${pieces.length} building pieces shown.`;
 }
+// No pieces.json entry: fall back to the mesh whose name shares the most words with the piece.
+function guessPieceDef(piece) {
+  const m = guessPieceModel(piece);
+  return m ? { name: piece, meshes: [{ mesh: m.path, t: [0, 0, 0], q: [0, 0, 0, 1], s: [1, 1, 1] }] } : null;
+}
+
+// Wilds.sav is a SPUD save. The building manager keeps every piece in a custom "Pces" block:
+//   u32 length, u32 version, then per piece: FString type id, f64 x y z, f32 yaw, f32 health, f32 build progress,
+//   i32 n + n FString materials, 2 x i32 per material, u8, i32 n + n i32 (linked pieces), i32.
+function parseSave(buf) {
+  const v = new DataView(buf), u8 = new Uint8Array(buf), dec = new TextDecoder();
+  const out = [];
+  for (let at = 0; (at = u8.indexOf(0x50, at)) >= 0 && at < u8.length - 12; at++) {
+    if (u8[at + 1] !== 0x63 || u8[at + 2] !== 0x65 || u8[at + 3] !== 0x73) continue;   // "Pces"
+    let o = at + 4;
+    const len = v.getUint32(o, true); o += 8;
+    const end = o + len;
+    if (end > u8.length) continue;
+    const str = () => {
+      const n = v.getInt32(o, true); o += 4;
+      if (n < 1 || n > 512) throw new Error('bad string');
+      const s = dec.decode(u8.subarray(o, o + n - 1)); o += n; return s;
+    };
+    try {
+      while (o < end) {
+        const type = str();
+        if (!/^[\w-]{22}$/.test(type)) throw new Error('bad id');
+        const X = v.getFloat64(o, true), Y = v.getFloat64(o + 8, true), Z = v.getFloat64(o + 16, true); o += 24;
+        const Yaw = v.getFloat32(o, true); o += 12;
+        const nm = v.getInt32(o, true); o += 4;
+        if (nm < 0 || nm > 64) throw new Error('bad count');
+        for (let i = 0; i < nm; i++) str();
+        o += nm * 8 + 1;
+        const nl = v.getInt32(o, true);
+        if (nl < 0 || nl > 4096) throw new Error('bad count');
+        o += 4 + nl * 4 + 4;
+        out.push({ type, X, Y, Z, Yaw });
+      }
+    } catch { }
+    at = o;
+  }
+  return out;
+}
+// Group pieces that are within ~40 m of each other into bases, biggest first.
+function findBases(pieces) {
+  const cell = 4000, cells = new Map(), key = (x, y) => x + ',' + y;
+  for (const p of pieces) {
+    const k = key(Math.floor(p.X / cell), Math.floor(p.Y / cell));
+    if (!cells.has(k)) cells.set(k, []);
+    cells.get(k).push(p);
+  }
+  const seen = new Set(), bases = [];
+  for (const start of cells.keys()) {
+    if (seen.has(start)) continue;
+    const list = [], todo = [start]; seen.add(start);
+    while (todo.length) {
+      const k = todo.pop(); list.push(...cells.get(k));
+      const [cx, cy] = k.split(',').map(Number);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        const n = key(cx + dx, cy + dy);
+        if (cells.has(n) && !seen.has(n)) { seen.add(n); todo.push(n); }
+      }
+    }
+    const zs = list.map(p => p.Z).sort((a, b) => a - b);
+    bases.push({ pieces: list, X: list.reduce((s, p) => s + p.X, 0) / list.length, Y: list.reduce((s, p) => s + p.Y, 0) / list.length, Z: zs[zs.length >> 1] });
+  }
+  return bases.sort((a, b) => b.pieces.length - a.pieces.length);
+}
+let savePieces = null, saveBases = [], anchorFromGame = false;
+function showBase(i, moveAnchor) {
+  const b = saveBases[i]; if (!b) return;
+  if (moveAnchor) {
+    anchor = { X: b.X, Y: b.Y, Z: b.Z, Yaw: 0 };
+    anchorFromGame = false;
+    rebuildAll();
+    camera.position.copy(toScene(b.X - 2500, b.Y - 2500, b.Z + 2000)); orbit.target.set(0, 0, 0);
+  }
+  showPieces(b.pieces);
+  const unknown = b.pieces.filter(p => !p.def).length;
+  $('baseInfo').textContent = `${b.pieces.length} building pieces from your save` + (unknown ? ` (${unknown} unknown)` : '') +
+    (anchorFromGame ? '. Lined up with your in-game anchor.' : '.');
+}
+async function openSave(file) {
+  const defs = await loadPieceDefs();
+  const raw = parseSave(await file.arrayBuffer());
+  if (!raw.length) { status('No building pieces found in that file. Pick Wilds.sav from your SaveGames folder.', 'bad'); return; }
+  savePieces = raw.map(p => ({ ...p, def: defs.byId.get(p.type) || null, label: p.type }));
+  saveBases = findBases(savePieces);
+  const sel = $('baseSel');
+  sel.innerHTML = saveBases.map((b, i) => `<option value="${i}">Base ${i + 1}: ${b.pieces.length} pieces</option>`).join('');
+  sel.hidden = saveBases.length < 2;
+  // With the game connected, keep its anchor and show the base it's in; otherwise centre on the biggest base.
+  let pick = 0;
+  if (anchorFromGame) {
+    let best = Infinity;
+    saveBases.forEach((b, i) => { for (const p of b.pieces) { const d = Math.hypot(p.X - anchor.X, p.Y - anchor.Y); if (d < best) { best = d; pick = i; } } });
+    if (best > 8000) anchorFromGame = false;
+  }
+  sel.value = pick;
+  showBase(pick, !anchorFromGame);
+  $('showBase').checked = true; baseGroup.visible = true;
+  status(`Loaded ${savePieces.length} building pieces from ${file.name}` + (dir ? '.' : '. Connect the game folder to send new models to the game.'), 'ok');
+}
+$('baseSel').addEventListener('change', e => showBase(+e.target.value, true));
+$('saveBtn').onclick = async () => {
+  try {
+    let file;
+    if (window.showOpenFilePicker) {
+      const [h] = await window.showOpenFilePicker({ id: 'wildssave', types: [{ description: 'Dragonwilds save', accept: { 'application/octet-stream': ['.sav', '.backup'] } }] });
+      file = await h.getFile();
+    } else {
+      file = await new Promise(res => { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.sav,.backup'; inp.onchange = () => res(inp.files[0]); inp.click(); });
+    }
+    if (file) await openSave(file);
+  } catch (e) { if (e.name !== 'AbortError') status('Could not read the save: ' + e.message, 'bad'); }
+};
 // "DA_T2_Wall_Pallisades" / "BUILDPIECE_Chest" -> the mesh whose name shares the most words.
 const pieceCache = new Map();
 function guessPieceModel(piece) {

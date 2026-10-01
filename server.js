@@ -145,10 +145,10 @@ async function page(model) {
   const description = model
     ? `View ${model.title} (${model.name}) from RuneScape: Dragonwilds in 3D${model.where ? `, from ${model.where}` : ''}. Rotate, zoom and copy its in-game path. Fan-made.`
     : `Search and explore ${count} buildings, props, creatures and items from RuneScape: Dragonwilds in 3D, right in your browser. Fan-made, not affiliated with Jagex.`;
-  const canonical = SITE_URL + (model ? '/model/' + encodeURIComponent(model.slug) : '/');
+  const canonical = SITE_URL + (model ? '/model/' + encodeURIComponent(model.slug) : '/viewer');
   const image = model ? `${SITE_URL}/${model.thumb.split('/').map(encodeURIComponent).join('/')}` : `${SITE_URL}/og.png?v=1`;
   const ld = { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE_NAME, url: SITE_URL + '/', description,
-    potentialAction: { '@type': 'SearchAction', target: SITE_URL + '/?q={search_term_string}', 'query-input': 'required name=search_term_string' } };
+    potentialAction: { '@type': 'SearchAction', target: SITE_URL + '/viewer?q={search_term_string}', 'query-input': 'required name=search_term_string' } };
   const head = `<title>${esc(title)}</title>
 <meta name="description" content="${attr(description)}">
 <link rel="canonical" href="${attr(canonical)}">
@@ -163,6 +163,42 @@ async function page(model) {
   const body = `<noscript><h1>${esc(model ? model.title : SITE_NAME)}</h1><p>${esc(description)}</p><ul>${links}</ul></noscript>`;
   return indexHtml.replace(/<!--seo-->[\s\S]*?<!--\/seo-->/, head)
     .replace(/<button id="exportBtn"[^>]*>[^<]*<\/button>/, '')   // no export feature on the site.replace('<!--seo-list-->', body);
+}
+// The landing page: a card per tool, with a few real model previews on the viewer's card.
+let homeHtml = null, homeCache = null;
+async function home() {
+  if (homeCache && homeCache.until > Date.now()) return homeCache.body;
+  homeHtml ??= await readFile(join(APP, 'home.html'), 'utf8');
+  const { list } = await models();
+  const have = new Set(JSON.parse(await previews()));
+  const withThumb = list.filter(x => have.has(x.thumb.slice('assets/thumbs/'.length)));
+  const pool = withThumb.filter(x => /statue|temple|castle|dragon|banner|throne|gate|tower|shrine|altar|trophy|chest/i.test(x.name));
+  const picks = [];
+  for (const src of [pool, withThumb]) while (picks.length < 8 && src.length > picks.length) {
+    const x = src[Math.floor(Math.random() * src.length)];
+    if (!picks.includes(x)) picks.push(x);
+  }
+  const count = list.length.toLocaleString('en');
+  const title = `${SITE_NAME}: tools for RuneScape: Dragonwilds`;
+  const description = `Fan-made tools for RuneScape: Dragonwilds: a 3D viewer for ${count} game models and a base builder that reads your save. Fan-made, not affiliated with Jagex.`;
+  const head = `<title>${esc(title)}</title>
+<meta name="description" content="${attr(description)}">
+<link rel="canonical" href="${attr(SITE_URL + '/')}">
+<meta property="og:type" content="website"><meta property="og:site_name" content="${attr(SITE_NAME)}">
+<meta property="og:title" content="${attr(title)}"><meta property="og:description" content="${attr(description)}">
+<meta property="og:url" content="${attr(SITE_URL + '/')}"><meta property="og:image" content="${attr(SITE_URL + '/og.png?v=1')}">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${attr(title)}">
+<meta name="twitter:description" content="${attr(description)}"><meta name="twitter:image" content="${attr(SITE_URL + '/og.png?v=1')}">`;
+  const thumbs = picks.map(x => `<img src="/assets/${thumbsDir}/${x.thumb.slice('assets/thumbs/'.length).split('/').map(encodeURIComponent).join('/')}" alt="${attr(x.title)}" loading="lazy">`).join('');
+  const body = gzipSync(homeHtml.replace(/<!--seo-->[\s\S]*?<!--\/seo-->/, head).replace('<!--viewer-thumbs-->', thumbs).replace('<!--model-count-->', count));
+  homeCache = { body, until: Date.now() + 10 * 60e3 };
+  return body;
+}
+async function sendHome(req, res) {
+  const body = await home();
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
+    'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
+  res.end(req.method === 'HEAD' ? undefined : body);
 }
 async function sendPage(req, res, model) {
   const body = gzipSync(await page(model));
@@ -217,7 +253,7 @@ createServer(async (req, res) => {
 
     if (path === '/robots.txt') return send(res, 200, `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`, { 'Cache-Control': 'public, max-age=86400' });
     if (path === '/sitemap.xml') {
-      const urls = [SITE_URL + '/', SITE_URL + '/base-builder', ...(await models()).list.map(x => SITE_URL + '/model/' + encodeURIComponent(x.slug))];
+      const urls = [SITE_URL + '/', SITE_URL + '/viewer', SITE_URL + '/base-builder', ...(await models()).list.map(x => SITE_URL + '/model/' + encodeURIComponent(x.slug))];
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc></url>`).join('\n')}\n</urlset>\n`;
       return send(res, 200, xml, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=86400' });
     }
@@ -258,7 +294,13 @@ createServer(async (req, res) => {
 
     if (path === '/site-config.json') await previews();
     if (path === '/site-config.json') return send(res, 200, JSON.stringify({ name: SITE_NAME, login: !!PASSWORD, thumbs: thumbsDir, assets: 'assets/', hosted: true }), { 'Content-Type': 'application/json' });
-    if (path === '/' || path === '/index.html') return sendPage(req, res, null);
+    // Old viewer links: /?q=... and /index.html now go to /viewer.
+    if (path === '/' && url.searchParams.has('q')) { res.writeHead(302, { Location: '/viewer' + url.search }); return res.end(); }
+    if (path === '/index.html') { res.writeHead(301, { Location: '/viewer' }); return res.end(); }
+    if (path === '/') return sendHome(req, res);
+    if (path === '/viewer') return sendPage(req, res, null);
+    // Build-piece names and meshes for the base builder (ModelExporter "pieces", from the game files).
+    if (path === '/pieces.json') return sendFile(req, res, join(DATA, 'pieces.json'), 'public, max-age=3600');
     if (path === '/base-builder' || path === '/basebuilder.html') {
       const body = gzipSync(await readFile(join(APP, 'basebuilder.html')));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,

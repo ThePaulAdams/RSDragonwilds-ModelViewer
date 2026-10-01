@@ -51,3 +51,14 @@ test('share links round trip', () => {
   const l = [{ item: 'oak_chest', qty: 2 }];
   assert.deepEqual(L.decodeList(L.encodeList(l)), l);
 });
+test('cleanData drops placeholder rows and duplicates, estimates XP', () => {
+  const d = L.cleanData({ items: { a: { name: 'A' }, b: { name: 'B' } }, recipes: [
+    { id: '1', name: 'B', output: { item: 'b', qty: 1 }, ingredients: [{ item: 'a', qty: 2 }] },
+    { id: '2', name: 'B', output: { item: 'b', qty: 1 }, ingredients: [{ item: 'a', qty: 2 }] },
+    { id: '3', name: 'RECIPE_Journal_X', output: { item: '', qty: 1 }, ingredients: [] },
+    { id: '4', name: 'C', output: { item: 'b', qty: 1 }, ingredients: [] }], xpTable: [] });
+  assert.equal(d.recipes.length, 1);
+  assert.equal(d.xpEstimated, true);
+  assert.equal(d.xpTable.length, 99);
+  assert.equal(d.xpTable[1], 83); assert.equal(d.xpTable[98], 13034431);
+});

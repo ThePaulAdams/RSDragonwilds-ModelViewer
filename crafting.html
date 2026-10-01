@@ -60,10 +60,11 @@ const data = await (async () => {
   // Real extracted data is served by the game data route; fall back to the placeholder sample until it exists.
   try { const r = await fetch('/gamedata.json'); if (r.ok) return await r.json(); } catch {}
   return (await fetch('/sample-gamedata.json')).json();
-})();
+})().then(L.cleanData);
 const ix = L.indexData(data);
 const name = id => L.itemName(ix, id);
-const st = id => data.stations?.[id]?.name || id;
+const icon = id => { const i = data.items[id]?.icon; return el('img', { src: i || 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==', alt: '', width: 24, height: 24, loading: 'lazy', style: 'object-fit:contain;flex:none;vertical-align:middle;margin-right:6px' + (i ? '' : ';visibility:hidden') }); };
+const st = id => data.stations?.[id]?.name || id.replace(/_/g, ' ');
 const sk = id => data.skills?.find(s => s.id === id)?.name || id;
 $('ver').textContent = data.version || 'unknown';
 if (data.sample) { $('banner').hidden = false; $('banner').textContent = 'Showing placeholder sample data while the real game data is being wired in. Items and numbers here are not real game values.'; }
@@ -88,7 +89,7 @@ function save() {
 // type-ahead used by both pickers
 function suggest(input, ul, pool, pick) {
   let act = -1, hits = [];
-  const draw = () => { ul.replaceChildren(...hits.map((id, i) => { const li = el('li', { textContent: name(id) }); if (i === act) li.className = 'act'; li.onmousedown = e => { e.preventDefault(); pick(id); }; return li; })); ul.hidden = !hits.length; };
+  const draw = () => { ul.replaceChildren(...hits.map((id, i) => { const li = el('li', {}, icon(id), name(id)); if (i === act) li.className = 'act'; li.onmousedown = e => { e.preventDefault(); pick(id); }; return li; })); ul.hidden = !hits.length; };
   input.oninput = () => { const q = input.value.trim().toLowerCase(); hits = q ? pool().filter(id => name(id).toLowerCase().includes(q)).sort((a, b) => name(a).toLowerCase().indexOf(q) - name(b).toLowerCase().indexOf(q)).slice(0, 8) : []; act = -1; draw(); };
   input.onkeydown = e => { if (e.key === 'ArrowDown') { act = Math.min(act + 1, hits.length - 1); draw(); e.preventDefault(); } else if (e.key === 'ArrowUp') { act = Math.max(act - 1, 0); draw(); e.preventDefault(); } else if (e.key === 'Enter' && hits.length) pick(hits[Math.max(act, 0)]); else if (e.key === 'Escape') { hits = []; draw(); } };
   input.onblur = () => { hits = []; draw(); };
@@ -104,7 +105,7 @@ function qtyList(ul, entries, onChange, onRemove) {
   ul.replaceChildren(...entries.map(e => {
     const inp = el('input', { type: 'number', min: 1, value: e.qty, ariaLabel: 'Quantity' }); inp.onchange = () => onChange(e.item, Math.max(1, +inp.value || 1));
     const x = el('button', { className: 'x', textContent: '✕', title: 'Remove' }); x.onclick = () => onRemove(e.item);
-    return el('li', {}, el('span', { className: 'n', textContent: name(e.item) }), inp, x);
+    return el('li', {}, el('span', { className: 'n' }, icon(e.item), name(e.item)), inp, x);
   }));
 }
 
@@ -115,7 +116,7 @@ function renderShop(p) {
   if (!p.raw.length) box.append(el('div', { className: 'empty', textContent: 'You have everything you need.' }));
   else {
     const t = el('table'); t.append(el('tr', {}, el('th', { textContent: 'Material' }), el('th', { className: 'num', textContent: 'Need' })));
-    for (const r of p.raw) t.append(el('tr', {}, el('td', { textContent: name(r.item) }), el('td', { className: 'num', textContent: fmt(r.qty) })));
+    for (const r of p.raw) t.append(el('tr', {}, el('td', {}, icon(r.item), name(r.item)), el('td', { className: 'num', textContent: fmt(r.qty) })));
     box.append(t);
     box.append(el('div', { style: 'margin-top:10px' }, Object.assign(el('button', { textContent: 'Copy list' }), { onclick: () => navigator.clipboard?.writeText(p.raw.map(r => `${r.qty}x ${name(r.item)}`).join('\n')) })));
   }
@@ -126,7 +127,7 @@ function renderShop(p) {
   const skills = Object.keys({ ...p.skillLevel, ...p.skillXp });
   if (skills.length) {
     extras.append(el('div', { className: 'muted', style: 'margin-top:10px', textContent: 'Skills' }));
-    extras.append(el('div', { className: 'chips' }, ...skills.map(s => el('span', { className: 'chip', textContent: `${sk(s)} ${p.skillLevel[s] || 1}+ · ${fmt(p.skillXp[s] || 0)} xp` }))));
+    extras.append(el('div', { className: 'chips' }, ...skills.map(s => el('span', { className: 'chip', textContent: `${sk(s)}${p.skillLevel[s] ? ' ' + p.skillLevel[s] + '+' : ''} · ${fmt(p.skillXp[s] || 0)} xp` }))));
   }
   for (const w of p.warnings) extras.append(el('p', { className: 'tag', textContent: w }));
   box.append(extras);
@@ -135,14 +136,14 @@ function renderShop(p) {
 
 function treeNode(n) {
   const li = el('li');
-  li.append(el('b', { textContent: `${fmt(n.qty)}x ` }), n.item ? name(n.item) : '');
+  li.append(el('b', { textContent: `${fmt(n.qty)}x ` }), icon(n.item), name(n.item));
   if (n.fromInventory) li.append(el('span', { className: 'tag ok', textContent: ` ${fmt(n.fromInventory)} in inventory` }));
   if (n.recipe) {
-    li.append(el('span', { className: 'tag', textContent: ` craft x${fmt(n.crafts)}${n.recipe.station ? ' at ' + st(n.recipe.station) : ''}${n.recipe.skill ? ` (${sk(n.recipe.skill)} ${n.recipe.level || 1})` : ''}` }));
+    li.append(el('span', { className: 'tag', textContent: ` craft x${fmt(n.crafts)}${n.recipe.station ? ' at ' + st(n.recipe.station) : ''}${n.recipe.skill ? ` (${sk(n.recipe.skill)}${n.recipe.level ? ' ' + n.recipe.level : ''})` : ''}` }));
     const alts = ix.byOutput.get(n.item);
     if (alts.length > 1) {
-      const s = el('select', { style: 'margin-left:8px' }, ...alts.map(r => el('option', { value: r.id, textContent: r.id, selected: r === n.recipe })));
-      s.onchange = () => { choice[n.item] = s.value; render(); }; li.append(s);
+      const s = el('select', { style: 'margin-left:8px' }, ...alts.map(r => el('option', { value: r.id, textContent: L.recipeLabel(ix, r), selected: r === n.recipe })));
+      s.style.maxWidth = '100%'; s.onchange = () => { choice[n.item] = s.value; render(); }; li.append(s);
     }
     const ul = el('ul'); for (const c of n.children) ul.append(treeNode(c)); li.append(ul);
   } else if (n.need > 0) li.append(el('span', { className: 'tag raw', textContent: ' gather' }));
@@ -170,13 +171,13 @@ function renderReverse() {
   if (revItem) {
     const u = L.usedIn(ix, revItem);
     out.append(el('h2', { style: 'margin-top:16px', textContent: `${name(revItem)} is used directly in` }));
-    out.append(u.direct.length ? el('div', { className: 'chips' }, ...u.direct.map(r => { const b = el('button', { className: 'chip', textContent: name(r.output.item) }); b.onclick = () => addTarget(r.output.item, 1); return b; })) : el('p', { className: 'muted', textContent: 'No recipe uses it.' }));
+    out.append(u.direct.length ? el('div', { className: 'chips' }, ...u.direct.map(r => { const b = el('button', { className: 'chip' }, icon(r.output.item), name(r.output.item)); b.onclick = () => addTarget(r.output.item, 1); return b; })) : el('p', { className: 'muted', textContent: 'No recipe uses it.' }));
     const more = u.reachable.filter(i => !u.direct.some(r => r.output.item === i));
-    if (more.length) { out.append(el('h2', { style: 'margin-top:16px', textContent: 'And indirectly, further down the chain' })); out.append(el('div', { className: 'chips' }, ...more.map(i => { const b = el('button', { className: 'chip', textContent: name(i) }); b.onclick = () => addTarget(i, 1); return b; }))); }
+    if (more.length) { out.append(el('h2', { style: 'margin-top:16px', textContent: 'And indirectly, further down the chain' })); out.append(el('div', { className: 'chips' }, ...more.map(i => { const b = el('button', { className: 'chip' }, icon(i), name(i)); b.onclick = () => addTarget(i, 1); return b; }))); }
   }
   out.append(el('h2', { style: 'margin-top:22px', textContent: 'Craftable from "I already have"' }));
   const can = Object.keys(haves).length ? L.craftableFrom(ix, haves) : [];
-  out.append(can.length ? el('div', { className: 'chips' }, ...can.map(c => { const b = el('button', { className: 'chip', textContent: `${name(c.item)} (up to ${fmt(L.maxCraftable(ix, c.item, haves))})` }); b.onclick = () => addTarget(c.item, 1); return b; })) : el('p', { className: 'muted', textContent: Object.keys(haves).length ? 'Nothing is fully craftable from those yet.' : 'Add items on the left to see what you can make.' }));
+  out.append(can.length ? el('div', { className: 'chips' }, ...can.map(c => { const b = el('button', { className: 'chip' }, icon(c.item), `${name(c.item)} (up to ${fmt(L.maxCraftable(ix, c.item, haves))})`); b.onclick = () => addTarget(c.item, 1); return b; })) : el('p', { className: 'muted', textContent: Object.keys(haves).length ? 'Nothing is fully craftable from those yet.' : 'Add items on the left to see what you can make.' }));
   $('out').replaceChildren(out);
 }
 

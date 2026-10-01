@@ -4,6 +4,36 @@
 //   recipes:  [{ id, output: { item, qty }, ingredients: [{ item, qty }], station?, skill?, level?, xp? }]
 //   stations: { [id]: { name } }   skills: [{ id, name }]   xpTable: cumulative XP to reach level i+1
 
+// Cleans extracted game data: drops placeholder rows (no output, no ingredients, journal entries, unknown items),
+// removes exact duplicate recipes and fills in an estimated XP table when the game data has none.
+export function cleanData(raw) {
+  const data = { ...raw, items: raw.items || {} };
+  const seen = new Set();
+  data.recipes = (raw.recipes || []).filter(r => {
+    const out = r.output?.item;
+    if (!out || !data.items[out] || /^RECIPE_Journal/i.test(r.name || '') || !r.ingredients?.length) return false;
+    if (r.ingredients.some(g => !g.item || !data.items[g.item])) return false;
+    const key = out + '|' + r.output.qty + '|' + r.station + '|' + r.ingredients.map(g => g.item + 'x' + g.qty).sort().join(',');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (!raw.xpTable?.length) { data.xpTable = estimatedXpTable(); data.xpEstimated = true; }
+  return data;
+}
+
+// The classic RuneScape curve to level 99. Used only as an estimate when the game's own table isn't available.
+export function estimatedXpTable(max = 99) {
+  const t = [0]; let pts = 0;
+  for (let l = 1; l < max; l++) { pts += Math.floor(l + 300 * Math.pow(2, l / 7)); t.push(Math.floor(pts / 4)); }
+  return t;
+}
+
+// Short label to tell apart several recipes for the same item.
+export function recipeLabel(ix, r) {
+  return `${r.name || itemName(ix, r.output.item)}: ${r.ingredients.map(g => `${g.qty} ${itemName(ix, g.item)}`).join(', ')}`;
+}
+
 export function indexData(data) {
   const byOutput = new Map(), byIngredient = new Map();
   for (const r of data.recipes) {

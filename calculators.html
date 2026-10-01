@@ -59,10 +59,11 @@ const data = await (async () => {
   // Real extracted data is served by the game data route; fall back to the placeholder sample until it exists.
   try { const r = await fetch('/gamedata.json'); if (r.ok) return await r.json(); } catch {}
   return (await fetch('/sample-gamedata.json')).json();
-})();
+})().then(L.cleanData);
 const ix = L.indexData(data), T = data.xpTable, fmt = n => Number(n).toLocaleString('en', { maximumFractionDigits: 1 });
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); for (const k of kids) e.append(k); return e; };
 $('ver').textContent = data.version || 'unknown';
+if (data.xpEstimated && !data.sample) { $('banner').hidden = false; $('banner').textContent = 'XP values are estimates: they use the classic RuneScape curve because the game\'s own XP table has not been extracted yet.'; }
 if (data.sample) { $('banner').hidden = false; $('banner').textContent = 'Showing placeholder sample data while the real game data is being wired in. XP tables, runes and recipes here are not real game values.'; }
 const maxLv = T.length;
 $('xlv').max = maxLv; $('xtg').max = maxLv;
@@ -84,6 +85,7 @@ function table() {
 }
 
 const altars = data.runecrafting?.altars || [];
+if (!altars.length) document.querySelector('#tabs [data-t=rc]').hidden = true;
 function rc() {
   if (!altars.length) return $('rout').replaceChildren(el('p', { className: 'muted', textContent: 'No runecrafting data available yet.' }));
   const altar = altars.find(a => a.id === $('rrune').value) || altars[0], lv = Math.floor(num('rlv')) || 1;
@@ -108,7 +110,7 @@ function mat() {
 for (const id of ['xlv', 'xxp', 'xtg', 'xpa']) $(id).oninput = xp;
 for (const id of ['rrune', 'rlv', 'rep', 'rmode', 'ramt']) $(id).oninput = rc;
 $('mlist').oninput = mat;
-const show = t => { for (const s of ['xp', 'rc', 'mat']) $(s).hidden = s !== t; document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); history.replaceState(null, '', '#' + t); };
+const show = t => { if (t === 'rc' && !altars.length) t = 'xp'; for (const s of ['xp', 'rc', 'mat']) $(s).hidden = s !== t; document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); history.replaceState(null, '', '#' + t); };
 $('tabs').onclick = e => e.target.dataset.t && show(e.target.dataset.t);
 table(); xp(); rc(); mat(); show(['xp', 'rc', 'mat'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'xp');
 </script>

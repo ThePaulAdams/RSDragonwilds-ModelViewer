@@ -52,6 +52,12 @@
   .card img { width: 100%; aspect-ratio: 1; display: block; background: #101216; object-fit: cover; }
   .card .name { padding: 3px 5px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
   #more { grid-column: 1 / -1; color: var(--muted); text-align: center; padding: 8px; font-size: 12px; }
+  .recent-row { display: flex; gap: 4px; overflow-x: auto; padding: 2px 0 4px; }
+  .recent-chip { width: 34px; height: 34px; border-radius: 4px; border: 1px solid var(--line); cursor: pointer; flex-shrink: 0; overflow: hidden; background: #101216; }
+  .recent-chip:hover { border-color: var(--accent); }
+  .recent-chip.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .recent-chip img { width: 100%; height: 100%; object-fit: cover; }
+  button.small { padding: 3px 8px; font-size: 11px; }
   main { position: relative; min-width: 0; min-height: 0; }
   main canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   #tip { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: rgba(20, 22, 26, .92);
@@ -104,7 +110,8 @@
       <button id="modeScale" title="Scale (R)">Scale</button>
     </div>
     <div class="group" title="Snap settings">
-      <button id="snapBtn" class="on" title="Toggle Snap (G)">Snap: ON</button>
+      <button id="snapBtn" class="on" title="Toggle Grid Snap (G)">Snap: ON</button>
+      <button id="magnetBtn" class="on" title="Snap Connect / Magnetic edge snapping (M). Hold Alt to temporarily bypass.">Magnet: ON</button>
       <label class="snap-label" title="Movement snap step">Grid:
         <select id="moveSnap">
           <option value="0.01">0.01 m (1 cm)</option>
@@ -143,6 +150,7 @@
     <div class="top">
       <input id="search" type="search" placeholder="Search 3,647 models...">
       <select id="folder"></select>
+      <div id="recent" class="recent-row" hidden></div>
       <div id="count"></div>
     </div>
     <div id="grid"></div>
@@ -159,6 +167,10 @@
     <div id="selBox" hidden>
       <div id="selName"></div>
       <div id="selPath"></div>
+      <div class="row" style="margin: 4px 0 6px;">
+        <button id="dropBtn" class="small" title="Drop bottom of model flush to floor beneath it (End key)">Drop to floor</button>
+        <button id="turn90Btn" class="small" title="Rotate 90° (T key)">Turn 90°</button>
+      </div>
       <div class="field"><span>East (m)</span><input id="fX" type="number" step="0.01"></div>
       <div class="field"><span>North (m)</span><input id="fY" type="number" step="0.01"></div>
       <div class="field"><span>Up (m)</span><input id="fZ" type="number" step="0.01"></div>
@@ -196,9 +208,9 @@
   <h3>Controls</h3>
   <p class="muted">
     <b>Click</b> place / select &nbsp; <b>Drag</b> orbit &nbsp; <b>Right drag</b> pan &nbsp; <b>Wheel</b> zoom<br>
-    <kbd>W</kbd> move &nbsp; <kbd>E</kbd> rotate &nbsp; <kbd>R</kbd> scale &nbsp; <kbd>G</kbd> toggle snap &nbsp; <kbd>F</kbd> focus<br>
-    <kbd>Arrows</kbd> nudge &nbsp; <kbd>Shift+Arrows</kbd> fine rotate &nbsp; <kbd>Q</kbd> / <kbd>E</kbd> rotate while placing<br>
-    <kbd>Delete</kbd> delete &nbsp; <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicate &nbsp; <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo &nbsp; <kbd>Esc</kbd> stop placing / deselect
+    <kbd>W</kbd> move &nbsp; <kbd>E</kbd> rotate &nbsp; <kbd>R</kbd> scale &nbsp; <kbd>G</kbd> grid snap &nbsp; <kbd>M</kbd> magnet connect &nbsp; <kbd>F</kbd> focus<br>
+    <kbd>Q</kbd> / <kbd>E</kbd> rotate step &nbsp; <kbd>T</kbd> turn 90° &nbsp; <kbd>End</kbd> drop to floor &nbsp; <kbd>Alt</kbd> bypass snap / duplicate drag<br>
+    <kbd>Arrows</kbd> nudge &nbsp; <kbd>Shift+Arrows</kbd> fine rotate &nbsp; <kbd>Delete</kbd> delete &nbsp; <kbd>Ctrl+D</kbd> duplicate &nbsp; <kbd>Ctrl+Z</kbd> undo
   </p>
   <p class="muted">No game folder? Use <b>Export</b> to download <code>placed.txt</code> and copy it into that folder yourself (with the game closed).</p>
   <div class="row"><button id="helpClose" class="primary">Got it</button></div>
@@ -361,9 +373,18 @@ const placedGroup = new THREE.Group(); scene.add(placedGroup);
 const baseGroup = new THREE.Group(); scene.add(baseGroup);
 
 let snapOn = true;
+let magnetOn = true;
 let moveSnapVal = 0.1;   // 10 cm in metres (0.1 scale)
 let rotSnapVal = 1.0;    // 1 degree rotation step
 let scaleSnapVal = 0.05;
+
+const snapMarker = new THREE.Mesh(
+  new THREE.RingGeometry(0.12, 0.22, 16).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0x6fcf7f, side: THREE.DoubleSide, depthTest: false, transparent: true, opacity: 0.9 })
+);
+snapMarker.renderOrder = 999;
+snapMarker.visible = false;
+scene.add(snapMarker);
 
 const gizmo = new TransformControls(camera, renderer.domElement);
 function updateGizmoSnapping() {
@@ -378,7 +399,19 @@ function updateGizmoSnapping() {
   }
 }
 updateGizmoSnapping();
-gizmo.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if (!e.value) commitGizmo(); else pushUndo(); });
+gizmo.addEventListener('dragging-changed', e => {
+  orbit.enabled = !e.value;
+  if (!e.value) {
+    commitGizmo();
+  } else {
+    if (lastPointerEvent?.altKey) {
+      duplicate();
+      toast('Alt+Drag: Duplicated object');
+    } else {
+      pushUndo();
+    }
+  }
+});
 gizmo.addEventListener('objectChange', () => { if (gizmo.mode === 'scale') { const o = gizmo.object; const s = o.scale.x; o.scale.set(s, s, s); } showSelection(); });
 scene.add(gizmo.getHelper());
 
@@ -394,6 +427,7 @@ renderer.setAnimationLoop(() => { orbit.update(); renderer.render(scene, camera)
 // ---------------------------------------------------------------------------
 const texLoader = new THREE.TextureLoader();
 const meshCache = new Map();
+const meshBoundsCache = new Map();
 async function loadTex(url, srgb) {
   try { const t = await texLoader.loadAsync(url); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.flipY = false; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; }
   catch { return null; }
@@ -401,6 +435,13 @@ async function loadTex(url, srgb) {
 function loadMesh(m) {
   if (!meshCache.has(m.path)) meshCache.set(m.path, (async () => {
     const root = (await gltfLoader().loadAsync(m.url)).scene;
+    const box = new THREE.Box3().setFromObject(root);
+    meshBoundsCache.set(m.path.toLowerCase(), {
+      min: box.min.clone(),
+      max: box.max.clone(),
+      size: box.getSize(new THREE.Vector3()),
+      center: box.getCenter(new THREE.Vector3())
+    });
     const mats = [];
     root.traverse(o => { if (o.isMesh) for (const mat of [].concat(o.material)) if (mat && !mats.includes(mat)) mats.push(mat); });
     const byName = new Map(m.materials.map(x => [x.name.toLowerCase(), x]));
@@ -418,6 +459,20 @@ function loadMesh(m) {
     return root;
   })());
   return meshCache.get(m.path);
+}
+function getObjectLocalBounds(obj, meshPath) {
+  if (meshPath) {
+    const cached = meshBoundsCache.get(meshPath.toLowerCase());
+    if (cached) return cached;
+  }
+  const b = new THREE.Box3().setFromObject(obj);
+  if (b.isEmpty()) return null;
+  return {
+    min: b.min.clone(),
+    max: b.max.clone(),
+    size: b.getSize(new THREE.Vector3()),
+    center: b.getCenter(new THREE.Vector3())
+  };
 }
 // The exported .glb files are in metres and already Y-up; one game unit (cm) = 0.01 here.
 function placeholder() {
@@ -588,6 +643,8 @@ function setPicked(m) {
   picked = m;
   ghostBounds = null;
   ghostYaw = 0;
+  if (m) addRecent(m);
+  renderRecent();
   for (const c of document.querySelectorAll('.card')) c.classList.toggle('sel', c.dataset.path === m?.path);
   if (ghost) { scene.remove(ghost); ghost = null; }
   if (!m) { $('tip').innerHTML = 'Pick a model on the left, then <b>click in the scene</b> to place it. <b>Click</b> a placed model to select it.'; return; }
@@ -655,12 +712,128 @@ function updateGhost() {
     }
   }
 
+  // Magnetic edge-to-edge connection check (breaks out automatically if cursor moves away)
+  const snap = findSnapConnection(pos, ghostBounds);
+  if (snap) {
+    lastSnapTargetId = snap.targetId;
+    pos.copy(snap.pivot);
+    q.copy(snap.quat);
+    if (ghostYaw !== 0) {
+      q.multiply(ueToThreeQuat(rotToQuat(0, ghostYaw, 0)));
+    }
+    const curRot = quatToRot(threeToUeQuat(q));
+    yaw = curRot.yaw;
+    pitch = curRot.pitch;
+    roll = curRot.roll;
+
+    snapMarker.position.copy(snap.snapCenter);
+    snapMarker.quaternion.copy(q);
+    snapMarker.visible = true;
+  } else {
+    lastSnapTargetId = null;
+    snapMarker.visible = false;
+  }
+
   ghost.position.copy(pos);
   ghost.quaternion.copy(q);
 
   lastPlacedYaw = yaw;
   lastPlacedPitch = pitch;
   lastPlacedRoll = roll;
+}
+
+let lastSnapTargetId = null;
+function findSnapConnection(rawPos, ghostBounds) {
+  if (!magnetOn || !ghostBounds || lastPointerEvent?.altKey) return null;
+  const SNAP_THRESHOLD = 0.95; // Magnetic attraction distance (metres)
+  const BREAKOUT_THRESHOLD = 1.35; // Breakout distance
+  const maxSearchDist = 5.0;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  // 1. Placed models
+  for (const [id, r] of records) {
+    const obj = objects.get(id);
+    if (!obj || (selected && id === selected)) continue;
+    if (obj.position.distanceTo(rawPos) > maxSearchDist) continue;
+
+    const tb = getObjectLocalBounds(obj, r.Mesh);
+    if (!tb || tb.size.lengthSq() < 0.001) continue;
+
+    const tq = obj.quaternion;
+    const tc = obj.position.clone().add(tb.center.clone().applyQuaternion(tq));
+    const ts = tb.size, gs = ghostBounds.size, gc = ghostBounds.center;
+
+    const candidates = [
+      { dir: new THREE.Vector3(0, 0, 1), step: (ts.z + gs.z) / 2 },
+      { dir: new THREE.Vector3(0, 0, -1), step: (ts.z + gs.z) / 2 },
+      { dir: new THREE.Vector3(1, 0, 0), step: (ts.x + gs.x) / 2 },
+      { dir: new THREE.Vector3(-1, 0, 0), step: (ts.x + gs.x) / 2 },
+      { dir: new THREE.Vector3(0, 1, 0), step: (ts.y + gs.y) / 2 }
+    ];
+
+    for (const c of candidates) {
+      const worldDir = c.dir.clone().applyQuaternion(tq);
+      const snapCenter = tc.clone().addScaledVector(worldDir, c.step);
+      const ghostPivot = snapCenter.clone().sub(gc.clone().applyQuaternion(tq));
+
+      const d = rawPos.distanceTo(snapCenter);
+      const threshold = (lastSnapTargetId === id) ? BREAKOUT_THRESHOLD : SNAP_THRESHOLD;
+      if (d < threshold && d < bestDist) {
+        bestDist = d;
+        best = {
+          targetId: id,
+          pivot: ghostPivot,
+          quat: tq.clone(),
+          snapCenter,
+          snapDir: worldDir
+        };
+      }
+    }
+  }
+
+  // 2. Base pieces (from save file or base.txt)
+  if (baseGroup.visible && baseGroup.children.length) {
+    for (const pieceObj of baseGroup.children) {
+      if (pieceObj.position.distanceTo(rawPos) > maxSearchDist) continue;
+      const b = new THREE.Box3().setFromObject(pieceObj);
+      if (b.isEmpty()) continue;
+      const tc = b.getCenter(new THREE.Vector3());
+      const ts = b.getSize(new THREE.Vector3());
+      const gs = ghostBounds.size, gc = ghostBounds.center;
+      const tq = pieceObj.quaternion;
+
+      const candidates = [
+        { dir: new THREE.Vector3(0, 0, 1), step: (ts.z + gs.z) / 2 },
+        { dir: new THREE.Vector3(0, 0, -1), step: (ts.z + gs.z) / 2 },
+        { dir: new THREE.Vector3(1, 0, 0), step: (ts.x + gs.x) / 2 },
+        { dir: new THREE.Vector3(-1, 0, 0), step: (ts.x + gs.x) / 2 },
+        { dir: new THREE.Vector3(0, 1, 0), step: (ts.y + gs.y) / 2 }
+      ];
+
+      for (const c of candidates) {
+        const worldDir = c.dir.clone().applyQuaternion(tq);
+        const snapCenter = tc.clone().addScaledVector(worldDir, c.step);
+        const ghostPivot = snapCenter.clone().sub(gc.clone().applyQuaternion(tq));
+
+        const d = rawPos.distanceTo(snapCenter);
+        const threshold = (lastSnapTargetId === pieceObj.id) ? BREAKOUT_THRESHOLD : SNAP_THRESHOLD;
+        if (d < threshold && d < bestDist) {
+          bestDist = d;
+          best = {
+            targetId: pieceObj.id,
+            pivot: ghostPivot,
+            quat: tq.clone(),
+            snapCenter,
+            snapDir: worldDir
+          };
+        }
+      }
+    }
+  }
+
+  return best;
 }
 
 renderer.domElement.addEventListener('pointermove', e => {
@@ -679,6 +852,7 @@ renderer.domElement.addEventListener('pointerup', e => {
     const id = newId();
     const r = { ...toGame(ghost.position), Yaw: lastPlacedYaw, Pitch: lastPlacedPitch, Roll: lastPlacedRoll, Scale: 1, Mesh: picked.path, Base: '' };
     records.set(id, r); spawn(id, r); refreshList(); changed();
+    addRecent(picked);
     updateGhost();
     return;
   }
@@ -1231,6 +1405,91 @@ $('undoBtn').onclick = undo;
 $('helpBtn').onclick = () => $('help').hidden = false;
 $('helpClose').onclick = () => { $('help').hidden = true; try { localStorage.setItem('bb.helpSeen', '1'); } catch {} };
 try { if (!localStorage.getItem('bb.helpSeen')) $('help').hidden = false; } catch { $('help').hidden = false; }
+
+function toggleMagnet() {
+  magnetOn = !magnetOn;
+  const btn = $('magnetBtn');
+  if (btn) {
+    btn.classList.toggle('on', magnetOn);
+    btn.textContent = magnetOn ? 'Magnet: ON' : 'Magnet: OFF';
+    btn.title = magnetOn ? 'Magnet: ON (Snap connect edges - Press M to toggle, hold Alt to bypass)' : 'Magnet: OFF (Press M to toggle)';
+  }
+  if (!magnetOn && snapMarker) snapMarker.visible = false;
+  try { localStorage.setItem('bb.magnet', String(magnetOn)); } catch {}
+  toast(magnetOn ? 'Magnet snap: ON (Edge-to-edge)' : 'Magnet snap: OFF (Free placement)');
+}
+$('magnetBtn')?.addEventListener('click', toggleMagnet);
+try {
+  const sm = localStorage.getItem('bb.magnet');
+  if (sm !== null) magnetOn = sm === 'true';
+  const mb = $('magnetBtn');
+  if (mb) {
+    mb.classList.toggle('on', magnetOn);
+    mb.textContent = magnetOn ? 'Magnet: ON' : 'Magnet: OFF';
+  }
+} catch {}
+
+function dropSelectedToFloor() {
+  if (!selected) return;
+  const obj = objects.get(selected), r = records.get(selected);
+  if (!obj || !r) return;
+  pushUndo();
+  const b = new THREE.Box3().setFromObject(obj);
+  const bottomOffset = obj.position.y - b.min.y;
+  const start = new THREE.Vector3(obj.position.x, b.max.y + 0.5, obj.position.z);
+  const downRay = new THREE.Raycaster(start, new THREE.Vector3(0, -1, 0), 0.001, 200);
+  const targets = [ground];
+  if (baseGroup.visible) targets.push(baseGroup);
+  if (terrainGroup.visible) targets.push(terrainGroup);
+  for (const [id, o] of objects) if (id !== selected) targets.push(o);
+  const hits = downRay.intersectObjects(targets, true);
+  if (hits.length) {
+    obj.position.y = hits[0].point.y + bottomOffset;
+    readObject(obj, r);
+    applyRecord(obj, r);
+    changed();
+    toast(`Dropped to floor (${obj.position.y.toFixed(2)}m)`);
+  } else {
+    toast('No floor found beneath object');
+  }
+}
+$('dropBtn')?.addEventListener('click', dropSelectedToFloor);
+$('turn90Btn')?.addEventListener('click', () => {
+  if (!selected) return;
+  pushUndo();
+  const obj = objects.get(selected), r = records.get(selected);
+  r.Yaw = norm(r.Yaw + 90);
+  applyRecord(obj, r);
+  changed();
+  toast(`Turned 90° (${r.Yaw.toFixed(1)}°)`);
+});
+
+let recentModels = [];
+try { recentModels = JSON.parse(localStorage.getItem('bb.recent') || '[]'); } catch {}
+function addRecent(m) {
+  if (!m) return;
+  recentModels = [m.path, ...recentModels.filter(p => p !== m.path)].slice(0, 8);
+  try { localStorage.setItem('bb.recent', JSON.stringify(recentModels)); } catch {}
+  renderRecent();
+}
+function renderRecent() {
+  const bar = $('recent');
+  if (!bar) return;
+  bar.innerHTML = '';
+  const valid = recentModels.map(p => byGamePath.get(p.toLowerCase())).filter(Boolean);
+  if (!valid.length) { bar.hidden = true; return; }
+  bar.hidden = false;
+  for (const m of valid) {
+    const chip = document.createElement('div');
+    chip.className = 'recent-chip' + (picked === m ? ' sel' : '');
+    chip.title = m.title;
+    chip.innerHTML = `<img src="${m.thumb}" alt="${m.title}" loading="lazy">`;
+    chip.onclick = () => setPicked(m);
+    bar.append(chip);
+  }
+}
+renderRecent();
+
 addEventListener('keydown', e => {
   if (e.target.matches('input, select, textarea')) return;
   const k = e.key.toLowerCase();
@@ -1242,6 +1501,25 @@ addEventListener('keydown', e => {
   else if (k === 'e' && !picked) setMode('rotate');
   else if (k === 'r') setMode('scale');
   else if (k === 'g') toggleSnap();
+  else if (k === 'm') toggleMagnet();
+  else if (k === 't') {
+    if (picked) {
+      ghostYaw = norm(ghostYaw + 90);
+      updateGhost();
+      toast(`Turned 90° (${ghostYaw}°)`);
+    } else if (selected) {
+      pushUndo();
+      const obj = objects.get(selected), r = records.get(selected);
+      r.Yaw = norm(r.Yaw + 90);
+      applyRecord(obj, r);
+      changed();
+      toast(`Turned 90° (${r.Yaw.toFixed(1)}°)`);
+    }
+  }
+  else if (k === 'end') {
+    e.preventDefault();
+    dropSelectedToFloor();
+  }
   else if (k === 'f') focusSelected();
   else if (k === 'q' && picked) {
     const step = e.shiftKey ? 15 : (rotSnapVal || 1);

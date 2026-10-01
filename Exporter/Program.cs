@@ -99,10 +99,22 @@ foreach (var batch in candidates.Chunk(100))
             foreach (var mesh in pkg.GetExports().OfType<UStaticMesh>())
             {
                 var key = Path.ChangeExtension(file.Path, null) + "." + mesh.Name;
-                materialsOf[key] = mesh.StaticMaterials.Select(m => m.MaterialInterface?.ResolvedObject?.GetPathName()).ToList();
-                if (entries.ContainsKey(key)) { skipped++; continue; }
+                var meshPath = mesh.GetPathName();
+                var mats = mesh.StaticMaterials.Select(m => m.MaterialInterface?.ResolvedObject?.GetPathName()).ToList();
+                materialsOf[key] = mats;
+                if (meshPath != null)
+                {
+                    materialsOf[meshPath] = mats;
+                    materialsOf[meshPath.TrimStart('/')] = mats;
+                }
+                if (entries.ContainsKey(key) || (meshPath != null && (entries.ContainsKey(meshPath) || entries.ContainsKey(meshPath.TrimStart('/'))))) { skipped++; continue; }
                 session.Add(mesh);
                 queued.Add(key);
+                if (meshPath != null)
+                {
+                    queued.Add(meshPath);
+                    queued.Add(meshPath.TrimStart('/'));
+                }
             }
         }
         catch (Exception e)
@@ -114,7 +126,7 @@ foreach (var batch in candidates.Chunk(100))
     var results = queued.Count == 0 ? []
         : await session.RunAsync(opt.Out, exportOptions, null, CancellationToken.None);
     // The session also reports the materials and textures it pulled in; only the meshes count.
-    foreach (var r in results.Where(r => queued.Contains(r.ObjectPath)))
+    foreach (var r in results.Where(r => queued.Contains(r.ObjectPath) || queued.Any(q => q.EndsWith("." + Path.GetFileNameWithoutExtension(r.ObjectPath), StringComparison.OrdinalIgnoreCase))))
     {
         var glb = r.DiskFilePaths?.FirstOrDefault(p => p.EndsWith(".glb", StringComparison.OrdinalIgnoreCase)
                                                     || p.EndsWith(".gltf", StringComparison.OrdinalIgnoreCase));

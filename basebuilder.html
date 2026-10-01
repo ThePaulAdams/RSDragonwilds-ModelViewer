@@ -535,15 +535,59 @@ function undo() {
 // ---------------------------------------------------------------------------
 let picked = null;   // model to place
 let ghost = null;
+let ghostBounds = null; // { min, max, size }
+let lastPlacedYaw = 0, lastPlacedPitch = 0, lastPlacedRoll = 0;
+let lastPointerEvent = null;
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-function pointer(e) { const b = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1); ray.setFromCamera(ndc, camera); }
-function hitPoint() {
-  const hits = ray.intersectObjects([placedGroup, baseGroup, terrainGroup, ground], true).filter(h => !ghost || !isInside(h.object, ghost));
-  return hits[0]?.point || null;
+function pointer(e) {
+  if (e) lastPointerEvent = e;
+  const evt = e || lastPointerEvent;
+  if (!evt) return;
+  const b = renderer.domElement.getBoundingClientRect();
+  ndc.set((evt.clientX - b.left) / b.width * 2 - 1, -(evt.clientY - b.top) / b.height * 2 + 1);
+  ray.setFromCamera(ndc, camera);
 }
+
+function hitSurface() {
+  const targets = [placedGroup, baseGroup, terrainGroup, ground];
+  if (worldGroup?.children?.length) targets.push(worldGroup);
+  const hits = ray.intersectObjects(targets, true).filter(h => !ghost || !isInside(h.object, ghost));
+  if (!hits.length) return null;
+  const h = hits[0];
+  let normal = new THREE.Vector3(0, 1, 0);
+  if (h.face) {
+    normal = h.face.normal.clone().transformDirection(h.object.matrixWorld).normalize();
+  }
+  return { point: h.point, normal, object: h.object };
+}
+
 const isInside = (o, root) => { for (; o; o = o.parent) if (o === root) return true; return false; };
+
+function computeSurfaceOffset(bounds, normal, quat) {
+  if (!bounds) return 0;
+  const corners = [
+    new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.min.z),
+    new THREE.Vector3(bounds.max.x, bounds.min.y, bounds.min.z),
+    new THREE.Vector3(bounds.min.x, bounds.max.y, bounds.min.z),
+    new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.min.z),
+    new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.max.z),
+    new THREE.Vector3(bounds.max.x, bounds.min.y, bounds.max.z),
+    new THREE.Vector3(bounds.min.x, bounds.max.y, bounds.max.z),
+    new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.max.z)
+  ];
+  let minDot = Infinity;
+  for (const c of corners) {
+    if (quat) c.applyQuaternion(quat);
+    const dot = c.dot(normal);
+    if (dot < minDot) minDot = dot;
+  }
+  return -minDot;
+}
+
 function setPicked(m) {
   picked = m;
+  ghostBounds = null;
+  ghostYaw = 0;
   for (const c of document.querySelectorAll('.card')) c.classList.toggle('sel', c.dataset.path === m?.path);
   if (ghost) { scene.remove(ghost); ghost = null; }
   if (!m) { $('tip').innerHTML = 'Pick a model on the left, then <b>click in the scene</b> to place it. <b>Click</b> a placed model to select it.'; return; }
@@ -555,23 +599,76 @@ function setPicked(m) {
     const c = root.clone(true);
     c.traverse(o => { if (o.isMesh) { o.material = [].concat(o.material).map(x => { const y = x.clone(); y.transparent = true; y.opacity = 0.5; y.depthWrite = false; return y; }); if (o.material.length === 1) o.material = o.material[0]; } });
     ghost.add(c);
+    const box = new THREE.Box3().setFromObject(c);
+    ghostBounds = { min: box.min.clone(), max: box.max.clone(), size: box.getSize(new THREE.Vector3()) };
+    updateGhost();
   });
 }
+
 let ghostYaw = 0;
+function updateGhost() {
+  if (!ghost) return;
+  pointer();
+  const hit = hitSurface();
+  ghost.visible = !!hit;
+  if (!hit) return;
+
+  const normal = hit.normal;
+  const isFloor = normal.y > 0.5;
+  const isCeiling = normal.y < -0.5;
+  const isWall = !isFloor && !isCeiling;
+
+  let yaw = ghostYaw, pitch = 0, roll = 0;
+  if (isWall) {
+    const wNorm = new THREE.Vector3(normal.x, 0, normal.z).normalize();
+    const wallAngle = Math.atan2(wNorm.z, wNorm.x) / D;
+    yaw = norm(wallAngle + ghostYaw);
+  } else if (isCeiling) {
+    pitch = 180;
+  }
+
+  const q = ueToThreeQuat(rotToQuat(pitch, yaw, roll));
+  const offset = computeSurfaceOffset(ghostBounds, normal, q);
+  const pos = hit.point.clone();
+
+  if (isFloor) {
+    pos.y += offset;
+    if (snapOn && moveSnapVal > 0) {
+      pos.x = Math.round(pos.x / moveSnapVal) * moveSnapVal;
+      pos.z = Math.round(pos.z / moveSnapVal) * moveSnapVal;
+    }
+  } else if (isWall) {
+    const wNorm = new THREE.Vector3(normal.x, 0, normal.z).normalize();
+    const wTan = new THREE.Vector3(-wNorm.z, 0, wNorm.x);
+    if (snapOn && moveSnapVal > 0) {
+      pos.y = Math.round(pos.y / moveSnapVal) * moveSnapVal;
+      const t = Math.round(pos.dot(wTan) / moveSnapVal) * moveSnapVal;
+      const n = pos.dot(wNorm);
+      pos.copy(wTan).multiplyScalar(t).addScaledVector(wNorm, n);
+    }
+    pos.addScaledVector(wNorm, offset);
+  } else {
+    pos.addScaledVector(normal, offset);
+    if (snapOn && moveSnapVal > 0) {
+      pos.x = Math.round(pos.x / moveSnapVal) * moveSnapVal;
+      pos.z = Math.round(pos.z / moveSnapVal) * moveSnapVal;
+    }
+  }
+
+  ghost.position.copy(pos);
+  ghost.quaternion.copy(q);
+
+  lastPlacedYaw = yaw;
+  lastPlacedPitch = pitch;
+  lastPlacedRoll = roll;
+}
+
 renderer.domElement.addEventListener('pointermove', e => {
   if (!ghost) return;
   pointer(e);
-  const p = hitPoint();
-  ghost.visible = !!p;
-  if (p) {
-    if (snapOn && moveSnapVal > 0) {
-      p.x = Math.round(p.x / moveSnapVal) * moveSnapVal;
-      p.z = Math.round(p.z / moveSnapVal) * moveSnapVal;
-    }
-    ghost.position.copy(p);
-    ghost.quaternion.copy(ueToThreeQuat(rotToQuat(0, ghostYaw, 0)));
-  }
+  updateGhost();
 });
+
 let down = null;
 renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
 renderer.domElement.addEventListener('pointerup', e => {
@@ -580,8 +677,9 @@ renderer.domElement.addEventListener('pointerup', e => {
   if (picked && ghost?.visible) {
     pushUndo();
     const id = newId();
-    const r = { ...toGame(ghost.position), Yaw: ghostYaw, Pitch: 0, Roll: 0, Scale: 1, Mesh: picked.path, Base: '' };
+    const r = { ...toGame(ghost.position), Yaw: lastPlacedYaw, Pitch: lastPlacedPitch, Roll: lastPlacedRoll, Scale: 1, Mesh: picked.path, Base: '' };
     records.set(id, r); spawn(id, r); refreshList(); changed();
+    updateGhost();
     return;
   }
   const hit = ray.intersectObjects(placedGroup.children, true)[0];
@@ -683,8 +781,15 @@ async function loadPieceDefs() {
   if (pieceDefs) return pieceDefs;
   pieceDefs = { byId: new Map(), byAsset: new Map() };
   try {
-    for (const p of await (await fetch('pieces.json')).json()) { pieceDefs.byId.set(p.id, p); pieceDefs.byAsset.set(p.asset.toLowerCase(), p); }
-  } catch { }
+    const res = await fetch(DATA_BASE + 'pieces.json');
+    if (!res.ok) throw 0;
+    for (const p of await res.json()) { pieceDefs.byId.set(p.id, p); pieceDefs.byAsset.set(p.asset.toLowerCase(), p); }
+  } catch {
+    try {
+      const res2 = await fetch('pieces.json');
+      if (res2.ok) for (const p of await res2.json()) { pieceDefs.byId.set(p.id, p); pieceDefs.byAsset.set(p.asset.toLowerCase(), p); }
+    } catch { }
+  }
   return pieceDefs;
 }
 const byFileName = new Map();
@@ -1141,12 +1246,12 @@ addEventListener('keydown', e => {
   else if (k === 'q' && picked) {
     const step = e.shiftKey ? 15 : (rotSnapVal || 1);
     ghostYaw = norm(ghostYaw - step);
-    if (ghost) ghost.quaternion.copy(ueToThreeQuat(rotToQuat(0, ghostYaw, 0)));
+    updateGhost();
   }
   else if (k === 'e' && picked) {
     const step = e.shiftKey ? 15 : (rotSnapVal || 1);
     ghostYaw = norm(ghostYaw + step);
-    if (ghost) ghost.quaternion.copy(ueToThreeQuat(rotToQuat(0, ghostYaw, 0)));
+    updateGhost();
   }
   else if (selected && !picked && (k === 'arrowleft' || k === 'arrowright' || k === 'arrowup' || k === 'arrowdown' || k === 'pageup' || k === 'pagedown')) {
     e.preventDefault();

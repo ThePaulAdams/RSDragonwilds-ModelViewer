@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drops and Loot Finder | Ashenfallen</title>
+<meta name="description" content="Find what every RuneScape: Dragonwilds enemy and chest drops, the odds of each drop, and where to get any item. Data read straight from the game files. Fan-made, not affiliated with Jagex.">
+<link rel="canonical" href="https://ashenfallen.com/drops">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Ashenfallen">
+<meta property="og:title" content="Drops and Loot Finder | Ashenfallen">
+<meta property="og:description" content="What every enemy and chest drops in RuneScape: Dragonwilds, with odds, and where to get any item.">
+<meta property="og:url" content="https://ashenfallen.com/drops"><meta property="og:image" content="https://ashenfallen.com/og.png?v=1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#14161a">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #14161a; --panel: #1c1f25; --panel2: #23272f; --line: #2f343d;
+    --text: #e6e6e6; --muted: #9aa3ae; --accent: #e0b64a; --accent2: #6cb4ff; --ok: #6fcf7f;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { min-height: 100vh; display: flex; flex-direction: column;
+    background: radial-gradient(ellipse at 50% -10%, #2a2416 0%, transparent 55%), var(--bg); }
+  a { color: inherit; }
+  button, input, select { font: inherit; color: var(--text); background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  .wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+
+  header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 0 10px; flex-wrap: wrap; }
+  .brand { white-space: nowrap; font-weight: 700; letter-spacing: .4px; font-size: 18px; text-decoration: none; }
+  .brand b { color: var(--accent); font-weight: 700; }
+  nav.links { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav.links a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 6px; font-size: 14px; }
+  nav.links a:hover, nav.links a.here { color: var(--text); background: var(--panel2); }
+
+  .intro { padding: 14px 0 18px; }
+  .intro h1 { margin: 0 0 4px; font-size: clamp(24px, 4.5vw, 34px); line-height: 1.15; }
+  .intro h1 span { color: var(--accent); }
+  .intro p { margin: 0; color: var(--muted); }
+
+  #app { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 18px; padding-bottom: 36px; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+  #side { position: sticky; top: 12px; display: flex; flex-direction: column; max-height: calc(100vh - 24px); }
+  #side .top { padding: 12px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--line); }
+  #q { width: 100%; padding: 10px 12px; font-size: 15px; border-radius: 10px; }
+  #q:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tabs button { padding: 4px 10px; font-size: 13px; border-radius: 999px; color: var(--muted); }
+  .tabs button.on { background: var(--accent); color: #1a1405; border-color: var(--accent); font-weight: 600; }
+  #count { color: var(--muted); font-size: 12px; }
+  #results { overflow-y: auto; padding: 6px; min-height: 120px; }
+  .res { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; text-decoration: none; cursor: pointer; }
+  .res:hover { background: var(--panel2); }
+  .res.sel { background: var(--panel2); box-shadow: inset 3px 0 0 var(--accent); }
+  .res .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kind { font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 1px 6px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .kind.enemy { color: #ff9f80; border-color: #5a3328; }
+  .kind.chest { color: var(--accent); border-color: #5a4a22; }
+  .kind.item { color: var(--accent2); border-color: #24405a; }
+  .icon { width: 32px; height: 32px; flex: none; border-radius: 6px; background: #101216 center/contain no-repeat; border: 1px solid var(--line);
+    display: grid; place-items: center; color: #4a515c; font-size: 14px; overflow: hidden; }
+  .icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .icon.big { width: 72px; height: 72px; border-radius: 10px; font-size: 28px; }
+
+  #main { padding: 20px 22px 24px; min-height: 420px; }
+  .head { display: flex; gap: 16px; align-items: center; margin-bottom: 14px; }
+  .head h2 { margin: 0; font-size: 26px; line-height: 1.15; }
+  .head .sub { color: var(--muted); font-size: 14px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+  .desc { color: var(--muted); margin: 0 0 16px; max-width: 70ch; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
+  .chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); color: var(--muted); text-decoration: none; }
+  .chip b { color: var(--text); font-weight: 600; }
+  a.chip:hover { border-color: var(--accent); color: var(--text); }
+  h3 { margin: 20px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  h3 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+  .table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .table th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; cursor: pointer; user-select: none; }
+  .table th.num, .table td.num { text-align: right; }
+  .table th:hover { color: var(--text); }
+  .table td { padding: 6px 8px; border-bottom: 1px solid #262a32; vertical-align: middle; }
+  .table td.num { white-space: nowrap; }
+  .table tr.link { cursor: pointer; }
+  .table tr.link:hover td { background: var(--panel2); }
+  .table .it { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .table .it span { min-width: 0; overflow-wrap: anywhere; }
+  .bar { position: relative; display: inline-block; width: 64px; height: 6px; border-radius: 3px; background: #2a2f38; vertical-align: middle; margin-right: 8px; overflow: hidden; }
+  .bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 3px; }
+  .always { color: var(--ok); font-weight: 600; }
+  .note { color: var(--muted); font-size: 12px; }
+  .scroll { overflow-x: auto; }
+
+  .calc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted);
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: 4px 0 0; }
+  .calc input { width: 80px; padding: 4px 8px; }
+
+  .empty { color: var(--muted); padding: 30px 6px; text-align: center; }
+  .browse { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+  .browse a { display: flex; gap: 10px; align-items: center; padding: 8px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; text-decoration: none; min-width: 0; }
+  .browse a:hover { border-color: var(--accent); }
+  .browse a span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .stat { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; min-width: 120px; }
+  .stat b { display: block; font-size: 22px; color: var(--accent); }
+  .stat span { color: var(--muted); font-size: 12px; }
+
+  footer { margin-top: auto; border-top: 1px solid var(--line); padding: 18px 0; color: var(--muted); font-size: 13px; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  @media (max-width: 860px) {
+    #app { grid-template-columns: 1fr; }
+    #side { position: static; max-height: none; }
+    #results { max-height: 320px; }
+    #main { padding: 16px; }
+    .head h2 { font-size: 22px; }
+    .hide-sm { display: none; }
+    .bar { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/">&#9670; <b>Ashenfallen</b></a>
+    <nav class="links">
+      <a href="/viewer">Model Viewer</a>
+      <a href="/base-builder">Base Builder</a>
+      <a href="/drops" class="here">Drops</a>
+      <a href="https://discord.gg/3Xmj3Tx" target="_blank" rel="noopener">Discord</a>
+    </nav>
+  </header>
+  <section class="intro">
+    <h1>Drops and <span>Loot Finder</span></h1>
+    <p>What every enemy and chest drops, the odds, and where to get any item. Read straight from the game files<span id="ver"></span>.</p>
+  </section>
+
+  <div id="app">
+    <aside id="side" class="panel">
+      <div class="top">
+        <input id="q" type="search" placeholder="Search an item, enemy or chest" autocomplete="off" spellcheck="false" aria-label="Search">
+        <div class="tabs" role="tablist">
+          <button data-kind="all" class="on">All</button>
+          <button data-kind="item">Items</button>
+          <button data-kind="enemy">Enemies</button>
+          <button data-kind="chest">Chests</button>
+        </div>
+        <div id="count">Loading game data...</div>
+      </div>
+      <div id="results"></div>
+    </aside>
+    <main id="main" class="panel"><div class="empty">Loading game data...</div></main>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Fan-made, not affiliated with Jagex. RuneScape is a trademark of Jagex Ltd.</span>
+    <span><a href="https://discord.gg/3Xmj3Tx" target="_blank" rel="noopener">Discord</a> &middot; <a href="https://ko-fi.com/paulbuilds" target="_blank" rel="noopener">Support on Ko-fi</a></span>
+  </div>
+</footer>
+
+<script>
+// Data comes from /gamedata/*.json (ModelExporter "gamedata", see gamedata/README.md).
+const D = { items: new Map(), sources: new Map(), tables: new Map(), dropsOf: new Map(), models: new Set(), meta: {} };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const pct = p => p >= 1 ? '100%' : p >= 0.1 ? (p * 100).toFixed(1).replace(/\.0$/, '') + '%' : p >= 0.001 ? (p * 100).toFixed(2) + '%' : p > 0 ? '1 in ' + Math.round(1 / p).toLocaleString('en') : '0%';
+const qty = (a, b) => a == null ? '1' : a === b || b == null ? String(a) : `${a}–${b}`;
+const fold = s => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+let kills = 10;
+try { kills = Math.max(1, Math.min(100000, +localStorage.getItem('drops.kills') || 10)); } catch {}
+
+async function json(name) {
+  const r = await fetch('/gamedata/' + name, { cache: 'no-cache' });
+  if (!r.ok) throw new Error(name + ': ' + r.status);
+  return r.json();
+}
+
+async function load() {
+  const [meta, items, enemies, chests, tables] = await Promise.all(
+    ['meta.json', 'items.json', 'enemies.json', 'chests.json', 'loottables.json'].map(n => json(n).catch(() => n === 'meta.json' ? {} : [])));
+  D.meta = meta;
+  for (const it of items) D.items.set(it.id, it);
+  for (const t of tables) D.tables.set(t.id, t);
+  for (const e of enemies) D.sources.set('enemy:' + e.id, { ...e, kind: 'enemy', key: 'enemy:' + e.id });
+  for (const c of chests) D.sources.set('chest:' + c.id, { ...c, kind: 'chest', key: 'chest:' + c.id });
+  for (const s of D.sources.values()) {
+    s.drops = dropsFor(s);
+    for (const d of s.drops) {
+      if (!D.dropsOf.has(d.item)) D.dropsOf.set(d.item, []);
+      D.dropsOf.get(d.item).push({ ...d, source: s });
+    }
+  }
+  // Only items that something drops, or that have a model, are worth listing.
+  D.index = [];
+  for (const it of D.items.values()) if (D.dropsOf.has(it.id)) D.index.push({ kind: 'item', key: 'item:' + it.id, name: it.name || it.id, f: fold(it.name + ' ' + it.id), ref: it });
+  for (const s of D.sources.values()) D.index.push({ kind: s.kind, key: s.key, name: s.name || s.id, f: fold(s.name + ' ' + s.id), ref: s });
+  D.index.sort((a, b) => a.name.localeCompare(b.name));
+  if (meta.gameVersion) $('#ver').textContent = ` (game version ${meta.gameVersion})`;
+  // Which models the viewer has, so items and enemies can link to their 3D model.
+  fetch('/assets/models.json').then(r => r.ok ? r.json() : null).then(m => {
+    for (const x of m?.Models || []) D.models.add(x.File.split('/').pop().replace(/\.glb$/i, '').toLowerCase());
+    route(true);
+  }).catch(() => {});
+}
+
+// Every item a source can give, with its chance per kill (or per opening).
+// A loot table: { rolls: {min,max}, guaranteed: [entry], bonus: [entry], weighted?: bool }
+// entry: { item | table, min, max, chance (0..1 per roll), weight? }
+function dropsFor(src) {
+  const out = new Map();
+  const add = (item, p, min, max, always, note, scale) => {
+    const k = item;
+    const o = out.get(k);
+    if (o) { o.chance = 1 - (1 - o.chance) * (1 - p); o.min = Math.min(o.min, min); o.max = Math.max(o.max, max); o.always ||= always; if (note && !o.notes.includes(note)) o.notes.push(note); }
+    else out.set(k, { item, chance: p, min, max, always, notes: note ? [note] : [] });
+  };
+  const walk = (id, outer, depth, seen) => {
+    const t = D.tables.get(id);
+    if (!t || depth > 6 || seen.has(id)) return;
+    seen = new Set(seen).add(id);
+    const rmin = t.rolls?.min ?? 1, rmax = t.rolls?.max ?? rmin;
+    for (const e of t.guaranteed || []) visit(e, outer * (e.chance ?? 1), true, depth, seen);
+    const bonus = t.bonus || [];
+    const wsum = bonus.reduce((a, e) => a + (e.weight || 0), 0);
+    for (const e of bonus) {
+      const perRoll = t.weighted && wsum > 0 ? (e.weight || 0) / wsum : (e.chance ?? 0);
+      // Chance it comes up at least once over the rolls (rolls spread evenly between min and max).
+      let p = 0, n = 0;
+      for (let r = rmin; r <= rmax; r++, n++) p += 1 - Math.pow(1 - perRoll, r);
+      p = n ? p / n : perRoll;
+      visit(e, outer * p, false, depth, seen);
+    }
+  };
+  const visit = (e, p, always, depth, seen) => {
+    if (p <= 0) return;
+    if (e.table) return walk(e.table, p, depth + 1, seen);
+    if (e.item) add(e.item, Math.min(1, p), e.min ?? 1, e.max ?? e.min ?? 1, always && p >= 1, e.note, 1);
+  };
+  for (const id of src.lootTables || []) walk(id, 1, 0, new Set());
+  return [...out.values()].sort((a, b) => (b.always - a.always) || (b.chance - a.chance));
+}
+
+const itemName = id => D.items.get(id)?.name || id;
+function iconHtml(item, big) {
+  const cls = 'icon' + (big ? ' big' : '');
+  if (item?.icon) return `<span class="${cls}"><img src="/gamedata/icons/${encodeURIComponent(item.icon)}" alt="" loading="lazy" onerror="this.remove()"></span>`;
+  return `<span class="${cls}" aria-hidden="true">&#9670;</span>`;
+}
+function srcIcon(s, big) {
+  const cls = 'icon' + (big ? ' big' : '');
+  if (s.icon) return `<span class="${cls}"><img src="/gamedata/icons/${encodeURIComponent(s.icon)}" alt="" loading="lazy" onerror="this.remove()"></span>`;
+  return `<span class="${cls}" aria-hidden="true">${s.kind === 'chest' ? '&#9635;' : '&#9760;'}</span>`;
+}
+const modelLink = name => name && D.models.has(name.toLowerCase()) ? `<a class="chip" href="/model/${encodeURIComponent(name)}">View in 3D &rarr;</a>` : '';
+const per = s => s.kind === 'chest' ? 'opening' : 'kill';
+const killsFor = (p, target) => p >= 1 ? 1 : p <= 0 ? Infinity : Math.ceil(Math.log(1 - target) / Math.log(1 - p));
+const fmtN = n => n === Infinity ? '—' : n.toLocaleString('en');
+
+// ---------- list ----------
+let kind = 'all', selected = null;
+function search() {
+  const q = fold($('#q').value);
+  const words = q ? q.split(' ') : [];
+  let list = D.index.filter(x => kind === 'all' || x.kind === kind);
+  if (words.length) {
+    list = list.filter(x => words.every(w => x.f.includes(w)))
+      .map(x => ({ x, s: (fold(x.name) === q ? 0 : fold(x.name).startsWith(q) ? 1 : (' ' + x.f).includes(' ' + words[0]) ? 2 : 3) + (x.kind === 'item' ? 0 : 0.5) }))
+      .sort((a, b) => a.s - b.s || a.x.name.localeCompare(b.x.name)).map(a => a.x);
+  }
+  const shown = list.slice(0, 200);
+  $('#count').textContent = list.length ? `${list.length.toLocaleString('en')} result${list.length === 1 ? '' : 's'}${list.length > shown.length ? ', showing 200' : ''}` : 'Nothing found';
+  $('#results').innerHTML = shown.map(x => `<a class="res${x.key === selected ? ' sel' : ''}" href="${href(x.key)}" data-key="${esc(x.key)}">
+    ${x.kind === 'item' ? iconHtml(x.ref) : srcIcon(x.ref)}<span class="nm">${esc(x.name)}</span><span class="kind ${x.kind}">${x.kind}</span></a>`).join('');
+}
+const href = key => { const [k, ...id] = key.split(':'); return `/drops?${k}=${encodeURIComponent(id.join(':'))}`; };
+
+// ---------- detail views ----------
+function showHome() {
+  const enemies = [...D.sources.values()].filter(s => s.kind === 'enemy').sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+  const chests = [...D.sources.values()].filter(s => s.kind === 'chest').sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+  const card = s => `<a href="${href(s.key)}" data-key="${esc(s.key)}">${srcIcon(s)}<span>${esc(s.name || s.id)}</span></a>`;
+  $('#main').innerHTML = `
+    <div class="stats">
+      <div class="stat"><b>${enemies.length}</b><span>enemies</span></div>
+      <div class="stat"><b>${chests.length}</b><span>chests</span></div>
+      <div class="stat"><b>${D.dropsOf.size}</b><span>items that drop</span></div>
+      <div class="stat"><b>${D.tables.size}</b><span>loot tables</span></div>
+    </div>
+    <p class="desc">Search for an item to see everything that drops it, best odds first, and how many kills it takes on average. Pick an enemy or chest to see its full loot table.</p>
+    ${enemies.length ? `<h3>Enemies</h3><div class="browse">${enemies.map(card).join('')}</div>` : ''}
+    ${chests.length ? `<h3>Chests</h3><div class="browse">${chests.map(card).join('')}</div>` : ''}`;
+  document.title = 'Drops and Loot Finder | Ashenfallen';
+}
+
+function calcHtml(s) {
+  return `<div class="calc"><label for="kills">Chance of at least one in</label>
+    <input id="kills" type="number" min="1" max="100000" value="${kills}"> ${per(s)}s</div>`;
+}
+
+let sortKey = 'chance', sortDir = -1;
+function showSource(s) {
+  const rows = s.drops.slice();
+  const by = { name: d => itemName(d.item).toLowerCase(), chance: d => d.chance + (d.always ? 1 : 0), qty: d => d.max, n: d => 1 - Math.pow(1 - d.chance, kills) };
+  rows.sort((a, b) => { const x = by[sortKey](a), y = by[sortKey](b); return (x < y ? -1 : x > y ? 1 : 0) * sortDir; });
+  const tables = (s.lootTables || []).map(id => D.tables.get(id)).filter(Boolean);
+  const rolls = tables.map(t => t.rolls).filter(r => r && (r.min !== 1 || r.max !== 1));
+  const arrow = k => sortKey === k ? (sortDir < 0 ? ' ▾' : ' ▴') : '';
+  $('#main').innerHTML = `
+    <div class="head">${srcIcon(s, true)}<div><h2>${esc(s.name || s.id)}</h2>
+      <div class="sub"><span class="kind ${s.kind}">${s.kind}</span>${s.level != null ? `<span>Level ${esc(s.level)}</span>` : ''}${s.region ? `<span>${esc(s.region)}</span>` : ''}</div></div></div>
+    ${s.description ? `<p class="desc">${esc(s.description)}</p>` : ''}
+    <div class="chips">
+      <span class="chip"><b>${s.drops.length}</b> possible drops</span>
+      ${rolls.length ? `<span class="chip">Bonus rolls <b>${rolls.map(r => qty(r.min, r.max)).join(', ')}</b></span>` : ''}
+      ${s.respawnSeconds ? `<span class="chip">Respawns in <b>${fmtTime(s.respawnSeconds)}</b></span>` : ''}
+      ${modelLink(s.model)}
+    </div>
+    ${s.drops.length ? `
+    ${calcHtml(s)}
+    <div class="scroll"><table class="table">
+      <thead><tr><th data-sort="name">Item${arrow('name')}</th><th data-sort="qty" class="num">Qty${arrow('qty')}</th>
+        <th data-sort="chance" class="num">Chance per ${per(s)}${arrow('chance')}</th><th data-sort="n" class="num hide-sm">In ${kills.toLocaleString('en')}${arrow('n')}</th>
+        <th class="num hide-sm">${per(s)[0].toUpperCase() + per(s).slice(1)}s for 90%</th></tr></thead>
+      <tbody>${rows.map(d => {
+        const it = D.items.get(d.item);
+        return `<tr class="link" data-key="item:${esc(d.item)}"><td><div class="it">${iconHtml(it)}<span>${esc(itemName(d.item))}${d.notes.length ? `<br><span class="note">${esc(d.notes.join('; '))}</span>` : ''}</span></div></td>
+          <td class="num">${qty(d.min, d.max)}</td>
+          <td class="num">${d.always ? '<span class="always">Always</span>' : `<span class="bar"><i style="width:${Math.max(2, d.chance * 100)}%"></i></span>${pct(d.chance)}`}</td>
+          <td class="num hide-sm">${pct(1 - Math.pow(1 - d.chance, kills))}</td>
+          <td class="num hide-sm">${fmtN(killsFor(d.chance, 0.9))}</td></tr>`;
+      }).join('')}</tbody></table></div>` : '<p class="empty">No drops found for this one in the game data.</p>'}`;
+  document.title = `${s.name || s.id} drops | Ashenfallen`;
+}
+
+function showItem(it) {
+  const list = (D.dropsOf.get(it.id) || []).slice().sort((a, b) => (b.always - a.always) || (b.chance - a.chance));
+  const best = list[0];
+  $('#main').innerHTML = `
+    <div class="head">${iconHtml(it, true)}<div><h2>${esc(it.name || it.id)}</h2>
+      <div class="sub"><span class="kind item">item</span>${it.category ? `<span>${esc(it.category)}</span>` : ''}${it.rarity ? `<span>${esc(it.rarity)}</span>` : ''}</div></div></div>
+    ${it.description ? `<p class="desc">${esc(it.description)}</p>` : ''}
+    <div class="chips">
+      ${it.weight != null ? `<span class="chip">Weight <b>${esc(it.weight)}</b></span>` : ''}
+      ${it.maxStack > 1 ? `<span class="chip">Stacks to <b>${esc(it.maxStack)}</b></span>` : ''}
+      ${it.durability ? `<span class="chip">Durability <b>${esc(it.durability)}</b></span>` : ''}
+      ${it.powerLevel != null ? `<span class="chip">Power level <b>${esc(it.powerLevel)}</b></span>` : ''}
+      ${best && !best.always ? `<span class="chip">Best odds: <b>${pct(best.chance)}</b> from ${esc(best.source.name || best.source.id)}</span>` : ''}
+      ${modelLink(it.model)}
+    </div>
+    <h3>Where to get it <small>${list.length} source${list.length === 1 ? '' : 's'}</small></h3>
+    ${list.length ? `<div class="scroll"><table class="table">
+      <thead><tr><th>Dropped by</th><th class="num">Qty</th><th class="num">Chance</th><th class="num hide-sm">Tries for 50%</th><th class="num hide-sm">Tries for 90%</th></tr></thead>
+      <tbody>${list.map(d => `<tr class="link" data-key="${esc(d.source.key)}"><td><div class="it">${srcIcon(d.source)}<span>${esc(d.source.name || d.source.id)} <span class="kind ${d.source.kind}">${d.source.kind}</span></span></div></td>
+        <td class="num">${qty(d.min, d.max)}</td>
+        <td class="num">${d.always ? '<span class="always">Always</span>' : `<span class="bar"><i style="width:${Math.max(2, d.chance * 100)}%"></i></span>${pct(d.chance)}`}</td>
+        <td class="num hide-sm">${fmtN(killsFor(d.chance, 0.5))}</td><td class="num hide-sm">${fmtN(killsFor(d.chance, 0.9))}</td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="empty">Nothing in the game data drops this item. It may be crafted, bought or a quest reward.</p>'}`;
+  document.title = `${it.name || it.id}: where to get it | Ashenfallen`;
+}
+const fmtTime = s => s >= 3600 ? `${+(s / 3600).toFixed(1)} h` : s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`;
+
+// ---------- routing ----------
+function route(keep) {
+  const p = new URLSearchParams(location.search);
+  let key = null;
+  for (const k of ['item', 'enemy', 'chest']) if (p.has(k)) key = k + ':' + p.get(k);
+  selected = key;
+  if (!key) showHome();
+  else if (key.startsWith('item:') && D.items.has(key.slice(5))) showItem(D.items.get(key.slice(5)));
+  else if (D.sources.has(key)) showSource(D.sources.get(key));
+  else { $('#main').innerHTML = '<p class="empty">Not found. It may have been renamed in a game update; try searching.</p>'; }
+  search();
+  if (!keep && key && innerWidth <= 860) $('#main').scrollIntoView({ block: 'start' });
+}
+function go(key) {
+  if (key !== selected) { history.pushState(null, '', href(key)); sortKey = 'chance'; sortDir = -1; }
+  route();
+}
+
+document.addEventListener('click', e => {
+  const th = e.target.closest('th[data-sort]');
+  if (th) { const k = th.dataset.sort; sortDir = sortKey === k ? -sortDir : (k === 'name' ? 1 : -1); sortKey = k; return route(true); }
+  const a = e.target.closest('[data-key]');
+  if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button) return;
+  e.preventDefault();
+  go(a.dataset.key);
+});
+document.addEventListener('change', e => {
+  if (e.target.id !== 'kills') return;
+  kills = Math.max(1, Math.min(100000, Math.round(+e.target.value) || 1));
+  try { localStorage.setItem('drops.kills', kills); } catch {}
+  route(true);
+});
+$('#q').addEventListener('input', search);
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') { const first = $('#results [data-key]'); if (first) go(first.dataset.key); } });
+document.querySelector('.tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  kind = b.dataset.kind;
+  for (const x of document.querySelectorAll('.tabs button')) x.classList.toggle('on', x === b);
+  search();
+});
+addEventListener('popstate', () => route(true));
+
+load().then(() => {
+  const q = new URLSearchParams(location.search).get('q');
+  if (q) $('#q').value = q;
+  route(true);
+}).catch(err => {
+  console.error(err);
+  $('#count').textContent = '';
+  $('#main').innerHTML = '<p class="empty">The game data could not be loaded. Try again in a moment.</p>';
+});
+</script>
+</body>
+</html>

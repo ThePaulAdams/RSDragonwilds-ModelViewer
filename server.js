@@ -162,7 +162,8 @@ async function page(model) {
   const links = (model ? [model] : list).map(x => `<li><a href="/model/${attr(encodeURIComponent(x.slug))}">${esc(x.title)}</a>${x.where ? ` <small>${esc(x.where)}</small>` : ''}</li>`).join('');
   const body = `<noscript><h1>${esc(model ? model.title : SITE_NAME)}</h1><p>${esc(description)}</p><ul>${links}</ul></noscript>`;
   return indexHtml.replace(/<!--seo-->[\s\S]*?<!--\/seo-->/, head)
-    .replace(/<button id="exportBtn"[^>]*>[^<]*<\/button>/, '')   // no export feature on the site.replace('<!--seo-list-->', body);
+    .replace(/<button id="exportBtn"[^>]*>[^<]*<\/button>/, '')   // no export feature on the site
+    .replace('<!--seo-list-->', body);
 }
 // The landing page: a card per tool, with a few real model previews on the viewer's card.
 let homeHtml = null, homeCache = null;
@@ -180,7 +181,7 @@ async function home() {
   }
   const count = list.length.toLocaleString('en');
   const title = `${SITE_NAME}: tools for RuneScape: Dragonwilds`;
-  const description = `Fan-made tools for RuneScape: Dragonwilds: a 3D viewer for ${count} game models and a base builder that reads your save. Fan-made, not affiliated with Jagex.`;
+  const description = `Fan-made tools for RuneScape: Dragonwilds: a 3D viewer for ${count} game models, a base builder that reads your save, and a drops and loot finder. Fan-made, not affiliated with Jagex.`;
   const head = `<title>${esc(title)}</title>
 <meta name="description" content="${attr(description)}">
 <link rel="canonical" href="${attr(SITE_URL + '/')}">
@@ -253,7 +254,7 @@ createServer(async (req, res) => {
 
     if (path === '/robots.txt') return send(res, 200, `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`, { 'Cache-Control': 'public, max-age=86400' });
     if (path === '/sitemap.xml') {
-      const urls = [SITE_URL + '/', SITE_URL + '/viewer', SITE_URL + '/base-builder', ...(await models()).list.map(x => SITE_URL + '/model/' + encodeURIComponent(x.slug))];
+      const urls = [SITE_URL + '/', SITE_URL + '/viewer', SITE_URL + '/base-builder', SITE_URL + '/drops', ...(await models()).list.map(x => SITE_URL + '/model/' + encodeURIComponent(x.slug))];
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc></url>`).join('\n')}\n</urlset>\n`;
       return send(res, 200, xml, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=86400' });
     }
@@ -306,6 +307,19 @@ createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
         'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
       return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    // Drops and loot finder. Its data is extracted from the game files (ModelExporter "gamedata") and ships with the code.
+    if (path === '/drops' || path === '/drops.html') {
+      const body = gzipSync(await readFile(join(APP, 'drops.html')));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
+        'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    if (path.startsWith('/gamedata/')) {
+      const file = inside(join(APP, 'gamedata'), path.slice(10));
+      if (!file || file.endsWith('.md')) return send(res, 404, 'Not found');
+      // JSON changes with each game update; icons keep their name, so they can be cached for a week.
+      return sendFile(req, res, file, file.endsWith('.json') ? 'public, max-age=300' : 'public, max-age=604800');
     }
     if (path.startsWith('/model/')) {
       const model = (await models()).bySlug.get(decodeURIComponent(path.slice(7)).toLowerCase());

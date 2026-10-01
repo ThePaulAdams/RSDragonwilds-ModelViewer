@@ -11,8 +11,9 @@ const write = (name, data) => writeFile(join(to, name), JSON.stringify(data));
 const words = s => String(s).replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\s+/g, ' ').trim();
 
 await mkdir(join(to, 'icons'), { recursive: true });
-const names = ['version', 'items', 'recipes', 'spells', 'quests', 'loottables', 'enemies', 'chests', 'skills'];
-const d = Object.fromEntries(await Promise.all(names.map(async n => [n, await read(n + '.json', n === 'version' || n === 'skills' ? {} : [])])));
+const names = ['version', 'items', 'recipes', 'spells', 'quests', 'loottables', 'enemies', 'chests', 'skills', 'perks', 'runecrafting'];
+const objects = ['version', 'skills', 'runecrafting'];
+const d = Object.fromEntries(await Promise.all(names.map(async n => [n, await read(n + '.json', objects.includes(n) ? {} : [])])));
 
 // Items: readable equip slot and category ("ELoadoutSlotStrategy::HeldOnlyRight" -> "Main hand").
 const SLOTS = { HeldOnlyRight: 'Main hand', HeldOnlyLeft: 'Off hand', HeldTwoHanded: 'Two-handed' };
@@ -32,16 +33,22 @@ for (const r of d.recipes) {
   const tier = ev.match(/Tier(\d+)/);
   if (tier && r.tier == null) r.tier = +tier[1];
   if (r.skill) r.skillName = words(r.skill.replace(/^SKILL_/, ''));
+  if (r.levelSkill) r.levelSkillName = words(r.levelSkill.replace(/^SKILL_/, ''));
   if (r.raw?.bSoftDeleted) r.deleted = true;
 }
 
-for (const n of names) if (n !== 'skills' || Object.keys(d.skills).length) await write(n + '.json', d[n]);
+for (const n of names) if (!objects.includes(n) || Object.keys(d[n]).length) await write(n + '.json', d[n]);
 let icons = 0;
 for (const f of await readdir(join(from, 'icons')).catch(() => [])) if (f.endsWith('.webp')) { await copyFile(join(from, 'icons', f), join(to, 'icons', f)); icons++; }
 
-// Combined file for the crafting planner (shape in static/planner-lib.js).
 const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-const out = { version: d.version.game || null, items: {}, recipes: [], stations: {}, skills: d.skills.skills || [], xpTable: d.skills.xpTable || [] };
+// Combined file for the crafting planner (shape in static/planner-lib.js).
+const out = { version: d.version.game || null, items: {}, recipes: [], stations: {}, xpTable: d.skills.xpTable || [],
+  skills: (d.skills.skills || []).filter(s => !s.deprecated).map(s => ({ id: slug(s.name), name: s.name, ...(s.icon && { icon: '/gamedata/' + s.icon }) })) };
+// Rune altar: XP per essence, unlock level and yield per rune.
+if (d.runecrafting.runes) out.runecrafting = { altars: d.runecrafting.runes.map(r => ({ id: slug(r.rune), rune: `${r.rune} rune`, item: r.runeItem, essence: r.essenceItem,
+  level: r.unlockLevel ?? 1, xpPerEssence: (r.xpPerCraft ?? 0) / (r.essencePerCraft || 1), runesPerEssence: r.runesPerEssence ?? 1,
+  extraRuneChance: r.extraRuneChance ?? 0, secondsPerCraft: r.secondsToCraft, multiples: [], ...(r.bonusYieldPerk && { bonusYieldLevel: r.bonusYieldPerk.level }) })) };
 for (const it of d.items) out.items[it.id] = { name: it.name || it.asset || it.id, ...(it.icon && { icon: '/gamedata/' + it.icon }), ...(it.categoryName && { category: it.categoryName }) };
 for (const r of d.recipes) {
   if (r.test || r.deleted) continue;
@@ -53,7 +60,9 @@ for (const r of d.recipes) {
   for (const [i, m] of (r.makes || []).entries()) out.recipes.push({
     id: i ? `${r.id}:${i}` : r.id, name: r.name, output: { item: m.item, qty: m.count ?? 1 },
     ingredients: (r.needs || []).map(n => ({ item: n.item, qty: n.count ?? 1 })),
-    ...(station && { station }), ...(skill && { skill }), ...(r.level != null && { level: r.level }), ...(r.xp != null && { xp: r.xp }),
+    ...(station && { station }), ...(skill && { skill }), ...(r.xp != null && { xp: r.xp }),
+    // The level requirement can be on another skill than the one that gets the XP (e.g. enchanted bolts: Artisan XP, Ranged 35).
+    ...(r.level != null && { level: r.level, ...(r.levelSkillName && slug(r.levelSkillName) !== skill && { levelSkill: slug(r.levelSkillName) }) }),
   });
 }
 await write('gamedata.json', out);

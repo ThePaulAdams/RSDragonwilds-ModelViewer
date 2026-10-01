@@ -92,7 +92,7 @@
     <h1><a href="/">&#9670; <span>Ashenfallen</span></a> Base Builder</h1>
     <div class="group">
       <button id="saveBtn" title="Show your base from your save file (Wilds.sav). Read only: the save is never changed.">Open save</button>
-      <button id="connectBtn" class="primary" title="Pick your game's ue4ss\Mods\CustomBuilds folder">Connect game folder</button>
+      <button id="connectBtn" class="primary" title="Pick your RSDragonwilds game folder (or ue4ss\Mods\CustomBuilds)">Connect game folder</button>
       <span id="sync">Not connected: changes stay in this page until you connect or export.</span>
     </div>
     <div class="grow"></div>
@@ -158,7 +158,7 @@
   <p><b>To build:</b></p>
   <ol>
     <li>In the game, stand where you want to build (or aim at the spot) and type <code>cb anchor</code> in the UE4SS console (F10). That saves the spot and your building pieces around it.</li>
-    <li>Here, click <b>Connect game folder</b> and pick <code>RSDragonwilds\Binaries\Win64\ue4ss\Mods\CustomBuilds</code>. Allow editing when the browser asks.</li>
+    <li>Here, click <b>Connect game folder</b> and pick your <code>RSDragonwilds</code> game folder (Steam: right-click the game, Manage, Browse local files). A backup of your placed models is made first. Allow editing when the browser asks.</li>
     <li>Your anchor shows as a gold marker and your base as grey shapes. Pick models on the left and click to place them.</li>
     <li>Every change is saved into the mod's <code>placed.txt</code> and appears in the game within a couple of seconds. Things you place, move or delete in the game show up here too.</li>
   </ol>
@@ -609,12 +609,17 @@ async function loadFromFolder() {
   }
   const text = await readText('placed.txt');
   if (text !== null) { const p = parsePlaced(text); records = p.out; otherLines = p.other; lastText = text; }
+  if (!anchorFromGame && !savePieces && records.size) {
+    const mid = k => { const v = [...records.values()].map(r => r[k]).sort((a, b) => a - b); return v[v.length >> 1]; };
+    anchor = { X: mid('X'), Y: mid('Y'), Z: mid('Z'), Yaw: 0 };
+  }
   // Start with the camera looking the way the player looked when setting the anchor.
   const back = toScene(anchor.X - Math.cos(anchor.Yaw * D) * 1600, anchor.Y - Math.sin(anchor.Yaw * D) * 1600, anchor.Z + 900);
   camera.position.copy(back); orbit.target.set(0, 0, 0);
   rebuildAll();
   await loadBase();
   if (savePieces) { showBase(+$('baseSel').value || 0, false); return; }
+  if (!a && records.size) { $('baseInfo').textContent = 'Centred on your placed models. Type "cb anchor" in the game console to line up with a spot in game, or Open save to see your base.'; return; }
   $('baseInfo').textContent = a ? `Anchor at ${anchor.X.toFixed(0)}, ${anchor.Y.toFixed(0)}, ${anchor.Z.toFixed(0)} (game cm).` : 'No anchor yet: type "cb anchor" in the game console (F10), then reconnect.';
 }
 // ---------------------------------------------------------------------------
@@ -831,17 +836,41 @@ setInterval(async () => {
   status(`Updated from the game ${new Date().toLocaleTimeString()}`, 'ok');
 }, 2000);
 
+// Accept the game folder or any folder on the way down to the mod (Binaries, Win64, ue4ss, Mods, CustomBuilds).
+const MOD_PATH = ['RSDragonwilds', 'Binaries', 'Win64', 'ue4ss', 'Mods', 'CustomBuilds'];
+async function findModDir(h) {
+  const isMod = async d => { for (const n of ['models.txt', 'models-all.txt', 'placed.txt']) { try { await d.getFileHandle(n); return true; } catch { } } return false; };
+  if (await isMod(h)) return h;
+  for (let i = 0; i < MOD_PATH.length; i++) {
+    let d = h;
+    try { for (const n of MOD_PATH.slice(i)) d = await d.getDirectoryHandle(n); } catch { continue; }
+    if (await isMod(d)) return d;
+  }
+  return null;
+}
 $('connectBtn').onclick = async () => {
-  if (!window.showDirectoryPicker) { alert('Connecting a folder needs Chrome or Edge. You can still Export placed.txt and copy it into the CustomBuilds folder.'); return; }
+  if (!window.showDirectoryPicker) {
+    alert(navigator.brave
+      ? 'Brave turns folder access off by default. Open brave://flags/#file-system-access-api, set it to Enabled, relaunch Brave and try again.\n\nOr use Export and copy placed.txt into the CustomBuilds folder yourself.'
+      : 'Connecting a folder needs Chrome, Edge or Brave (with folder access turned on). You can still Export placed.txt and copy it into the CustomBuilds folder.');
+    return;
+  }
   try {
-    dir = await window.showDirectoryPicker({ id: 'custombuilds', mode: 'readwrite' });
-    if (!(await readText('models.txt')) && !(await readText('models-all.txt'))) {
-      status('That folder has no Custom Builds files. Pick ue4ss\\Mods\\CustomBuilds.', 'bad'); dir = null; return;
+    const picked = await window.showDirectoryPicker({ id: 'custombuilds', mode: 'readwrite' });
+    const found = await findModDir(picked);
+    if (!found) { status('Custom Builds isn\'t in that folder. Pick your RSDragonwilds game folder (with the mod installed).', 'bad'); return; }
+    dir = found;
+    // A copy of placed.txt as it was before this page touched it.
+    let backup = '';
+    const before = await readText('placed.txt');
+    if (before !== null) {
+      backup = 'placed.backup-web-' + new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-') + '.txt';
+      await writeText(backup, before);
     }
     await loadFromFolder();
     $('connectBtn').textContent = 'Reconnect';
-    status(`Connected: ${records.size} placed models. Changes go straight into the game.`, 'ok');
-  } catch (e) { if (e.name !== 'AbortError') status('Could not open the folder: ' + e.message, 'bad'); }
+    status(`Connected: ${records.size} placed models. Changes go straight into the game.` + (backup ? ` Backup: ${backup}` : ''), 'ok');
+  } catch (e) { if (e.name !== 'AbortError') status('Could not open the folder: ' + e.message, 'bad'); dir = null; }
 };
 
 // Without a folder: download / load placed.txt by hand.

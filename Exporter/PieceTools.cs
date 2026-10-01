@@ -36,7 +36,7 @@ public static class PieceTools
         var p = Open(a[0], a[1]);
         if (mode == "pieces-find")
         {
-            foreach (var f in p.Files.Values.Where(f => f.Extension == "uasset" && f.Path.Contains(a[2], StringComparison.OrdinalIgnoreCase)).Take(400))
+            foreach (var f in p.Files.Values.Where(f => (f.Extension == "uasset" || f.Extension == "umap") && f.Path.Contains(a[2], StringComparison.OrdinalIgnoreCase)).Take(a.Length > 3 ? int.Parse(a[3]) : 400))
                 Console.WriteLine(f.Path);
             return 0;
         }
@@ -47,6 +47,29 @@ public static class PieceTools
             return 0;
         }
         if (mode == "pieces") return Export(p, a[2]);
+        if (mode == "pieces-scan")
+        {
+            // Export types across every package whose path contains a[2].
+            var types = new Dictionary<string, int>();
+            var files = p.Files.Values.Where(f => f.Extension is "umap" or "uasset" && f.Path.Contains(a[2], StringComparison.OrdinalIgnoreCase)).ToList();
+            int n = 0;
+            foreach (var f in files)
+            {
+                try
+                {
+                    foreach (var e in p.LoadPackage(f.Path).GetExports())
+                    {
+                        var t = e.ExportType;
+                        types[t] = types.GetValueOrDefault(t) + 1;
+                        if (t.Contains("Landscape") && types[t] <= 2) Console.WriteLine($"{t}: {f.Path}");
+                    }
+                }
+                catch { }
+                if (++n % 200 == 0) Console.WriteLine($"  {n}/{files.Count}");
+            }
+            foreach (var kv in types.OrderByDescending(x => x.Value).Take(60)) Console.WriteLine($"{kv.Value,8} {kv.Key}");
+            return 0;
+        }
         return 1;
     }
 

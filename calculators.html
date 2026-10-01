@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculators | Ashenfallen</title>
+<meta name="description" content="XP to level, runecrafting runs and material totals for RuneScape: Dragonwilds. Fan-made, not affiliated with Jagex.">
+<meta name="theme-color" content="#14161a">
+<link rel="canonical" href="https://ashenfallen.com/calculators">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/">&#9670; <b>Ashenfallen</b></a>
+    <nav class="links"><a href="/viewer">Model Viewer</a><a href="/base-builder">Base Builder</a><a href="/crafting">Crafting</a><a class="cur" href="/calculators">Calculators</a></nav>
+  </header>
+  <h1><span>Calculators</span></h1>
+  <p class="lede">XP to level, runecrafting runs and material totals. Everything runs in your browser.</p>
+  <div id="banner" class="banner" hidden></div>
+  <div class="tabs" id="tabs"><button data-t="xp" class="on">XP to level</button><button data-t="rc">Runecrafting</button><button data-t="mat">Material totals</button></div>
+
+  <section id="xp" class="card">
+    <div class="row">
+      <label class="f">Current level<input id="xlv" type="number" min="1" value="1"></label>
+      <label class="f">or current XP<input id="xxp" type="number" min="0" placeholder="optional"></label>
+      <label class="f">Target level<input id="xtg" type="number" min="2" value="50"></label>
+      <label class="f">XP per action<input id="xpa" type="number" min="0" step="any" placeholder="e.g. 25"></label>
+    </div>
+    <div id="xout"></div>
+    <h2 style="margin-top:20px">Level table</h2>
+    <div style="max-height:320px;overflow:auto"><table id="xtab"></table></div>
+  </section>
+
+  <section id="rc" class="card" hidden>
+    <div class="row">
+      <label class="f">Rune<select id="rrune"></select></label>
+      <label class="f">Your runecrafting level<input id="rlv" type="number" min="1" value="1"></label>
+      <label class="f">Essence per run<input id="rep" type="number" min="1"></label>
+      <label class="f">Goal<select id="rmode"><option value="runes">Runes wanted</option><option value="xp">XP wanted</option></select></label>
+      <label class="f">Amount<input id="ramt" type="number" min="1" value="1000"></label>
+    </div>
+    <div id="rout"></div>
+  </section>
+
+  <section id="mat" class="card" hidden>
+    <p class="muted" style="margin-top:0">One item per line, like <code>2 Oak chest</code> or <code>5x Steel sword</code>. Totals the raw materials for the whole list. Open the <a href="/crafting">Crafting Planner</a> for the full tree.</p>
+    <textarea id="mlist" rows="6" style="width:100%" placeholder="2 Oak chest&#10;1 Bronze sword"></textarea>
+    <div id="mout" style="margin-top:12px"></div>
+  </section>
+</div>
+<footer><div class="wrap">Fan-made, not affiliated with Jagex. RuneScape is a trademark of Jagex Ltd. Game data: <span id="ver">loading</span>.</div></footer>
+
+<script type="module">
+import * as L from '/planner-lib.js';
+const $ = id => document.getElementById(id);
+const data = await (await fetch('/gamedata.json')).json();
+const ix = L.indexData(data), T = data.xpTable, fmt = n => Number(n).toLocaleString('en', { maximumFractionDigits: 1 });
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); for (const k of kids) e.append(k); return e; };
+$('ver').textContent = data.version || 'unknown';
+if (data.sample) { $('banner').hidden = false; $('banner').textContent = 'Showing placeholder sample data while the real game data is being wired in. XP tables, runes and recipes here are not real game values.'; }
+const maxLv = T.length;
+$('xlv').max = maxLv; $('xtg').max = maxLv;
+const num = id => { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : 0; };
+const stat = (label, value) => el('div', {}, el('small', { textContent: label }), el('span', { className: 'big', textContent: value }));
+
+function xp() {
+  const lvIn = Math.min(Math.max(Math.floor(num('xlv')) || 1, 1), maxLv), tg = Math.min(Math.max(Math.floor(num('xtg')) || 2, 1), maxLv);
+  const cur = $('xxp').value !== '' ? num('xxp') : L.xpForLevel(T, lvIn), p = L.xpProgress(T, cur);
+  const goal = L.xpForLevel(T, tg), left = Math.max(goal - cur, 0), per = num('xpa');
+  const out = el('div', { className: 'stat' }, stat('Current level', p.level), stat('Current XP', fmt(cur)), stat(`XP to level ${tg}`, fmt(left)));
+  if (per > 0) out.append(stat('Actions needed', fmt(L.actionsNeeded(cur, goal, per))));
+  const bar = el('div', { className: 'bar', style: 'margin-top:12px' }, el('i', { style: `width:${Math.round(p.pct * 100)}%` }));
+  $('xout').replaceChildren(out, bar, el('p', { className: 'muted', textContent: p.max ? 'Max level reached.' : `${fmt(p.into)} / ${fmt(p.span)} XP into level ${p.level}` }));
+}
+function table() {
+  const t = $('xtab'); t.replaceChildren(el('tr', {}, ...['Level', 'Total XP', 'To next'].map((h, i) => el('th', { className: i ? 'num' : '', textContent: h }))));
+  T.forEach((x, i) => t.append(el('tr', {}, el('td', { textContent: i + 1 }), el('td', { className: 'num', textContent: fmt(x) }), el('td', { className: 'num', textContent: i + 1 < T.length ? fmt(T[i + 1] - x) : '-' }))));
+}
+
+const altars = data.runecrafting?.altars || [];
+function rc() {
+  if (!altars.length) return $('rout').replaceChildren(el('p', { className: 'muted', textContent: 'No runecrafting data available yet.' }));
+  const altar = altars.find(a => a.id === $('rrune').value) || altars[0], lv = Math.floor(num('rlv')) || 1;
+  const r = L.runecraftRuns({ altar, level: lv, essencePerRun: num('rep') || data.runecrafting.essencePerRun, targetRunes: $('rmode').value === 'runes' ? num('ramt') : 0, targetXp: $('rmode').value === 'xp' ? num('ramt') : 0 });
+  const out = el('div', { className: 'stat' }, stat('Runes per essence', r.runesPerEssence), stat('Essence', fmt(r.essence)), stat('Runs', fmt(r.runs)), stat(r.xp != null ? 'XP gained' : 'Runes made', fmt(r.xp ?? r.runes)));
+  $('rout').replaceChildren(out, el('p', { className: lv < altar.level ? 'tag' : 'muted', style: 'margin-top:10px', textContent: lv < altar.level ? `You need level ${altar.level} for ${altar.rune}s.` : `${altar.rune} needs level ${altar.level}. Extra runes per essence at levels ${(altar.multiples || []).join(', ') || 'none'}.` }));
+}
+$('rrune').replaceChildren(...altars.map(a => el('option', { value: a.id, textContent: a.rune }))); $('rep').value = data.runecrafting?.essencePerRun || 28;
+
+const byName = new Map(Object.entries(data.items).map(([id, i]) => [i.name.toLowerCase(), id]));
+function mat() {
+  const list = [], bad = [];
+  for (const line of $('mlist').value.split('\n')) { const m = line.trim().match(/^(?:(\d+)\s*x?\s+)?(.+?)(?:\s*x\s*(\d+))?$/i); if (!m) continue;
+    const id = byName.get(m[2].trim().toLowerCase()); if (!id) { bad.push(line.trim()); continue; } list.push({ item: id, qty: +(m[1] || m[3] || 1) }); }
+  const p = L.plan(ix, list), out = el('div');
+  if (p.raw.length) { const t = el('table'); t.append(el('tr', {}, el('th', { textContent: 'Material' }), el('th', { className: 'num', textContent: 'Total' }))); p.raw.forEach(r => t.append(el('tr', {}, el('td', { textContent: L.itemName(ix, r.item) }), el('td', { className: 'num', textContent: fmt(r.qty) })))); out.append(t); }
+  else out.append(el('p', { className: 'muted', textContent: 'Type items above to total their materials.' }));
+  if (bad.length) out.append(el('p', { className: 'tag', textContent: 'Not recognised: ' + bad.join(', ') }));
+  $('mout').replaceChildren(out);
+}
+
+for (const id of ['xlv', 'xxp', 'xtg', 'xpa']) $(id).oninput = xp;
+for (const id of ['rrune', 'rlv', 'rep', 'rmode', 'ramt']) $(id).oninput = rc;
+$('mlist').oninput = mat;
+const show = t => { for (const s of ['xp', 'rc', 'mat']) $(s).hidden = s !== t; document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); history.replaceState(null, '', '#' + t); };
+$('tabs').onclick = e => e.target.dataset.t && show(e.target.dataset.t);
+table(); xp(); rc(); mat(); show(['xp', 'rc', 'mat'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'xp');
+</script>
+</body>
+</html>

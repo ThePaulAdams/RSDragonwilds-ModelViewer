@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crafting Planner | Ashenfallen</title>
+<meta name="description" content="Plan any RuneScape: Dragonwilds craft: pick items and quantities, get the full raw-material tree, stations, skill levels and a shopping list. Reverse lookup and craft-from-inventory. Fan-made, not affiliated with Jagex.">
+<meta name="theme-color" content="#14161a">
+<link rel="canonical" href="https://ashenfallen.com/crafting">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/">&#9670; <b>Ashenfallen</b></a>
+    <nav class="links"><a href="/viewer">Model Viewer</a><a href="/base-builder">Base Builder</a><a class="cur" href="/crafting">Crafting</a><a href="/calculators">Calculators</a></nav>
+  </header>
+  <h1>Crafting <span>Planner</span></h1>
+  <p class="lede">Pick what you want to make. Get every raw material, the stations and skill levels you need, and a shopping list minus what you already have.</p>
+  <div id="banner" class="banner" hidden></div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>I want to make</h2>
+        <div class="row grow">
+          <div class="sugg" style="flex:1;min-width:0"><input id="q" type="search" placeholder="Search craftable items" autocomplete="off" style="width:100%"><ul id="qs" hidden></ul></div>
+          <input id="qty" type="number" min="1" value="1" aria-label="Quantity">
+        </div>
+        <ul class="list" id="targets"></ul>
+        <div class="row" style="margin-top:10px"><button id="share">Copy share link</button><button id="clear">Clear all</button></div>
+      </div>
+      <div class="card">
+        <h2>I already have</h2>
+        <div class="row grow">
+          <div class="sugg" style="flex:1;min-width:0"><input id="hq" type="search" placeholder="Search any item" autocomplete="off" style="width:100%"><ul id="hqs" hidden></ul></div>
+          <input id="hqty" type="number" min="1" value="1" aria-label="Quantity owned">
+        </div>
+        <ul class="list" id="haves"></ul>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="tabs" id="tabs">
+          <button data-t="shop" class="on">Shopping list</button><button data-t="tree">Craft tree</button><button data-t="steps">Steps</button><button data-t="reverse">Reverse lookup</button>
+        </div>
+        <div id="out"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<footer><div class="wrap">Fan-made, not affiliated with Jagex. RuneScape is a trademark of Jagex Ltd. Game data: <span id="ver">loading</span>.</div></footer>
+
+<script type="module">
+import * as L from '/planner-lib.js';
+const $ = id => document.getElementById(id);
+const data = await (await fetch('/gamedata.json')).json();
+const ix = L.indexData(data);
+const name = id => L.itemName(ix, id);
+const st = id => data.stations?.[id]?.name || id;
+const sk = id => data.skills?.find(s => s.id === id)?.name || id;
+$('ver').textContent = data.version || 'unknown';
+if (data.sample) { $('banner').hidden = false; $('banner').textContent = 'Showing placeholder sample data while the real game data is being wired in. Items and numbers here are not real game values.'; }
+
+let targets = [], haves = {}, tab = 'shop', revItem = null;
+const fmt = n => Number(n).toLocaleString('en');
+const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); for (const k of kids) e.append(k); return e; };
+
+function load() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  targets = L.decodeList(h.get('make')).filter(t => data.items[t.item]);
+  haves = Object.fromEntries(L.decodeList(h.get('have')).filter(t => data.items[t.item]).map(t => [t.item, t.qty]));
+}
+function save() {
+  const h = new URLSearchParams();
+  if (targets.length) h.set('make', L.encodeList(targets));
+  const hv = Object.entries(haves).map(([item, qty]) => ({ item, qty }));
+  if (hv.length) h.set('have', L.encodeList(hv));
+  history.replaceState(null, '', h.toString() ? '#' + h : location.pathname);
+}
+
+// type-ahead used by both pickers
+function suggest(input, ul, pool, pick) {
+  let act = -1, hits = [];
+  const draw = () => { ul.replaceChildren(...hits.map((id, i) => { const li = el('li', { textContent: name(id) }); if (i === act) li.className = 'act'; li.onmousedown = e => { e.preventDefault(); pick(id); }; return li; })); ul.hidden = !hits.length; };
+  input.oninput = () => { const q = input.value.trim().toLowerCase(); hits = q ? pool().filter(id => name(id).toLowerCase().includes(q)).sort((a, b) => name(a).toLowerCase().indexOf(q) - name(b).toLowerCase().indexOf(q)).slice(0, 8) : []; act = -1; draw(); };
+  input.onkeydown = e => { if (e.key === 'ArrowDown') { act = Math.min(act + 1, hits.length - 1); draw(); e.preventDefault(); } else if (e.key === 'ArrowUp') { act = Math.max(act - 1, 0); draw(); e.preventDefault(); } else if (e.key === 'Enter' && hits.length) pick(hits[Math.max(act, 0)]); else if (e.key === 'Escape') { hits = []; draw(); } };
+  input.onblur = () => { hits = []; draw(); };
+}
+const craftables = () => [...ix.byOutput.keys()];
+const allItems = () => Object.keys(data.items);
+suggest($('q'), $('qs'), craftables, id => { addTarget(id, +$('qty').value || 1); $('q').value = ''; $('qs').hidden = true; });
+suggest($('hq'), $('hqs'), allItems, id => { haves[id] = (haves[id] || 0) + (+$('hqty').value || 1); $('hq').value = ''; $('hqs').hidden = true; render(); });
+
+function addTarget(item, qty) { const t = targets.find(x => x.item === item); t ? t.qty += qty : targets.push({ item, qty }); render(); }
+
+function qtyList(ul, entries, onChange, onRemove) {
+  ul.replaceChildren(...entries.map(e => {
+    const inp = el('input', { type: 'number', min: 1, value: e.qty, ariaLabel: 'Quantity' }); inp.onchange = () => onChange(e.item, Math.max(1, +inp.value || 1));
+    const x = el('button', { className: 'x', textContent: '✕', title: 'Remove' }); x.onclick = () => onRemove(e.item);
+    return el('li', {}, el('span', { className: 'n', textContent: name(e.item) }), inp, x);
+  }));
+}
+
+function renderShop(p) {
+  const out = $('out');
+  const box = el('div');
+  box.append(el('h2', { textContent: 'Gather these' }));
+  if (!p.raw.length) box.append(el('div', { className: 'empty', textContent: 'You have everything you need.' }));
+  else {
+    const t = el('table'); t.append(el('tr', {}, el('th', { textContent: 'Material' }), el('th', { className: 'num', textContent: 'Need' })));
+    for (const r of p.raw) t.append(el('tr', {}, el('td', { textContent: name(r.item) }), el('td', { className: 'num', textContent: fmt(r.qty) })));
+    box.append(t);
+    box.append(el('div', { style: 'margin-top:10px' }, Object.assign(el('button', { textContent: 'Copy list' }), { onclick: () => navigator.clipboard?.writeText(p.raw.map(r => `${r.qty}x ${name(r.item)}`).join('\n')) })));
+  }
+  const extras = el('div', { style: 'margin-top:18px' });
+  const used = Object.entries(p.used);
+  if (used.length) extras.append(el('p', { className: 'muted', textContent: 'From your inventory: ' + used.map(([i, q]) => `${q}x ${name(i)}`).join(', ') }));
+  if (p.stations.length) { extras.append(el('div', { className: 'muted', textContent: 'Stations needed' })); extras.append(el('div', { className: 'chips' }, ...p.stations.map(s => el('span', { className: 'chip', textContent: st(s) })))); }
+  const skills = Object.keys({ ...p.skillLevel, ...p.skillXp });
+  if (skills.length) {
+    extras.append(el('div', { className: 'muted', style: 'margin-top:10px', textContent: 'Skills' }));
+    extras.append(el('div', { className: 'chips' }, ...skills.map(s => el('span', { className: 'chip', textContent: `${sk(s)} ${p.skillLevel[s] || 1}+ · ${fmt(p.skillXp[s] || 0)} xp` }))));
+  }
+  for (const w of p.warnings) extras.append(el('p', { className: 'tag', textContent: w }));
+  box.append(extras);
+  out.replaceChildren(box);
+}
+
+function treeNode(n) {
+  const li = el('li');
+  li.append(el('b', { textContent: `${fmt(n.qty)}x ` }), n.item ? name(n.item) : '');
+  if (n.fromInventory) li.append(el('span', { className: 'tag ok', textContent: ` ${fmt(n.fromInventory)} in inventory` }));
+  if (n.recipe) {
+    li.append(el('span', { className: 'tag', textContent: ` craft x${fmt(n.crafts)}${n.recipe.station ? ' at ' + st(n.recipe.station) : ''}${n.recipe.skill ? ` (${sk(n.recipe.skill)} ${n.recipe.level || 1})` : ''}` }));
+    const alts = ix.byOutput.get(n.item);
+    if (alts.length > 1) {
+      const s = el('select', { style: 'margin-left:8px' }, ...alts.map(r => el('option', { value: r.id, textContent: r.id, selected: r === n.recipe })));
+      s.onchange = () => { choice[n.item] = s.value; render(); }; li.append(s);
+    }
+    const ul = el('ul'); for (const c of n.children) ul.append(treeNode(c)); li.append(ul);
+  } else if (n.need > 0) li.append(el('span', { className: 'tag raw', textContent: ' gather' }));
+  return li;
+}
+const choice = {};
+function renderTree(p) { const ul = el('ul', { className: 'tree' }); for (const n of p.tree) ul.append(treeNode(n)); $('out').replaceChildren(ul); }
+
+function renderSteps(p) {
+  // dependency order: a recipe's ingredients are made before it
+  const order = [], seen = new Set();
+  const visit = n => { for (const c of n.children) visit(c); if (n.recipe && !seen.has(n.recipe.id)) { seen.add(n.recipe.id); order.push(n.recipe.id); } };
+  p.tree.forEach(visit);
+  const ol = el('ol', { style: 'padding-left:20px;margin:0' });
+  for (const id of order) { const c = p.crafts.find(x => x.recipe.id === id); const r = c.recipe;
+    ol.append(el('li', { style: 'padding:4px 0', textContent: `Craft ${fmt(c.times)}x ${name(r.output.item)}${r.output.qty > 1 ? ` (makes ${fmt(c.makes)})` : ''}${r.station ? ' at the ' + st(r.station) : ''}: ${r.ingredients.map(g => `${fmt(g.qty * c.times)} ${name(g.item)}`).join(', ')}` })); }
+  $('out').replaceChildren(ol);
+}
+
+function renderReverse() {
+  const out = el('div');
+  const inp = el('input', { type: 'search', placeholder: 'What can I make with...', style: 'width:100%' }); const ul = el('ul', { hidden: true }); const wrap = el('div', { className: 'sugg' }, inp, ul);
+  suggest(inp, ul, allItems, id => { revItem = id; render(); });
+  out.append(wrap);
+  if (revItem) {
+    const u = L.usedIn(ix, revItem);
+    out.append(el('h2', { style: 'margin-top:16px', textContent: `${name(revItem)} is used directly in` }));
+    out.append(u.direct.length ? el('div', { className: 'chips' }, ...u.direct.map(r => { const b = el('button', { className: 'chip', textContent: name(r.output.item) }); b.onclick = () => addTarget(r.output.item, 1); return b; })) : el('p', { className: 'muted', textContent: 'No recipe uses it.' }));
+    const more = u.reachable.filter(i => !u.direct.some(r => r.output.item === i));
+    if (more.length) { out.append(el('h2', { style: 'margin-top:16px', textContent: 'And indirectly, further down the chain' })); out.append(el('div', { className: 'chips' }, ...more.map(i => { const b = el('button', { className: 'chip', textContent: name(i) }); b.onclick = () => addTarget(i, 1); return b; }))); }
+  }
+  out.append(el('h2', { style: 'margin-top:22px', textContent: 'Craftable from "I already have"' }));
+  const can = Object.keys(haves).length ? L.craftableFrom(ix, haves) : [];
+  out.append(can.length ? el('div', { className: 'chips' }, ...can.map(c => { const b = el('button', { className: 'chip', textContent: `${name(c.item)} (up to ${fmt(L.maxCraftable(ix, c.item, haves))})` }); b.onclick = () => addTarget(c.item, 1); return b; })) : el('p', { className: 'muted', textContent: Object.keys(haves).length ? 'Nothing is fully craftable from those yet.' : 'Add items on the left to see what you can make.' }));
+  $('out').replaceChildren(out);
+}
+
+function render() {
+  save();
+  qtyList($('targets'), targets, (i, q) => { targets.find(t => t.item === i).qty = q; render(); }, i => { targets = targets.filter(t => t.item !== i); render(); });
+  qtyList($('haves'), Object.entries(haves).map(([item, qty]) => ({ item, qty })), (i, q) => { haves[i] = q; render(); }, i => { delete haves[i]; render(); });
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  if (tab === 'reverse') return renderReverse();
+  if (!targets.length) return $('out').replaceChildren(el('div', { className: 'empty', textContent: 'Add an item to see what it takes.' }));
+  const p = L.plan(ix, targets, { have: haves, choice });
+  ({ shop: renderShop, tree: renderTree, steps: renderSteps })[tab](p);
+}
+$('tabs').onclick = e => { if (e.target.dataset.t) { tab = e.target.dataset.t; render(); } };
+$('clear').onclick = () => { targets = []; haves = {}; render(); };
+$('share').onclick = async () => { await navigator.clipboard?.writeText(location.href); $('share').textContent = 'Copied!'; setTimeout(() => $('share').textContent = 'Copy share link', 1500); };
+load(); render();
+</script>
+</body>
+</html>

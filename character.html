@@ -106,7 +106,7 @@
   .hub b { display: block; font-size: 15px; }
   .hub .costs { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 6px; }
   .chip { display: inline-flex; align-items: center; gap: 3px; background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 0 7px 0 3px; font-size: 11px; color: var(--text); }
-  .chip img { width: 16px; height: 16px; }
+  .chip img, .row .chip img { width: 16px; height: 16px; border-radius: 0; background: none; }
   .wheelBtns { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
   #slotInfo { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 64px; font-size: 13px; }
   #slotInfo b { color: var(--text); }
@@ -367,21 +367,34 @@ const iconUrl = icon => (icon ? '/gamedata/' + String(icon).replace(/^\/+/, '') 
 async function getJson(name) {
   try { const r = await fetch('/gamedata/' + name); return r.ok ? await r.json() : null; } catch { return null; }
 }
+// "RECIPE_Armour_T4_Cape_Artisan" -> "Armour T4 Cape Artisan", "SKILL_Artisan" -> "Artisan"
+const humanize = a => String(a).replace(/^(RECIPE|SKILL|USD|ITEM|DA)_/i, '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim();
 function norm(e) {
   const id = e.id ?? e.persistence_id ?? e.persistenceId;
-  return { ...e, id, name: e.name ?? e.display_name ?? e.asset ?? id };
+  let name = e.name ?? e.display_name ?? e.asset ?? id;
+  // Rows the game never names keep their asset name; show it readably and flag it.
+  const unnamed = name === e.asset || /^[A-Z]+_/.test(name);
+  if (unnamed) name = humanize(name);
+  return { ...e, id, name, unnamed };
 }
+// Spells carry their skill only as a tag icon: ".../T_Icon_Tag_Skill_Agility.T_Icon_Tag_Skill_Agility" -> "Agility".
+const spellSchool = s => s.school || (/T_Icon_Tag_Skill_([A-Za-z]+)/.exec(s.raw?.SpellTagIcon?.AssetPathName || '') || [])[1] || null;
 async function loadData() {
   const [spells, recipes, items, version, skills] = await Promise.all(['spells.json', 'recipes.json', 'items.json', 'version.json', 'skills.json'].map(getJson));
   for (const s of skills?.skills || []) { const x = norm(s); if (x.id) cat.skills.set(x.id, x); }
   if (Array.isArray(skills?.xpTable)) cat.xpTable = skills.xpTable;
-  for (const s of spells || []) { const x = norm(s); if (x.id) cat.spells.set(x.id, x); }
-  for (const r of recipes || []) { const x = norm(r); if (x.id) cat.recipes.set(x.id, x); }
   for (const i of items || []) { const x = norm(i); if (x.id) cat.items.set(x.id, x); }
+  for (const s of spells || []) { const x = norm(s); x.school = spellSchool(s); if (x.id) cat.spells.set(x.id, x); }
+  for (const r of recipes || []) {
+    const x = norm(r);
+    x.skillName = r.skillName || (r.skill ? humanize(r.skill) : null);
+    x.icon = r.icon || cat.items.get(r.makes?.[0]?.item)?.icon || null;   // recipes have no icon of their own: use what they make
+    if (x.id) cat.recipes.set(x.id, x);
+  }
   cat.version = version; cat.loaded = true;
   const n = (m, w) => `${m.size.toLocaleString('en')} ${w}`;
   $('dataInfo').innerHTML = cat.spells.size || cat.recipes.size
-    ? `${n(cat.spells, 'spells')}, ${n(cat.recipes, 'recipes')}, ${n(cat.items, 'items')}${version?.game ? `<br>Game version ${esc(version.game)}` : ''}`
+    ? `${n(cat.spells, 'spells')}, ${n(cat.recipes, 'recipes')}, ${n(cat.items, 'items')}${version?.game ? `<br>Game build ${esc((/\d+\.\d+\.\d+-\d+/.exec(version.game) || [version.game])[0])}` : ''}`
     : 'Spell and recipe names are on their way. Until then the editor shows the ids from your save.';
   buildStations();
   render();
@@ -765,7 +778,8 @@ function renderSpells() {
   // Spell list: every spell in the game data, plus anything in the save the data doesn't know.
   const q = $('spellSearch').value.trim().toLowerCase(), filter = $('spellFilter').value;
   const inBook = new Map(); state.selected.forEach((x, i) => { if (looksLikeId(x)) (inBook.get(x) || inBook.set(x, []).get(x)).push(i); });
-  const ids = new Set([...cat.spells.keys(), ...state.spells, ...base.spells, ...state.selected.filter(looksLikeId)]);
+  // Internal spells the game never names (water from a source, siphoning) only show when the save has them.
+  const ids = new Set([...[...cat.spells.values()].filter(x => !x.unnamed).map(x => x.id), ...state.spells, ...base.spells, ...state.selected.filter(looksLikeId)]);
   const baseUnlocked = new Set(base.spells);
   let list = [...ids].map(id => ({ id, sp: cat.spells.get(id), on: unlocked.has(id) }));
   list = list.filter(x => {
@@ -850,7 +864,8 @@ document.addEventListener('dragend', e => {
 });
 
 // ----- recipes -----
-const realRecipes = () => [...cat.recipes.values()].filter(r => !r.test);
+// Debug rows (test) and recipes the game has soft-deleted (deleted) are not offered.
+const realRecipes = () => [...cat.recipes.values()].filter(r => !r.test && !r.deleted);
 function buildStations() {
   const st = new Map();
   for (const r of realRecipes()) { const k = r.station || 'Other'; st.set(k, (st.get(k) || 0) + 1); }
@@ -866,10 +881,11 @@ function renderRecipes() {
     if (filter === 'unlocked' && !on) return false;
     if (filter === 'locked' && on) return false;
     if (filter === 'changed' && on === was.has(r.id)) return false;
+    if (filter === 'named' && r.unnamed) return false;
     if (station && (r.station || 'Other') !== station) return false;
     if (!q) return true;
-    return [r.name, r.asset, r.station, r.skill, r.id, ...(r.makes || []).concat(r.needs || []).map(x => itemName(x.item))].some(s => s && String(s).toLowerCase().includes(q));
-  }).sort((a, b) => (a.station || '').localeCompare(b.station || '') || (a.level ?? 0) - (b.level ?? 0) || a.name.localeCompare(b.name));
+    return [r.name, r.asset, r.station, r.skillName, r.id, ...(r.makes || []).concat(r.needs || []).map(x => itemName(x.item))].some(s => s && String(s).toLowerCase().includes(q));
+  }).sort((a, b) => (a.unnamed ? 1 : 0) - (b.unnamed ? 1 : 0) || (a.station ? 0 : 1) - (b.station ? 0 : 1) || (a.station || '').localeCompare(b.station || '') || (a.level ?? 0) - (b.level ?? 0) || a.name.localeCompare(b.name));
   const onCount = all.filter(r => unlocked.has(r.id)).length;
   $('recipeSummary').innerHTML = all.length
     ? `<b>${onCount.toLocaleString('en')}</b> of <b>${all.length.toLocaleString('en')}</b> recipes unlocked. Showing ${shownRecipes.length.toLocaleString('en')}.`
@@ -880,13 +896,13 @@ function renderRecipes() {
   $('recipeGrid').innerHTML = shownRecipes.slice(0, recipeLimit).map(r => {
     const on = unlocked.has(r.id), ch = on !== was.has(r.id) ? (on ? ' added' : ' removed') : '';
     return `<div class="row${on ? '' : ' locked'}${ch}" data-id="${esc(r.id)}">${icon(r, abbr(r.name))}
-      <div class="t"><b>${esc(r.name)}</b><small>${esc(r.station || '')}${r.level ? ` &middot; lvl ${r.level}` : ''}</small></div>
+      <div class="t"><b>${esc(r.name)}</b><small>${esc([r.station || 'Other', r.skillName].filter(Boolean).join(' · '))}${r.level ? ` &middot; lvl ${r.level}` : ''}${r.unnamed ? ' <span class="tag" title="The game has no display name for this recipe">no name</span>' : ''}</small></div>
       <button class="tog${on ? ' on' : ''}" aria-label="Unlocked"></button></div>`;
   }).join('');
   $('more').hidden = shownRecipes.length <= recipeLimit;
   $('more').textContent = `Show ${Math.min(600, shownRecipes.length - recipeLimit)} more`;
   // Unlocked recipes the game data doesn't know (or all of them while there is no game data).
-  const unknown = state.recipes.filter(id => !cat.recipes.has(id) || cat.recipes.get(id).test);
+  const unknown = state.recipes.filter(id => !cat.recipes.has(id) || cat.recipes.get(id).test || cat.recipes.get(id).deleted);
   const box = $('unknownRecipes');
   box.hidden = !unknown.length;
   box.querySelector('summary').textContent = all.length ? `${unknown.length} unlocked ids not in the recipe list (kept as they are)` : `${unknown.length} recipe ids in this save`;
@@ -924,7 +940,7 @@ $('recipeGrid').onmousemove = e => {
   const row = e.target.closest('.row'), r = row && cat.recipes.get(row.dataset.id);
   if (!r) return ($('tip').hidden = true);
   const line = x => { const it = cat.items.get(x.item); return `<div>${it?.icon ? `<img src="${esc(iconUrl(it.icon))}" alt="">` : ''}${x.count} &times; ${esc(it?.name || x.item)}</div>`; };
-  $('tip').innerHTML = `<b>${esc(r.name)}</b><div class="muted">${esc([r.station, r.skill && `${r.skill}${r.level ? ' ' + r.level : ''}`].filter(Boolean).join(' · '))}</div>
+  $('tip').innerHTML = `<b>${esc(r.name)}</b><div class="muted">${esc([r.station, r.skillName && `${r.skillName}${r.level ? ' ' + r.level : ''}`, r.xp && `${r.xp} XP`].filter(Boolean).join(' · '))}</div>
     ${r.needs?.length ? `<div class="ing"><span class="muted">Needs</span>${r.needs.map(line).join('')}</div>` : ''}
     ${r.makes?.length ? `<div class="ing"><span class="muted">Makes</span>${r.makes.map(line).join('')}</div>` : ''}`;
   const t = $('tip'); t.hidden = false;

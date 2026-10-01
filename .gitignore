@@ -7,3 +7,4 @@ Exporter/.dotnet/
 web-data/
 tools/node_modules/
 .deploy-token
+gamedata-out/

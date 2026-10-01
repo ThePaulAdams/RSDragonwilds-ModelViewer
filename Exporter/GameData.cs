@@ -14,6 +14,7 @@ using SkiaSharp;
 public static class GameData
 {
     static DefaultFileProvider P = null!;
+    const string DefaultXpRow = "XPByLevel_011";   // newest row of CT_XPByLevel; the game picks its row in native code, so all rows are exported too
     static readonly Dictionary<string, string> ByGamePath = new(StringComparer.OrdinalIgnoreCase);   // "/Game/X/Y" -> "RSDragonwilds/Content/X/Y.uasset"
     static readonly Dictionary<string, string> ByName = new(StringComparer.OrdinalIgnoreCase);       // "ITEM_X" -> file path
     static readonly Dictionary<string, JArray?> DumpCache = new(StringComparer.OrdinalIgnoreCase);
@@ -38,14 +39,17 @@ public static class GameData
         Console.WriteLine($"{ByGamePath.Count} game packages indexed.");
 
         var items = ExportItems();
-        var recipes = ExportRecipes();
+        var skills = ExportSkills(out var xpTables);
+        var perks = ExportPerks();
+        var recipes = ExportRecipes(perks, ProgressionRecipeLevels());
+        var runecrafting = ExportRunecrafting(perks);
         var spells = ExportSpells();
         var quests = ExportQuests();
         var (lootTables, enemyTables, chestProfiles) = ExportLoot();
         var enemies = ExportEnemies(enemyTables);
         var chests = ExportChests(chestProfiles);
 
-        var iconCount = noIcons ? 0 : ExportIcons(outDir, items, spells);
+        var iconCount = noIcons ? 0 : ExportIcons(outDir, items, spells.Concat(skills).ToList());
 
         void Write(string name, object o) => File.WriteAllText(Path.Combine(outDir, name), JsonConvert.SerializeObject(o, Formatting.Indented,
             new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
@@ -56,12 +60,28 @@ public static class GameData
         Write("loottables.json", lootTables);
         Write("enemies.json", enemies);
         Write("chests.json", chests);
+        Write("skills.json", new { skills, xpTable = xpTables.GetValueOrDefault(DefaultXpRow), xpTableRow = xpTables.ContainsKey(DefaultXpRow) ? DefaultXpRow : null, xpTables });
+        Write("perks.json", perks);
+        Write("runecrafting.json", runecrafting);
         var counts = new Dictionary<string, int> { ["items"] = items.Count, ["recipes"] = recipes.Count, ["spells"] = spells.Count, ["quests"] = quests.Count,
-            ["lootTables"] = lootTables.Count, ["enemies"] = enemies.Count, ["chests"] = chests.Count, ["icons"] = iconCount };
+            ["lootTables"] = lootTables.Count, ["enemies"] = enemies.Count, ["chests"] = chests.Count, ["skills"] = skills.Count, ["perks"] = perks.Count, ["recipesWithLevel"] = recipes.Count(r => r["level"] != null), ["icons"] = iconCount };
         var version = Path.GetFileNameWithoutExtension(usmap);
         Write("meta.json", new { gameVersion = version, extractedAt = DateTime.UtcNow.ToString("o"), counts });
         Write("version.json", new { game = version, extracted = DateTime.UtcNow.ToString("o"), counts });
         Console.WriteLine(JsonConvert.SerializeObject(counts));
+        return 0;
+    }
+
+    // Debug helper: gamedata-find <paks> <usmap> <regex on path> [--dump]
+    public static int Find(string[] a)
+    {
+        P = PieceTools.Open(a[0], a[1]);
+        var re = new Regex(a[2], RegexOptions.IgnoreCase);
+        foreach (var f in P.Files.Values.Where(f => (f.Extension == "uasset") && re.IsMatch(f.Path)).OrderBy(f => f.Path))
+        {
+            Console.WriteLine(f.Path);
+            if (a.Contains("--dump")) { var d = JsonConvert.SerializeObject(P.LoadPackage(f.Path).GetExports(), Formatting.Indented, Js); Console.WriteLine(d.Length > 5000 && !a.Contains("--full") ? d[..5000] : d); }
+        }
         return 0;
     }
 
@@ -212,8 +232,12 @@ public static class GameData
     }
 
     // ---------- recipes ----------
-    static List<Dictionary<string, object?>> ExportRecipes()
+    static List<Dictionary<string, object?>> ExportRecipes(List<Dictionary<string, object?>> perks, Dictionary<string, (string skill, double level)> progLevels)
     {
+        var lvl = new Dictionary<string, (string? skill, double? level)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in progLevels) lvl[kv.Key] = (kv.Value.skill, kv.Value.level);
+        foreach (var pk in perks.Where(x => x["recipes"] != null && x["level"] != null))
+            foreach (var ra in (List<string?>)pk["recipes"]!) if (ra != null) lvl[ra] = ((string?)pk["skill"], (double?)pk["level"]);   // perk unlocks win over progression bundles
         List<object> Stacks(JToken? t) => (t as JArray)?.Select(x => (object)new { item = ItemRef(x["ItemData"]), count = Num(x["Count"]) }).ToList() ?? [];
         return Par(Files(n => n.StartsWith("RECIPE_", StringComparison.OrdinalIgnoreCase)), file =>
         {
@@ -236,6 +260,8 @@ public static class GameData
                 ["skill"] = AssetName(p["SkillUsedToCraft"]),
                 ["xp"] = Num(p["SkillXPAwardedOnCraft"]),
                 ["xpEvent"] = Str(p["OnCraftXpEvent"]?["RowName"]),
+                ["level"] = lvl.TryGetValue(asset, out var lv) ? lv.level : null,
+                ["levelSkill"] = lvl.TryGetValue(asset, out var lv2) ? lv2.skill : null,
                 ["audioTag"] = Tag(p["AudioTag"]),
                 ["test"] = asset.Contains("RECIPE_TEST", StringComparison.OrdinalIgnoreCase) || asset.Contains("Debug", StringComparison.OrdinalIgnoreCase) ? true : null,
                 ["raw"] = p.Properties().Where(x => !new[] { "ItemsConsumed", "ItemsCreated", "AudioTag", "SkillUsedToCraft", "OnCraftXpEvent", "SkillXPAwardedOnCraft", "PersistenceID", "InternalName" }.Contains(x.Name)).ToDictionary(x => x.Name, x => x.Value) is { Count: > 0 } r ? r : null,
@@ -252,6 +278,127 @@ public static class GameData
             var e = Main(file);
             return ItemNameCache[asset] = e?["Properties"] is JObject p ? Text(p["Name"]) : null;
         }
+    }
+
+
+    // ---------- skills / perks / progression ----------
+    static List<Dictionary<string, object?>> ExportSkills(out Dictionary<string, object> xpTables)
+    {
+        // CT_XPByLevel: one row per XP table, Time = level, Value = cumulative XP needed to reach that level.
+        xpTables = new();
+        var ct = Dump(Files(n => n == "CT_XPByLevel").FirstOrDefault())?.OfType<JObject>().FirstOrDefault(e => Str(e["Type"]) == "CurveTable");
+        if (ct?["Rows"] is JObject rows)
+            foreach (var r in rows.Properties())
+            {
+                var keys = (r.Value["Keys"] as JArray)?.Where(k => Num(k["Time"]) is >= 1 and <= 99).OrderBy(k => Num(k["Time"])).Select(k => Num(k["Value"]) ?? 0).ToList();
+                if (keys is { Count: > 0 }) xpTables[r.Name] = keys;   // index i = XP to reach level i+1
+            }
+        return Par(Files(n => n.StartsWith("SKILL_", StringComparison.OrdinalIgnoreCase)), file =>
+        {
+            var e = Main(file, x => Str(x["Type"]) == "SkillData");
+            if (e == null) return null;
+            var p = (JObject)e["Properties"]!;
+            var asset = Path.GetFileNameWithoutExtension(file);
+            return new Dictionary<string, object?>
+            {
+                ["id"] = Str(p["PersistenceID"]),
+                ["asset"] = asset,
+                ["internalName"] = Str(p["InternalName"]),
+                ["name"] = Text(p["Name"]) ?? Pretty(asset[6..]),
+                ["maxLevel"] = Num(p["MaxLevel"]),
+                ["icon"] = AssetPath(p["TagIcon"]) ?? AssetPath(p["Icon"]),    // the notification Icon textures use a format the decoder cannot read
+                ["deprecated"] = file.Contains("Deprecated", StringComparison.OrdinalIgnoreCase) ? true : null,
+                ["xpEvent"] = Str(p["DamageXPEvent"]?["RowName"]),
+            };
+        }).Where(d => d["id"] != null).OrderBy(d => (string)d["name"]!, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    // SkillPerkData assets: what unlocks at which skill level (recipes, gameplay effects).
+    static List<Dictionary<string, object?>> ExportPerks()
+    {
+        return Par(Files(n => n.StartsWith("PerkV2_", StringComparison.OrdinalIgnoreCase)), file =>
+        {
+            var d = Dump(file);
+            var e = d?.OfType<JObject>().FirstOrDefault(x => Str(x["Type"]) == "SkillPerkData");
+            if (e == null) return null;
+            var p = (JObject)e["Properties"]!;
+            var recipes = d!.OfType<JObject>().Where(x => Str(x["Type"]) == "SkillPerkModule_Recipes").SelectMany(x => x["Properties"]?["RecipesToUnlock"] as JArray ?? [])
+                .Select(AssetName).Where(x => x != null).ToList();
+            var info = p["PerkUnlockInfo"];
+            return new Dictionary<string, object?>
+            {
+                ["id"] = Str(p["PersistenceID"]),
+                ["asset"] = Path.GetFileNameWithoutExtension(file),
+                ["internalName"] = Str(p["InternalName"]),
+                ["name"] = Text(p["PerkName"]),
+                ["description"] = Text(p["PerkDescription"]),
+                ["skill"] = AssetName(info?["AssociatedSkill"]),
+                ["level"] = Num(info?["RequiredSkillLevel"]),
+                ["recipes"] = recipes.Count > 0 ? recipes : null,
+            };
+        }).Where(d => d["skill"] != null).ToList();
+    }
+
+    // Progression bundles gated on "skill level reached": recipe asset -> (skill, level).
+    static Dictionary<string, (string skill, double level)> ProgressionRecipeLevels()
+    {
+        var map = new Dictionary<string, (string, double)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in Files(n => n.StartsWith("DT_Progression_", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (Dump(file)?.OfType<JObject>().FirstOrDefault(e => Str(e["Type"])?.EndsWith("DataTable") == true)?["Rows"] is not JObject rows) continue;
+            foreach (var r in rows.Properties())
+            {
+                var q = r.Value["UnlockQuery"];
+                var ops = new List<JToken?> { q?["FirstOperand"] };
+                if (q?["bUseSecondOperand"]?.Value<bool>() == true) ops.Add(q["SecondOperand"]);
+                var lv = ops.Where(o => Str(o?["UnlockType"])?.EndsWith("SkillLevelReached") == true && AssetName(o?["Skill"]) != null)
+                    .Select(o => (skill: AssetName(o!["Skill"])!, level: Num(o["RequiredSkillLevel"]) ?? 0)).ToList();
+                if (lv.Count == 0) continue;
+                var best = lv.OrderByDescending(x => x.level).First();
+                foreach (var rec in r.Value["UnlockedRecipes"] as JArray ?? [])
+                    if (AssetName(rec) is { } ra && (!map.TryGetValue(ra, out var old) || old.Item2 < best.level)) map[ra] = best;
+            }
+        }
+        return map;
+    }
+
+    // ---------- runecrafting ----------
+    static object ExportRunecrafting(List<Dictionary<string, object?>> perks)
+    {
+        var xp = new Dictionary<string, double?>();
+        if (Dump(Files(n => n == "DT_XPEvents_RuneCrafting").FirstOrDefault())?.OfType<JObject>().FirstOrDefault(e => Str(e["Type"])?.EndsWith("DataTable") == true)?["Rows"] is JObject xr)
+            foreach (var r in xr.Properties()) xp[r.Name] = Num((r.Value["SkillXPList"] as JArray)?.FirstOrDefault()?["XP"]);
+        var recipes = Par(Files(n => n.StartsWith("RECIPE_Process_Altar_", StringComparison.OrdinalIgnoreCase)), file =>
+        {
+            var e = Main(file, x => Str(x["Type"]) == "RuneRecipeData");
+            if (e == null) return null;
+            var p = (JObject)e["Properties"]!;
+            var asset = Path.GetFileNameWithoutExtension(file);
+            var rune = Str(p["RuneType"])?.Split("::").Last();
+            var row = Str(p["OnCraftXpEvent"]?["RowName"]);
+            var made = (p["ItemsCreated"] as JArray)?.FirstOrDefault();
+            var used = (p["ItemsConsumed"] as JArray)?.FirstOrDefault();
+            var perk = perks.FirstOrDefault(x => ((x["recipes"] as List<string?>) ?? []).Contains(asset, StringComparer.OrdinalIgnoreCase));
+            var bonus = perks.FirstOrDefault(x => ((string)x["asset"]!).EndsWith("HighAttunementBonusRunes_" + rune, StringComparison.OrdinalIgnoreCase));
+            return new Dictionary<string, object?>
+            {
+                ["rune"] = rune,
+                ["recipe"] = asset,
+                ["id"] = Str(p["PersistenceID"]),
+                ["runeItem"] = ItemRef(made?["ItemData"]),
+                ["essenceItem"] = ItemRef(used?["ItemData"]),
+                ["essencePerCraft"] = Num(used?["Count"]),
+                ["runesPerEssence"] = Num(made?["Count"]),
+                ["extraRuneChance"] = Num(p["ChanceToProduceExtraItems"]),
+                ["secondsToCraft"] = Num(p["MinProcessingTime"]),
+                ["xpEvent"] = row,
+                ["xpPerCraft"] = row != null && xp.TryGetValue(row, out var x) ? x : null,
+                ["unlockLevel"] = perk?["level"],
+                ["bonusYieldPerk"] = bonus == null ? null : new { name = bonus["name"], level = bonus["level"], description = bonus["description"] },
+            };
+        }).OrderBy(d => (double?)d["unlockLevel"] ?? 0).ToList();
+        var rcPerks = perks.Where(x => (string?)x["skill"] == "SKILL_Runecrafting").OrderBy(x => (double?)x["level"] ?? 0).ToList();
+        return new { altar = new { building = "BUILDPIECE_CraftingStation_Rune_Altar", name = "Rune Altar" }, runes = recipes, xpEvents = xp, perks = rcPerks };
     }
 
     // ---------- spells ----------

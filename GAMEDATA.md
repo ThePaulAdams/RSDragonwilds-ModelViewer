@@ -8,6 +8,11 @@ Ids are the game's own `PersistenceID` (22-char base64url, what save files store
 |---|---|
 | items.json | `ITEM_*` and `DA_Consumable_*` assets: id, asset, name, description, category (gameplay tag), filterTags, icon, powerLevel, weight, maxStack, durability, slot, skill, damageMultiplier, blockingDamageNegation, damageTypes, model (static mesh name) |
 | recipes.json | `RECIPE_*`: id, name (of the first output), makes/needs `[{item,count}]` (item = item id, or the asset name if unresolved), skill, xp, xpEvent (DataTable row; hints at the station, e.g. `Craft_Smithing_Forge_Tier4`), audioTag, raw (remaining fields) |
+| skills.json | `SKILL_*` (incl. deprecated ones, flagged): id (PersistenceID, the id used in saves), asset, name, maxLevel, icon; `xpTable[i]` = cumulative XP to reach level i+1 (row `XPByLevel_011`; the game picks its row natively, so every `CT_XPByLevel` row is in `xpTables`) |
+| perks.json | `PerkV2_*` skill perks: skill, level required, recipes unlocked |
+| runecrafting.json | Rune altar: per-rune recipe (runes per essence, extra-rune chance, seconds, XP per craft, unlock level, bonus-yield perk) plus the Runecrafting perks |
+
+Recipes also carry `level` / `levelSkill` (from the perk that unlocks them, else from skill-level progression bundles); recipes with neither have no level requirement in the data.
 | spells.json | `USD_*` utility spells: id (PersistenceID, else asset), name, icon, cooldown (s), castType, requirements, costs `[{item,count}]`, xpEvent, raw |
 | quests.json | `Quest_*`: id, name, description, main, activity, objectives `[{key,text}]` (the data has no reward fields; rewards are scripted in the quest blueprints) |
 | loottables.json | see below |

@@ -87,9 +87,84 @@
   #help h3 { margin: 0 0 6px; }
   #help ol { padding-left: 20px; margin: 8px 0 14px; }
   #help li { margin: 4px 0; }
-  #help code { color: var(--accent2); }
   kbd { background: var(--panel2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 12px; }
   @media (max-width: 1000px) { #app { grid-template-columns: 240px 1fr; } #props { display: none; } }
+
+  /* Quest & Storyboard Builder Modal Styles */
+  #questModal {
+    position: fixed; inset: 0; background: rgba(5, 7, 10, .85);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; z-index: 150; backdrop-filter: blur(6px);
+  }
+  #questModal.hidden { display: none !important; }
+  .qm-window {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    width: 1100px; max-width: 96vw; height: 88vh; max-height: 880px;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.85);
+  }
+  .qm-header {
+    padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel2);
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  }
+  .qm-header h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; color: #a3e687; }
+  .qm-header-actions { display: flex; align-items: center; gap: 8px; }
+  .qm-body { flex: 1; display: flex; min-height: 0; }
+  .qm-sidebar {
+    width: 280px; border-right: 1px solid var(--line); background: rgba(16, 18, 22, 0.7);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .qm-sidebar-top { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; gap: 8px; }
+  .qm-quest-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .qm-quest-card {
+    padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel);
+    cursor: pointer; transition: all 0.15s ease; position: relative;
+  }
+  .qm-quest-card:hover { border-color: var(--accent); background: var(--panel2); }
+  .qm-quest-card.sel { border-color: #55a83b; background: rgba(45, 90, 34, 0.25); box-shadow: 0 0 0 1px #55a83b; }
+  .qm-quest-title { font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qm-quest-meta { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .qm-quest-badge { background: #1a2916; color: #9be07d; border: 1px solid #376329; border-radius: 4px; padding: 1px 6px; font-size: 10px; }
+  .qm-content {
+    flex: 1; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; padding: 18px 24px; gap: 16px;
+  }
+  .qm-tab-bar {
+    display: flex; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 4px;
+  }
+  .qm-tab-btn {
+    background: transparent; border: 1px solid transparent; color: var(--muted); font-size: 12px;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 500;
+  }
+  .qm-tab-btn:hover { color: var(--text); background: var(--panel2); }
+  .qm-tab-btn.active { color: #a3e687; background: rgba(45, 90, 34, 0.3); border-color: #55a83b; font-weight: 600; }
+  .qm-section { display: flex; flex-direction: column; gap: 14px; }
+  .qm-row { display: flex; gap: 12px; align-items: center; }
+  .qm-field-group { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .qm-field-group label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .qm-field-group input, .qm-field-group select, .qm-field-group textarea {
+    background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 6px;
+    padding: 7px 10px; font-size: 13px; font-family: inherit;
+  }
+  .qm-field-group textarea { resize: vertical; min-height: 55px; line-height: 1.4; }
+  .qm-field-group input:focus, .qm-field-group select:focus, .qm-field-group textarea:focus {
+    border-color: #55a83b; outline: none;
+  }
+  .qm-card {
+    background: rgba(18, 20, 24, 0.7); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .qm-choice-row {
+    display: grid; grid-template-columns: 28px 1fr 180px 32px; gap: 8px; align-items: center;
+  }
+  .qm-choice-idx { font-weight: bold; color: #a3e687; font-size: 12px; text-align: center; }
+  .qm-branch-card {
+    background: rgba(24, 30, 22, 0.45); border: 1px solid #3d632e; border-radius: 8px; padding: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .qm-footer {
+    padding: 10px 20px; border-top: 1px solid var(--line); background: var(--panel2);
+    display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted);
+  }
 </style>
 <script type="importmap">
 { "imports": {
@@ -147,6 +222,7 @@
     <div class="group">
       <button id="importBtn" title="Load a placed.txt file">Import</button>
       <button id="exportBtn" title="Download placed.txt">Export</button>
+      <button id="questsBtn" title="Quest Creation & Storyboard Editor" style="background:#22381e; border-color:#4a8235; color:#aef595; font-weight:600;">📜 Quests</button>
       <button id="helpBtn">Help</button>
     </div>
   </header>
@@ -188,6 +264,13 @@
         <div class="field"><span>Roll °</span><input id="fRoll" type="number" step="0.1"></div>
       </div>
       <div class="field"><span>Size</span><input id="fScale" type="number" step="0.01" min="0.01"></div>
+      <div id="npcQuestBox" style="margin-top: 8px; padding: 8px 10px; background: rgba(35, 58, 30, 0.4); border: 1px solid #4d8239; border-radius: 6px;" hidden>
+        <div style="font-size: 11px; font-weight: 600; color: #a3e687; display:flex; align-items:center; justify-content:space-between; margin-bottom: 5px;">
+          <span>NPC / COMPANION</span>
+          <span id="npcQuestBadge" style="font-size:10px; background:#1c2d18; padding:1px 6px; border-radius:10px; color:#d4f7c2;">No Quest</span>
+        </div>
+        <button id="npcQuestBtn" class="small" style="width: 100%; background: #2d5a22; color: #fff; font-weight: 600; padding: 5px 8px; cursor: pointer; border: 1px solid #5c9e45; border-radius: 4px;">📜 Storyboard for this NPC</button>
+      </div>
     </div>
     <h2>Placed <span id="placedCount" class="muted"></span></h2>
     <div id="list"></div>
@@ -226,6 +309,247 @@
   <p class="muted">No game folder? Use <b>Export</b> to download <code>placed.txt</code> and copy it into that folder yourself (with the game closed).</p>
   <div class="row"><button id="helpClose" class="primary">Got it</button></div>
 </div></div>
+
+<div id="questPickBar" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#182b15; border:2px solid #55a83b; color:#fff; padding:10px 22px; border-radius:30px; box-shadow:0 12px 35px rgba(0,0,0,0.8); z-index:200; display:flex; align-items:center; gap:16px; font-weight:600; font-size:13px;" hidden>
+  <span>📍 Click anywhere in the 3D scene to set the Quest Objective location</span>
+  <button id="questPickCancelBtn" class="small" style="background:#3b1e1e; border-color:#823939; color:#f0a0a0;">Cancel</button>
+</div>
+
+<div id="questModal" class="hidden">
+  <div class="qm-window">
+    <div class="qm-header">
+      <h3>📜 Quest Storyboard &amp; Dialogue Builder</h3>
+      <div class="qm-header-actions">
+        <button id="qmNewQuestBtn" class="small" style="background:#223d1d; border-color:#4a8235; color:#b5f0a0;">➕ New Quest</button>
+        <button id="qmExportBtn" class="small" title="Download quests.json">Export JSON</button>
+        <button id="qmSaveBtn" class="small primary" title="Save to game folder">Save &amp; Sync</button>
+        <button id="qmCloseBtn" class="small" style="padding: 3px 10px;">✕</button>
+      </div>
+    </div>
+    <div class="qm-body">
+      <!-- Left sidebar: Quests list -->
+      <div class="qm-sidebar">
+        <div class="qm-sidebar-top">
+          <input id="qmSearch" type="search" placeholder="Filter quests..." style="width: 100%; padding: 4px 8px; font-size: 12px;">
+        </div>
+        <div id="qmQuestList" class="qm-quest-list"></div>
+      </div>
+      <!-- Right content: Selected Quest Editor -->
+      <div id="qmContent" class="qm-content">
+        <!-- Top bar: Title, NPC, ID -->
+        <div class="qm-card" style="border-color: #375928;">
+          <div class="qm-row">
+            <div class="qm-field-group" style="flex: 2;">
+              <label>Quest Title</label>
+              <input id="qmTitle" type="text" placeholder="e.g. Doric's Iron Delivery">
+            </div>
+            <div class="qm-field-group" style="flex: 1.2;">
+              <label>Quest ID</label>
+              <input id="qmId" type="text" placeholder="e.g. quest_doric_ore">
+            </div>
+          </div>
+          <div class="qm-row">
+            <div class="qm-field-group" style="flex: 2;">
+              <label>Assigned NPC (Quest Giver)</label>
+              <div style="display: flex; gap: 6px;">
+                <select id="qmNpcSelect" style="flex: 1;"></select>
+                <button id="qmUseSelectedNpcBtn" class="small" title="Assign the NPC currently selected in 3D base">Use Selected</button>
+                <button id="qmFocusNpcBtn" class="small" title="Focus camera on this NPC in 3D">Focus in 3D</button>
+              </div>
+            </div>
+            <div class="qm-field-group" style="flex: 1.2;">
+              <label>NPC Speaker Display Name</label>
+              <input id="qmNpcName" type="text" placeholder="e.g. Doric">
+            </div>
+          </div>
+          <div class="qm-field-group">
+            <label>Quest Lore / Log Description</label>
+            <input id="qmDesc" type="text" placeholder="e.g. Gather 3 Iron Ore from the hills and deliver them to Doric.">
+          </div>
+        </div>
+
+        <!-- Tab bar -->
+        <div class="qm-tab-bar">
+          <button class="qm-tab-btn active" data-tab="story">1. 💬 Story &amp; Opening Dialogue</button>
+          <button class="qm-tab-btn" data-tab="objective">2. 🎯 Objective &amp; 3D Target</button>
+          <button class="qm-tab-btn" data-tab="turnin">3. 🏁 Turn-In &amp; Completed</button>
+          <button class="qm-tab-btn" data-tab="rewards">4. 🎁 Rewards</button>
+        </div>
+
+        <!-- TAB 1: Story & Opening Dialogue -->
+        <div id="qmTabStory" class="qm-section">
+          <div class="qm-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-weight: 600; color: #a3e687; font-size: 13px;">NPC Opening Line</span>
+              <span class="muted" style="font-size: 11px;">Spoken when the player approaches and presses E</span>
+            </div>
+            <div class="qm-field-group">
+              <label>Greeting Text</label>
+              <textarea id="qmStartText" rows="3" placeholder="Greetings, traveller! Could you fetch me..."></textarea>
+            </div>
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;">Player Choices (Keys 1 - 4 or Click in-game)</label>
+                <button id="qmAddStartChoiceBtn" class="small">+ Add Choice</button>
+              </div>
+              <div id="qmStartChoicesList" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+          </div>
+
+          <!-- Story Branches -->
+          <div class="qm-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <span style="font-weight: 600; color: #a3e687; font-size: 13px;">Branching Dialogue Nodes</span>
+                <div class="muted" style="font-size: 11px;">Create lore answers, hints, or multi-step story conversations</div>
+              </div>
+              <button id="qmAddBranchBtn" class="small" style="background:#223d1d; border-color:#4a8235; color:#b5f0a0;">+ Add Story Branch</button>
+            </div>
+            <div id="qmBranchesList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+          </div>
+        </div>
+
+        <!-- TAB 2: Objective & 3D Target -->
+        <div id="qmTabObjective" class="qm-section" style="display: none;">
+          <div class="qm-card">
+            <div style="font-weight: 600; color: #a3e687; font-size: 13px;">Objective Details</div>
+            <div class="qm-row">
+              <div class="qm-field-group" style="flex: 1.2;">
+                <label>Objective Type</label>
+                <select id="qmObjType">
+                  <option value="item">📦 Gather / Deliver Items</option>
+                  <option value="kill">⚔️ Defeat / Slay Targets</option>
+                  <option value="location">📍 Reach / Scout Location</option>
+                  <option value="talk">🗣️ Speak with NPC</option>
+                </select>
+              </div>
+              <div class="qm-field-group" style="flex: 2;">
+                <label id="qmObjTargetLabel">Item / Target Name</label>
+                <input id="qmObjItem" type="text" placeholder="e.g. Iron Ore">
+              </div>
+              <div class="qm-field-group" style="flex: 1;">
+                <label>Required Count</label>
+                <input id="qmObjCount" type="number" min="1" value="1">
+              </div>
+            </div>
+            <div class="qm-field-group">
+              <label>In-Game HUD Tracker Text</label>
+              <input id="qmObjHudText" type="text" placeholder="e.g. Gather Iron Ore">
+            </div>
+          </div>
+
+          <div class="qm-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <span style="font-weight: 600; color: #a3e687; font-size: 13px;">3D Map Location Pin</span>
+                <div class="muted" style="font-size: 11px;">Renders a glowing golden objective beacon in 3D and guides the player</div>
+              </div>
+              <button id="qmPickLocationBtn" class="small primary" style="padding: 6px 14px; font-weight: 600;">📍 Pick Location on 3D Map</button>
+            </div>
+            <div class="qm-row">
+              <div class="qm-field-group">
+                <label>X (cm)</label>
+                <input id="qmLocX" type="number" step="1">
+              </div>
+              <div class="qm-field-group">
+                <label>Y (cm)</label>
+                <input id="qmLocY" type="number" step="1">
+              </div>
+              <div class="qm-field-group">
+                <label>Z (cm)</label>
+                <input id="qmLocZ" type="number" step="1">
+              </div>
+              <button id="qmClearLocBtn" class="small" style="margin-top: 18px;">Clear</button>
+              <button id="qmFocusLocBtn" class="small" style="margin-top: 18px;">Focus in 3D</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: Turn-in & Completed -->
+        <div id="qmTabTurnin" class="qm-section" style="display: none;">
+          <div class="qm-card">
+            <div style="font-weight: 600; color: #a3e687; font-size: 13px;">1. In-Progress Dialogue</div>
+            <div class="muted" style="font-size: 11px;">Spoken if the player talks to the NPC while the quest is active but objective is not yet complete</div>
+            <div class="qm-field-group">
+              <label>Progress Text</label>
+              <textarea id="qmProgressText" rows="2" placeholder="Any luck finding those items? Remember to look around..."></textarea>
+            </div>
+          </div>
+
+          <div class="qm-card">
+            <div style="font-weight: 600; color: #a3e687; font-size: 13px;">2. Turn-in Dialogue (Completion)</div>
+            <div class="muted" style="font-size: 11px;">Spoken when returning with the objective completed</div>
+            <div class="qm-field-group">
+              <label>Turn-In Speech</label>
+              <textarea id="qmTurnInText" rows="2" placeholder="Ah, splendid work! Look at the quality of this! Here is your reward."></textarea>
+            </div>
+            <div class="qm-field-group">
+              <label>Complete Button Text</label>
+              <input id="qmTurnInChoiceText" type="text" placeholder="e.g. Glad to help! (Complete Quest)">
+            </div>
+          </div>
+
+          <div class="qm-card">
+            <div style="font-weight: 600; color: #a3e687; font-size: 13px;">3. Post-Quest Greeting</div>
+            <div class="muted" style="font-size: 11px;">What the NPC says on subsequent visits after the quest is finished</div>
+            <div class="qm-field-group">
+              <label>Greeting Text</label>
+              <input id="qmCompletedText" type="text" placeholder="Thanks again for your help, friend!">
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: Rewards -->
+        <div id="qmTabRewards" class="qm-section" style="display: none;">
+          <div class="qm-card">
+            <div style="font-weight: 600; color: #a3e687; font-size: 13px;">Quest Rewards</div>
+            <div class="qm-field-group">
+              <label>Reward Display Summary Text</label>
+              <input id="qmRewardText" type="text" placeholder="e.g. 150 Gold Coins &amp; 250 Smithing XP">
+            </div>
+            <div class="qm-row">
+              <div class="qm-field-group" style="flex: 2;">
+                <label>Item Reward</label>
+                <input id="qmRewardItem" type="text" placeholder="e.g. Gold Coins">
+              </div>
+              <div class="qm-field-group" style="flex: 1;">
+                <label>Item Amount</label>
+                <input id="qmRewardCount" type="number" min="1" value="100">
+              </div>
+            </div>
+            <div class="qm-row">
+              <div class="qm-field-group" style="flex: 2;">
+                <label>Skill XP (Optional)</label>
+                <select id="qmRewardSkill">
+                  <option value="">(None)</option>
+                  <option value="Attack">Attack</option>
+                  <option value="Strength">Strength</option>
+                  <option value="Defence">Defence</option>
+                  <option value="Mining">Mining</option>
+                  <option value="Smithing">Smithing</option>
+                  <option value="Woodcutting">Woodcutting</option>
+                  <option value="Cooking">Cooking</option>
+                </select>
+              </div>
+              <div class="qm-field-group" style="flex: 1;">
+                <label>XP Amount</label>
+                <input id="qmRewardXp" type="number" min="0" placeholder="0">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Footer bar -->
+    <div class="qm-footer">
+      <span id="qmSyncStatus">Synced with quests.json</span>
+      <div style="display: flex; gap: 8px;">
+        <button id="qmDeleteQuestBtn" class="small" style="background:#3b1e1e; border-color:#823939; color:#f0a0a0;">Delete Quest</button>
+        <button id="qmDuplicateQuestBtn" class="small">Duplicate</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -268,7 +592,18 @@ const pretty = n => n
 let models = [];
 const byGamePath = new Map();
 {
-  const data = await (await fetch(DATA_BASE + 'models.json', { cache: 'no-store' })).json();
+  let data = null;
+  try {
+    const res = await fetch(DATA_BASE + 'models.json', { cache: 'no-store' });
+    if (res.ok) data = await res.json();
+  } catch {}
+  if (!data) {
+    try {
+      const res2 = await fetch('https://ashenfallen.com/assets/models.json');
+      if (res2.ok) data = await res2.json();
+    } catch {}
+  }
+  if (!data) data = { Models: [] };
   for (const e of data.Models || []) {
     const file = e.File.replace(/\\/g, '/');
     const path = gamePath(e.ObjectPath);
@@ -615,7 +950,17 @@ function resize() {
   renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(view); resize();
-renderer.setAnimationLoop(() => { orbit.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(() => {
+  orbit.update();
+  if (typeof questMarkersGroup !== 'undefined' && questMarkersGroup?.children?.length) {
+    for (const b of questMarkersGroup.children) {
+      for (const c of b.children) {
+        if (c.userData.isSpinning) c.rotation.y += 0.02;
+      }
+    }
+  }
+  renderer.render(scene, camera);
+});
 
 // ---------------------------------------------------------------------------
 // Model loading (shared cache; each placed copy is a clone)
@@ -759,8 +1104,27 @@ function showSelection() {
     const rel = obj.position;
     $('fX').value = rel.x.toFixed(2); $('fY').value = rel.z.toFixed(2); $('fZ').value = rel.y.toFixed(2);
     $('fYaw').value = +(tmp.Yaw.toFixed(2)); $('fPitch').value = +(tmp.Pitch.toFixed(2)); $('fRoll').value = +(tmp.Roll.toFixed(2)); $('fScale').value = tmp.Scale;
+
+    if (typeof isNpcRecord === 'function') {
+      const isNpc = isNpcRecord(r);
+      const npcBox = $('npcQuestBox');
+      if (npcBox) {
+        npcBox.hidden = !isNpc;
+        if (isNpc) {
+          const q = findQuestForRecord(r);
+          const npcName = m ? m.title : r.Mesh.split('/').pop().replace(/\.\w+$/, '');
+          $('npcQuestBadge').textContent = q ? `Quest: ${q.title}` : 'No Quest';
+          $('npcQuestBtn').textContent = q ? `📜 Open Storyboard (${q.title})` : `✨ Create Quest for ${npcName}`;
+          $('npcQuestBtn').onclick = () => {
+            openQuestModal(q ? q.id : null, r);
+          };
+        }
+      }
+    }
   } else {
     if (rotWrap) rotWrap.style.display = 'none';
+    const npcBox = $('npcQuestBox');
+    if (npcBox) npcBox.hidden = true;
     $('selName').textContent = `${selection.size} objects selected`;
     $('selPath').textContent = 'Shift+click to add/remove. Ctrl+D duplicate, Del delete, T rotate.';
     const center = selectionPivot.position;
@@ -1125,6 +1489,14 @@ renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX
 renderer.domElement.addEventListener('pointerup', e => {
   if (!down || e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4 || gizmo.dragging) return;
   pointer(e);
+  if (typeof pickingQuestLocation !== 'undefined' && pickingQuestLocation) {
+    const s = hitSurface();
+    if (s && typeof setQuestTargetLocation === 'function') {
+      const g = toGame(s.point);
+      setQuestTargetLocation(Math.round(g.X), Math.round(g.Y), Math.round(g.Z));
+    }
+    return;
+  }
   if (picked && ghost?.visible) {
     pushUndo();
     const id = newId();
@@ -1288,6 +1660,7 @@ async function writeText(name, text) {
 function changed() {
   showSelection();
   refreshList();
+  if (typeof updateQuestVisuals === 'function') updateQuestVisuals();
   if (!dir) { status('Not connected: export placed.txt or connect the game folder to keep these changes.', 'bad'); return; }
   clearTimeout(writeTimer);
   writeTimer = setTimeout(save, 400);
@@ -1348,6 +1721,7 @@ async function loadFromFolder() {
   rebuildAll();
   await loadBase();
   loadWorld();
+  if (typeof loadQuestsData === 'function') await loadQuestsData();
   if (savePieces) { showBase(+$('baseSel').value || 0, false); return; }
   if (!a && !playerLoc && records.size) { $('baseInfo').textContent = 'Centred on your placed models. Type "cb anchor" in the game console to line up with a spot in game, or Open save to see your base.'; return; }
   $('baseInfo').textContent = (a || playerLoc) ? `Anchor at ${anchor.X.toFixed(0)}, ${anchor.Y.toFixed(0)}, ${anchor.Z.toFixed(0)} (game cm). Player visible in 3D.` : 'No anchor yet: type "cb anchor" in the game console (F10), then reconnect.';
@@ -1837,6 +2211,1019 @@ $('importBtn').onclick = () => {
 };
 
 // ---------------------------------------------------------------------------
+// Custom Quests & Interactive Dialogue Storyboard System
+// ---------------------------------------------------------------------------
+let questsData = { quests: [] };
+let activeQuest = null;
+let pickingQuestLocation = false;
+
+const STANDARD_NPCS = [
+  { name: 'Doric', key: 'SK_Doric_01', path: '/Game/Gameplay/NPCs/BP_NPC_Doric.BP_NPC_Doric_C' },
+  { name: 'Wise Old Man', key: 'SK_WiseOldMan_01', path: '/Game/Gameplay/NPCs/BP_NPC_WiseOldMan.BP_NPC_WiseOldMan_C' },
+  { name: 'Vannaka', key: 'BP_NPC_Vannaka_Fellhollow', path: '/Game/Gameplay/NPCs/BP_NPC_Vannaka_Fellhollow.BP_NPC_Vannaka_Fellhollow_C' },
+  { name: 'Zanik', key: 'BP_NPC_Zanik_Fellhollow', path: '/Game/Gameplay/NPCs/BP_NPC_Zanik_Fellhollow.BP_NPC_Zanik_Fellhollow_C' },
+  { name: 'Cook', key: 'BP_NPC_Cook', path: '/Game/Gameplay/NPCs/CooksAssistant_NPCs/BP_NPC_Cook.BP_NPC_Cook_C' },
+  { name: 'Postie Pete', key: 'BP_NPC_PostiePete', path: '/Game/Gameplay/NPCs/BP_NPC_PostiePete.BP_NPC_PostiePete_C' },
+  { name: 'Death', key: 'BP_NPC_Death', path: '/Game/Gameplay/NPCs/BP_NPC_Death.BP_NPC_Death_C' },
+  { name: 'Elder Garou', key: 'BP_NPC_Elder_Garou', path: '/Game/Gameplay/NPCs/BP_NPC_Elder_Garou.BP_NPC_Elder_Garou_C' },
+  { name: 'Chinchompa Pet', key: 'Pet_Chinchompa', path: '/ScornedWilderness/Gameplay/BaseBuilding/Blueprints/BP_BaseBuilding_Decoration_DeluxeEdition_Pet_Chinchompa.BP_BaseBuilding_Decoration_DeluxeEdition_Pet_Chinchompa_C' },
+  { name: 'Guard / Bouncer', key: 'BP_NPC_KotHaarBouncer', path: '/Game/Gameplay/NPCs/BP_NPC_KotHaarBouncer.BP_NPC_KotHaarBouncer_C' },
+  { name: 'Commander Zilyana', key: 'BP_NPC_SW_Zilyana', path: '/ScornedWilderness/Gameplay/Quests/NPCs/BP_NPC_SW_Zilyana.BP_NPC_SW_Zilyana_C' }
+];
+
+function isNpcRecord(r) {
+  if (!r || !r.Mesh) return false;
+  const p = r.Mesh.toLowerCase();
+  return p.includes('/npc/') || p.includes('sk_') || p.includes('companion') || p.includes('pet_') || p.includes('character');
+}
+
+function findQuestForRecord(r) {
+  if (!r || !questsData?.quests) return null;
+  const mesh = r.Mesh.toLowerCase();
+  const title = (byGamePath.get(mesh)?.title || '').toLowerCase();
+  for (const q of questsData.quests) {
+    const qNpc = (q.npc || '').toLowerCase();
+    const qName = (q.npcName || '').toLowerCase();
+    if (qNpc && mesh.includes(qNpc)) return q;
+    if (qName && (mesh.includes(qName) || (title && title.includes(qName)))) return q;
+  }
+  return null;
+}
+
+const questMarkersGroup = new THREE.Group();
+scene.add(questMarkersGroup);
+
+function createObjectiveBeacon(pos, label) {
+  const group = new THREE.Group();
+  group.position.copy(pos);
+
+  const cylinderGeo = new THREE.CylinderGeometry(0.15, 0.15, 5.0, 16, 1, true);
+  const cylinderMat = new THREE.MeshBasicMaterial({
+    color: 0xffd700,
+    transparent: true,
+    opacity: 0.35,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  });
+  const cylinder = new THREE.Mesh(cylinderGeo, cylinderMat);
+  cylinder.position.y = 2.5;
+  group.add(cylinder);
+
+  const diamondGeo = new THREE.OctahedronGeometry(0.4, 0);
+  const diamondMat = new THREE.MeshStandardMaterial({
+    color: 0xffea00,
+    emissive: 0xb38600,
+    metalness: 0.8,
+    roughness: 0.2
+  });
+  const diamond = new THREE.Mesh(diamondGeo, diamondMat);
+  diamond.position.y = 1.8;
+  diamond.userData.isSpinning = true;
+  group.add(diamond);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 320; canvas.height = 80;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(15, 25, 12, 0.9)';
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(6, 6, 308, 68, 12);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#ffea00';
+  ctx.font = 'bold 28px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label || 'QUEST TARGET', 160, 40);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.position.y = 2.8;
+  sprite.scale.set(2.6, 0.65, 1);
+  group.add(sprite);
+
+  return group;
+}
+
+function createNpcQuestBadge(pos, npcName) {
+  const group = new THREE.Group();
+  group.position.copy(pos);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(212, 175, 55, 0.95)';
+  ctx.beginPath();
+  ctx.arc(64, 64, 56, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
+  ctx.fillStyle = '#111';
+  ctx.font = '900 72px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('!', 64, 66);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.position.y = 2.3;
+  sprite.scale.set(0.85, 0.85, 1);
+  group.add(sprite);
+
+  return group;
+}
+
+function updateQuestVisuals() {
+  while (questMarkersGroup.children.length > 0) {
+    const c = questMarkersGroup.children[0];
+    questMarkersGroup.remove(c);
+  }
+
+  if (!questsData?.quests) return;
+
+  for (const q of questsData.quests) {
+    if (q.objective?.targetCoords && Array.isArray(q.objective.targetCoords) && q.objective.targetCoords.length === 3) {
+      const [gx, gy, gz] = q.objective.targetCoords;
+      const pos = toScene(gx, gy, gz);
+      const beacon = createObjectiveBeacon(pos, q.objective.hudText || q.title);
+      questMarkersGroup.add(beacon);
+    }
+
+    const npcKey = (q.npc || '').toLowerCase();
+    const npcName = (q.npcName || '').toLowerCase();
+    for (const [id, r] of records) {
+      const m = r.Mesh.toLowerCase();
+      if ((npcKey && m.includes(npcKey)) || (npcName && m.includes(npcName))) {
+        const obj = objects.get(id);
+        if (obj) {
+          const badge = createNpcQuestBadge(obj.position, q.npcName || 'NPC');
+          questMarkersGroup.add(badge);
+        }
+      }
+    }
+  }
+}
+
+function updateQuestsBadge() {
+  const count = questsData?.quests?.length || 0;
+  const btn = $('questsBtn');
+  if (btn) btn.textContent = `📜 Quests (${count})`;
+}
+
+async function loadQuestsData() {
+  let loaded = false;
+  if (dir) {
+    try {
+      const text = await readText('quests.json');
+      if (text) {
+        questsData = JSON.parse(text);
+        loaded = true;
+      }
+    } catch (e) {
+      console.warn('Failed reading quests.json from game folder:', e);
+    }
+  }
+  if (!loaded) {
+    try {
+      const r = await fetch('quests.json');
+      if (r.ok) {
+        questsData = await r.json();
+      }
+    } catch (e) {
+      console.warn('Fallback fetch of quests.json failed:', e);
+    }
+  }
+  if (!questsData || !Array.isArray(questsData.quests)) {
+    questsData = { quests: [] };
+  }
+  updateQuestVisuals();
+  updateQuestsBadge();
+}
+
+async function saveQuestsData(notify = true) {
+  if (dir) {
+    try {
+      const text = JSON.stringify(questsData, null, 2);
+      const old = await readText('quests.json');
+      if (old !== null) await writeText('quests.json.bak', old);
+      await writeText('quests.json', text);
+      if (notify) toast('Quests saved to game folder!');
+    } catch (e) {
+      console.error('Error writing quests.json:', e);
+      if (notify) toast('Failed to write quests.json: ' + e.message);
+    }
+  } else {
+    if (notify) toast('Quests saved in browser memory! Export to download quests.json.');
+  }
+  updateQuestVisuals();
+  updateQuestsBadge();
+}
+
+function exportQuestsJson() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(questsData, null, 2)], { type: 'application/json' }));
+  a.download = 'quests.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ---------------------------------------------------------------------------
+// Quest Storyboard Modal & UI Logic
+// ---------------------------------------------------------------------------
+let currentTab = 'story';
+
+function openQuestModal(targetQuestId = null, targetNpcRecord = null) {
+  $('questModal').classList.remove('hidden');
+
+  if (targetNpcRecord && !targetQuestId) {
+    const existing = findQuestForRecord(targetNpcRecord);
+    if (existing) {
+      targetQuestId = existing.id;
+    } else {
+      const m = byGamePath.get(targetNpcRecord.Mesh.toLowerCase());
+      const npcName = m ? m.title : targetNpcRecord.Mesh.split('/').pop().replace(/\.\w+$/, '');
+      const newQ = {
+        id: 'quest_' + npcName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Math.floor(Math.random() * 1000),
+        npc: targetNpcRecord.Mesh.split('/').pop().replace(/\.\w+$/, ''),
+        npcName: npcName,
+        title: `${npcName}'s Task`,
+        description: `Help ${npcName} with their request.`,
+        startDialogue: {
+          speaker: npcName,
+          text: `Greetings, traveller! Could you assist me with a task?`,
+          choices: [
+            { text: "I can help with that.", action: "start_quest" },
+            { text: "Where should I look?", target: "hint" },
+            { text: "Not right now.", action: "close" }
+          ],
+          branches: {
+            hint: {
+              speaker: npcName,
+              text: `Search the surrounding wilderness and bring back what you find.`,
+              choices: [
+                { text: "Understood, I'll go look.", action: "start_quest" },
+                { text: "Sounds like too much trouble.", action: "close" }
+              ]
+            }
+          }
+        },
+        objective: {
+          type: "item",
+          item: "Iron Ore",
+          count: 3,
+          hudText: "Gather Supplies"
+        },
+        progressDialogue: {
+          speaker: npcName,
+          text: `Any progress on that task?`,
+          choices: [{ text: "Still working on it.", action: "close" }]
+        },
+        turnInDialogue: {
+          speaker: npcName,
+          text: `Splendid! You have done it. Here is your reward!`,
+          choices: [{ text: "Glad to help!", action: "complete_quest" }]
+        },
+        completedDialogue: {
+          speaker: npcName,
+          text: `Thanks again for your help, adventurer!`
+        },
+        rewards: {
+          text: "150 Gold Coins",
+          item: "Gold Coins",
+          count: 150
+        }
+      };
+      questsData.quests.push(newQ);
+      targetQuestId = newQ.id;
+    }
+  }
+
+  if (!questsData.quests.length) {
+    createNewQuest();
+    return;
+  }
+
+  if (targetQuestId) {
+    activeQuest = questsData.quests.find(q => q.id === targetQuestId) || questsData.quests[0];
+  } else if (!activeQuest || !questsData.quests.includes(activeQuest)) {
+    activeQuest = questsData.quests[0];
+  }
+
+  renderQuestList();
+  renderQuestForm();
+  updateSyncStatus();
+}
+
+function closeQuestModal() {
+  $('questModal').classList.add('hidden');
+  saveQuestsData(false);
+}
+
+function updateSyncStatus() {
+  const el = $('qmSyncStatus');
+  if (!el) return;
+  if (dir) {
+    el.innerHTML = '<span style="color:#a3e687;">● Connected to game folder: saves to <code>quests.json</code> automatically</span>';
+  } else {
+    el.innerHTML = '<span style="color:#f59e0b;">○ Not connected: Click "Export JSON" to download <code>quests.json</code></span>';
+  }
+}
+
+function createNewQuest() {
+  const idNum = Math.floor(Math.random() * 10000);
+  const q = {
+    id: `quest_custom_${idNum}`,
+    npc: "SK_Doric_01",
+    npcName: "Companion",
+    title: "New Custom Quest",
+    description: "Description of your adventure objective.",
+    startDialogue: {
+      speaker: "Companion",
+      text: "Greetings, friend! Could you lend me a hand?",
+      choices: [
+        { text: "I can help.", action: "start_quest" },
+        { text: "Not right now.", action: "close" }
+      ],
+      branches: {}
+    },
+    objective: {
+      type: "item",
+      item: "Supplies",
+      count: 1,
+      hudText: "Complete task"
+    },
+    progressDialogue: {
+      speaker: "Companion",
+      text: "Still on the hunt?",
+      choices: [{ text: "Still looking.", action: "close" }]
+    },
+    turnInDialogue: {
+      speaker: "Companion",
+      text: "Well done! Thank you for the assistance.",
+      choices: [{ text: "You're welcome!", action: "complete_quest" }]
+    },
+    completedDialogue: {
+      speaker: "Companion",
+      text: "Safe travels, friend!"
+    },
+    rewards: {
+      text: "100 Gold Coins",
+      item: "Gold Coins",
+      count: 100
+    }
+  };
+  questsData.quests.push(q);
+  activeQuest = q;
+  renderQuestList();
+  renderQuestForm();
+  saveQuestsData(false);
+}
+
+function deleteActiveQuest() {
+  if (!activeQuest) return;
+  if (!confirm(`Delete quest "${activeQuest.title}"?`)) return;
+  const idx = questsData.quests.indexOf(activeQuest);
+  if (idx !== -1) questsData.quests.splice(idx, 1);
+  activeQuest = questsData.quests[0] || null;
+  if (!activeQuest && questsData.quests.length === 0) {
+    createNewQuest();
+  } else {
+    renderQuestList();
+    renderQuestForm();
+    saveQuestsData(false);
+  }
+}
+
+function duplicateActiveQuest() {
+  if (!activeQuest) return;
+  const dup = JSON.parse(JSON.stringify(activeQuest));
+  dup.id = dup.id + '_copy_' + Math.floor(Math.random() * 1000);
+  dup.title = dup.title + ' (Copy)';
+  questsData.quests.push(dup);
+  activeQuest = dup;
+  renderQuestList();
+  renderQuestForm();
+  saveQuestsData(false);
+}
+
+function renderQuestList() {
+  const listEl = $('qmQuestList');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  const filter = ($('qmSearch')?.value || '').toLowerCase();
+
+  for (const q of questsData.quests) {
+    if (filter && !q.title.toLowerCase().includes(filter) && !q.npcName.toLowerCase().includes(filter)) continue;
+    const card = document.createElement('div');
+    card.className = 'qm-quest-card' + (q === activeQuest ? ' sel' : '');
+    card.innerHTML = `
+      <div class="qm-quest-title">${q.title || 'Untitled Quest'}</div>
+      <div class="qm-quest-meta">
+        <span>👤 ${q.npcName || 'NPC'}</span>
+        <span class="qm-quest-badge">${q.objective?.type?.toUpperCase() || 'QUEST'}</span>
+      </div>
+    `;
+    card.onclick = () => {
+      activeQuest = q;
+      renderQuestList();
+      renderQuestForm();
+    };
+    listEl.appendChild(card);
+  }
+}
+
+function populateNpcSelect() {
+  const sel = $('qmNpcSelect');
+  if (!sel) return;
+  sel.innerHTML = '';
+
+  const optGroupPlaced = document.createElement('optgroup');
+  optGroupPlaced.label = 'Placed NPCs in this Base';
+  let placedCount = 0;
+  for (const [id, r] of records) {
+    if (isNpcRecord(r)) {
+      placedCount++;
+      const m = byGamePath.get(r.Mesh.toLowerCase());
+      const title = m ? m.title : r.Mesh.split('/').pop().replace(/\.\w+$/, '');
+      const opt = document.createElement('option');
+      opt.value = r.Mesh;
+      opt.textContent = `${title} (at ${r.X.toFixed(0)}, ${r.Y.toFixed(0)})`;
+      opt.dataset.npcName = title;
+      opt.dataset.recordId = id;
+      optGroupPlaced.appendChild(opt);
+    }
+  }
+  if (placedCount > 0) sel.appendChild(optGroupPlaced);
+
+  const optGroupPresets = document.createElement('optgroup');
+  optGroupPresets.label = 'Standard NPC Characters';
+  for (const p of STANDARD_NPCS) {
+    const opt = document.createElement('option');
+    opt.value = p.key;
+    opt.textContent = `${p.name} (${p.key})`;
+    opt.dataset.npcName = p.name;
+    optGroupPresets.appendChild(opt);
+  }
+  sel.appendChild(optGroupPresets);
+
+  if (activeQuest) {
+    let matched = false;
+    for (const opt of sel.options) {
+      if (opt.value === activeQuest.npc || opt.value.includes(activeQuest.npc)) {
+        opt.selected = true;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched && activeQuest.npc) {
+      const customOpt = document.createElement('option');
+      customOpt.value = activeQuest.npc;
+      customOpt.textContent = `Custom: ${activeQuest.npc}`;
+      customOpt.selected = true;
+      sel.appendChild(customOpt);
+    }
+  }
+}
+
+function renderQuestForm() {
+  if (!activeQuest) return;
+  const q = activeQuest;
+
+  $('qmTitle').value = q.title || '';
+  $('qmId').value = q.id || '';
+  $('qmNpcName').value = q.npcName || '';
+  $('qmDesc').value = q.description || '';
+
+  populateNpcSelect();
+
+  // Tab 1: Story
+  $('qmStartText').value = q.startDialogue?.text || '';
+  renderStartChoices();
+  renderBranches();
+
+  // Tab 2: Objective
+  const obj = q.objective || {};
+  $('qmObjType').value = obj.type || 'item';
+  $('qmObjItem').value = obj.item || obj.target || '';
+  $('qmObjCount').value = obj.count || 1;
+  $('qmObjHudText').value = obj.hudText || '';
+  if (obj.targetCoords && Array.isArray(obj.targetCoords) && obj.targetCoords.length === 3) {
+    $('qmLocX').value = obj.targetCoords[0];
+    $('qmLocY').value = obj.targetCoords[1];
+    $('qmLocZ').value = obj.targetCoords[2];
+  } else {
+    $('qmLocX').value = '';
+    $('qmLocY').value = '';
+    $('qmLocZ').value = '';
+  }
+
+  // Tab 3: Turn-in
+  $('qmProgressText').value = q.progressDialogue?.text || '';
+  $('qmTurnInText').value = q.turnInDialogue?.text || '';
+  $('qmTurnInChoiceText').value = q.turnInDialogue?.choices?.[0]?.text || 'Complete Quest';
+  $('qmCompletedText').value = q.completedDialogue?.text || '';
+
+  // Tab 4: Rewards
+  const rew = q.rewards || {};
+  $('qmRewardText').value = rew.text || '';
+  $('qmRewardItem').value = rew.item || 'Gold Coins';
+  $('qmRewardCount').value = rew.count || 100;
+  $('qmRewardSkill').value = rew.xpSkill || '';
+  $('qmRewardXp').value = rew.xpCount || '';
+
+  updateTabVisibility();
+}
+
+function updateTabVisibility() {
+  $('qmTabStory').style.display = currentTab === 'story' ? '' : 'none';
+  $('qmTabObjective').style.display = currentTab === 'objective' ? '' : 'none';
+  $('qmTabTurnin').style.display = currentTab === 'turnin' ? '' : 'none';
+  $('qmTabRewards').style.display = currentTab === 'rewards' ? '' : 'none';
+
+  for (const btn of document.querySelectorAll('.qm-tab-btn')) {
+    btn.classList.toggle('active', btn.dataset.tab === currentTab);
+  }
+}
+
+function renderStartChoices() {
+  const container = $('qmStartChoicesList');
+  if (!container || !activeQuest) return;
+  container.innerHTML = '';
+  const choices = activeQuest.startDialogue?.choices || [];
+
+  choices.forEach((ch, idx) => {
+    const row = document.createElement('div');
+    row.className = 'qm-choice-row';
+    const branches = activeQuest.startDialogue?.branches || {};
+    let branchOptions = Object.keys(branches).map(k => `<option value="target:${k}" ${ch.target === k ? 'selected' : ''}>Branch: ${k}</option>`).join('');
+
+    row.innerHTML = `
+      <div class="qm-choice-idx">[ ${idx + 1} ]</div>
+      <input type="text" class="qm-choice-text" value="${ch.text || ''}" placeholder="Player response text...">
+      <select class="qm-choice-action">
+        <option value="start_quest" ${ch.action === 'start_quest' ? 'selected' : ''}>Accept / Start Quest</option>
+        ${branchOptions}
+        <option value="new_branch">+ New Story Branch...</option>
+        <option value="close" ${ch.action === 'close' ? 'selected' : ''}>Decline / Close Dialogue</option>
+      </select>
+      <button class="small qm-choice-del" title="Remove Choice" style="color:#f87171;">✕</button>
+    `;
+
+    const textInp = row.querySelector('.qm-choice-text');
+    textInp.oninput = () => {
+      ch.text = textInp.value;
+      saveQuestsData(false);
+    };
+
+    const actionSel = row.querySelector('.qm-choice-action');
+    actionSel.onchange = () => {
+      const v = actionSel.value;
+      if (v === 'new_branch') {
+        const bKey = prompt('Enter a name for the new dialogue branch (e.g. hint, lore, questions):');
+        if (bKey && bKey.trim()) {
+          const cleanKey = bKey.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+          if (!activeQuest.startDialogue.branches) activeQuest.startDialogue.branches = {};
+          if (!activeQuest.startDialogue.branches[cleanKey]) {
+            activeQuest.startDialogue.branches[cleanKey] = {
+              speaker: activeQuest.npcName || 'NPC',
+              text: `Here is more information about your quest.`,
+              choices: [
+                { text: "Understood, I'll do it.", action: "start_quest" },
+                { text: "Nevermind.", action: "close" }
+              ]
+            };
+          }
+          ch.target = cleanKey;
+          delete ch.action;
+          renderStartChoices();
+          renderBranches();
+          saveQuestsData(false);
+          return;
+        }
+      } else if (v.startsWith('target:')) {
+        ch.target = v.replace('target:', '');
+        delete ch.action;
+      } else {
+        ch.action = v;
+        delete ch.target;
+      }
+      saveQuestsData(false);
+    };
+
+    const delBtn = row.querySelector('.qm-choice-del');
+    delBtn.onclick = () => {
+      choices.splice(idx, 1);
+      renderStartChoices();
+      saveQuestsData(false);
+    };
+
+    container.appendChild(row);
+  });
+}
+
+function renderBranches() {
+  const container = $('qmBranchesList');
+  if (!container || !activeQuest) return;
+  container.innerHTML = '';
+  const branches = activeQuest.startDialogue?.branches || {};
+  const keys = Object.keys(branches);
+
+  if (keys.length === 0) {
+    container.innerHTML = '<div class="muted" style="font-size: 12px; font-style: italic; padding: 4px;">No sub-branches created yet. Opening dialogue choices can lead directly to Start Quest or to story branches.</div>';
+    return;
+  }
+
+  for (const bKey of keys) {
+    const b = branches[bKey];
+    const card = document.createElement('div');
+    card.className = 'qm-branch-card';
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight: 600; color: #a3e687; font-size: 12px;">Branch: <code>${bKey}</code></span>
+        <button class="small qm-del-branch-btn" style="color: #f87171;" title="Remove Branch">Delete Branch</button>
+      </div>
+      <div class="qm-row">
+        <div class="qm-field-group" style="flex:1;">
+          <label>Speaker</label>
+          <input type="text" class="qm-b-speaker" value="${b.speaker || ''}">
+        </div>
+      </div>
+      <div class="qm-field-group">
+        <label>Branch Dialogue Text</label>
+        <textarea class="qm-b-text" rows="2">${b.text || ''}</textarea>
+      </div>
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <label style="font-size:10px; font-weight:600; color:var(--muted); text-transform:uppercase;">Branch Choices</label>
+          <button class="small qm-add-b-choice-btn">+ Choice</button>
+        </div>
+        <div class="qm-b-choices-list" style="display:flex; flex-direction:column; gap:4px;"></div>
+      </div>
+    `;
+
+    card.querySelector('.qm-b-speaker').oninput = e => {
+      b.speaker = e.target.value;
+      saveQuestsData(false);
+    };
+    card.querySelector('.qm-b-text').oninput = e => {
+      b.text = e.target.value;
+      saveQuestsData(false);
+    };
+    card.querySelector('.qm-del-branch-btn').onclick = () => {
+      delete branches[bKey];
+      renderStartChoices();
+      renderBranches();
+      saveQuestsData(false);
+    };
+
+    const choicesContainer = card.querySelector('.qm-b-choices-list');
+    const bChoices = b.choices || [];
+    bChoices.forEach((bc, cIdx) => {
+      const cRow = document.createElement('div');
+      cRow.className = 'qm-choice-row';
+      cRow.innerHTML = `
+        <div class="qm-choice-idx">${cIdx + 1}</div>
+        <input type="text" class="qm-bc-text" value="${bc.text || ''}" placeholder="Choice response...">
+        <select class="qm-bc-action">
+          <option value="start_quest" ${bc.action === 'start_quest' ? 'selected' : ''}>Start Quest</option>
+          <option value="close" ${bc.action === 'close' ? 'selected' : ''}>Close Dialogue</option>
+        </select>
+        <button class="small qm-del-bc-btn" style="color:#f87171;">✕</button>
+      `;
+      cRow.querySelector('.qm-bc-text').oninput = e => {
+        bc.text = e.target.value;
+        saveQuestsData(false);
+      };
+      cRow.querySelector('.qm-bc-action').onchange = e => {
+        bc.action = e.target.value;
+        saveQuestsData(false);
+      };
+      cRow.querySelector('.qm-del-bc-btn').onclick = () => {
+        bChoices.splice(cIdx, 1);
+        renderBranches();
+        saveQuestsData(false);
+      };
+      choicesContainer.appendChild(cRow);
+    });
+
+    card.querySelector('.qm-add-b-choice-btn').onclick = () => {
+      if (!b.choices) b.choices = [];
+      b.choices.push({ text: "Continue", action: "start_quest" });
+      renderBranches();
+      saveQuestsData(false);
+    };
+
+    container.appendChild(card);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3D Map Target Location Picker
+// ---------------------------------------------------------------------------
+function startPickingQuestLocation() {
+  pickingQuestLocation = true;
+  $('questModal').classList.add('hidden');
+  $('questPickBar').hidden = false;
+  toast('Click anywhere in 3D scene to place Quest Objective location');
+}
+
+function stopPickingQuestLocation() {
+  pickingQuestLocation = false;
+  $('questPickBar').hidden = true;
+  $('questModal').classList.remove('hidden');
+}
+
+function setQuestTargetLocation(gx, gy, gz) {
+  if (activeQuest) {
+    if (!activeQuest.objective) activeQuest.objective = {};
+    activeQuest.objective.targetCoords = [gx, gy, gz];
+    $('qmLocX').value = gx;
+    $('qmLocY').value = gy;
+    $('qmLocZ').value = gz;
+    saveQuestsData(false);
+    updateQuestVisuals();
+    toast(`Target location set: (${gx}, ${gy}, ${gz})`);
+  }
+  stopPickingQuestLocation();
+}
+
+// Wire Quest UI Inputs & Actions
+$('questsBtn')?.addEventListener('click', () => openQuestModal());
+$('qmCloseBtn')?.addEventListener('click', () => closeQuestModal());
+$('qmSaveBtn')?.addEventListener('click', () => saveQuestsData(true));
+$('qmExportBtn')?.addEventListener('click', () => exportQuestsJson());
+$('qmNewQuestBtn')?.addEventListener('click', () => createNewQuest());
+$('qmDeleteQuestBtn')?.addEventListener('click', () => deleteActiveQuest());
+$('qmDuplicateQuestBtn')?.addEventListener('click', () => duplicateActiveQuest());
+$('qmSearch')?.addEventListener('input', () => renderQuestList());
+
+$('qmPickLocationBtn')?.addEventListener('click', () => startPickingQuestLocation());
+$('questPickCancelBtn')?.addEventListener('click', () => stopPickingQuestLocation());
+
+$('qmClearLocBtn')?.addEventListener('click', () => {
+  if (activeQuest?.objective) {
+    delete activeQuest.objective.targetCoords;
+    $('qmLocX').value = '';
+    $('qmLocY').value = '';
+    $('qmLocZ').value = '';
+    updateQuestVisuals();
+    saveQuestsData(false);
+    toast('Location cleared');
+  }
+});
+
+$('qmFocusLocBtn')?.addEventListener('click', () => {
+  const x = parseFloat($('qmLocX').value);
+  const y = parseFloat($('qmLocY').value);
+  const z = parseFloat($('qmLocZ').value);
+  if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+    const pos = toScene(x, y, z);
+    orbit.target.copy(pos);
+    camera.position.set(pos.x + 8, pos.y + 6, pos.z + 8);
+    closeQuestModal();
+    toast('Focused camera on quest objective');
+  }
+});
+
+$('qmFocusNpcBtn')?.addEventListener('click', () => {
+  if (!activeQuest) return;
+  const npcKey = (activeQuest.npc || '').toLowerCase();
+  const npcName = (activeQuest.npcName || '').toLowerCase();
+  for (const [id, r] of records) {
+    const m = r.Mesh.toLowerCase();
+    if ((npcKey && m.includes(npcKey)) || (npcName && m.includes(npcName))) {
+      const obj = objects.get(id);
+      if (obj) {
+        orbit.target.copy(obj.position);
+        camera.position.set(obj.position.x + 5, obj.position.y + 4, obj.position.z + 5);
+        closeQuestModal();
+        toast(`Focused camera on ${activeQuest.npcName}`);
+        return;
+      }
+    }
+  }
+  toast(`NPC "${activeQuest.npcName}" is not currently placed in this base.`);
+});
+
+$('qmUseSelectedNpcBtn')?.addEventListener('click', () => {
+  if (selection.size === 1) {
+    const r = records.get(selected);
+    if (r && activeQuest) {
+      const m = byGamePath.get(r.Mesh.toLowerCase());
+      const npcName = m ? m.title : r.Mesh.split('/').pop().replace(/\.\w+$/, '');
+      activeQuest.npc = r.Mesh.split('/').pop().replace(/\.\w+$/, '');
+      activeQuest.npcName = npcName;
+      $('qmNpcName').value = npcName;
+      populateNpcSelect();
+      renderQuestList();
+      saveQuestsData(false);
+      updateQuestVisuals();
+      toast(`Assigned ${npcName} as quest giver!`);
+    }
+  } else {
+    toast('Select an NPC object in 3D first.');
+  }
+});
+
+// Tab switching
+document.querySelectorAll('.qm-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentTab = btn.dataset.tab;
+    updateTabVisibility();
+  });
+});
+
+// Form inputs two-way binding
+$('qmTitle')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  activeQuest.title = e.target.value;
+  renderQuestList();
+  saveQuestsData(false);
+});
+$('qmId')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  activeQuest.id = e.target.value;
+  saveQuestsData(false);
+});
+$('qmDesc')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  activeQuest.description = e.target.value;
+  saveQuestsData(false);
+});
+$('qmNpcName')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  activeQuest.npcName = e.target.value;
+  renderQuestList();
+  saveQuestsData(false);
+});
+$('qmNpcSelect')?.addEventListener('change', e => {
+  if (!activeQuest) return;
+  const opt = e.target.selectedOptions[0];
+  activeQuest.npc = opt.value;
+  if (opt.dataset.npcName) {
+    activeQuest.npcName = opt.dataset.npcName;
+    $('qmNpcName').value = opt.dataset.npcName;
+  }
+  renderQuestList();
+  saveQuestsData(false);
+  updateQuestVisuals();
+});
+
+$('qmStartText')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.startDialogue) activeQuest.startDialogue = {};
+  activeQuest.startDialogue.text = e.target.value;
+  activeQuest.startDialogue.speaker = activeQuest.npcName || 'NPC';
+  saveQuestsData(false);
+});
+
+$('qmAddStartChoiceBtn')?.addEventListener('click', () => {
+  if (!activeQuest) return;
+  if (!activeQuest.startDialogue) activeQuest.startDialogue = { choices: [] };
+  if (!activeQuest.startDialogue.choices) activeQuest.startDialogue.choices = [];
+  activeQuest.startDialogue.choices.push({ text: "Tell me more.", action: "close" });
+  renderStartChoices();
+  saveQuestsData(false);
+});
+
+$('qmAddBranchBtn')?.addEventListener('click', () => {
+  if (!activeQuest) return;
+  const bKey = prompt('Enter a name for the new dialogue branch (e.g. hint, lore, questions):');
+  if (bKey && bKey.trim()) {
+    const cleanKey = bKey.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (!activeQuest.startDialogue) activeQuest.startDialogue = {};
+    if (!activeQuest.startDialogue.branches) activeQuest.startDialogue.branches = {};
+    activeQuest.startDialogue.branches[cleanKey] = {
+      speaker: activeQuest.npcName || 'NPC',
+      text: 'Additional dialogue details...',
+      choices: [
+        { text: "I'll do it.", action: "start_quest" },
+        { text: "Goodbye.", action: "close" }
+      ]
+    };
+    renderStartChoices();
+    renderBranches();
+    saveQuestsData(false);
+  }
+});
+
+$('qmObjType')?.addEventListener('change', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.objective) activeQuest.objective = {};
+  activeQuest.objective.type = e.target.value;
+  const lbl = $('qmObjTargetLabel');
+  if (lbl) {
+    if (e.target.value === 'item') lbl.textContent = 'Item Name';
+    else if (e.target.value === 'kill') lbl.textContent = 'Monster / Target Name';
+    else if (e.target.value === 'location') lbl.textContent = 'Location / Landmark Name';
+    else lbl.textContent = 'Target NPC Name';
+  }
+  renderQuestList();
+  saveQuestsData(false);
+});
+$('qmObjItem')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.objective) activeQuest.objective = {};
+  activeQuest.objective.item = e.target.value;
+  saveQuestsData(false);
+});
+$('qmObjCount')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.objective) activeQuest.objective = {};
+  activeQuest.objective.count = parseInt(e.target.value, 10) || 1;
+  saveQuestsData(false);
+});
+$('qmObjHudText')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.objective) activeQuest.objective = {};
+  activeQuest.objective.hudText = e.target.value;
+  saveQuestsData(false);
+  updateQuestVisuals();
+});
+
+for (const k of ['qmLocX', 'qmLocY', 'qmLocZ']) {
+  $(k)?.addEventListener('change', () => {
+    if (!activeQuest) return;
+    const x = parseFloat($('qmLocX').value);
+    const y = parseFloat($('qmLocY').value);
+    const z = parseFloat($('qmLocZ').value);
+    if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+      if (!activeQuest.objective) activeQuest.objective = {};
+      activeQuest.objective.targetCoords = [x, y, z];
+    }
+    updateQuestVisuals();
+    saveQuestsData(false);
+  });
+}
+
+$('qmProgressText')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.progressDialogue) activeQuest.progressDialogue = {};
+  activeQuest.progressDialogue.text = e.target.value;
+  activeQuest.progressDialogue.speaker = activeQuest.npcName || 'NPC';
+  saveQuestsData(false);
+});
+$('qmTurnInText')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.turnInDialogue) activeQuest.turnInDialogue = {};
+  activeQuest.turnInDialogue.text = e.target.value;
+  activeQuest.turnInDialogue.speaker = activeQuest.npcName || 'NPC';
+  saveQuestsData(false);
+});
+$('qmTurnInChoiceText')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.turnInDialogue) activeQuest.turnInDialogue = {};
+  if (!activeQuest.turnInDialogue.choices) activeQuest.turnInDialogue.choices = [{ text: "Complete Quest", action: "complete_quest" }];
+  activeQuest.turnInDialogue.choices[0].text = e.target.value;
+  saveQuestsData(false);
+});
+$('qmCompletedText')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.completedDialogue) activeQuest.completedDialogue = {};
+  activeQuest.completedDialogue.text = e.target.value;
+  activeQuest.completedDialogue.speaker = activeQuest.npcName || 'NPC';
+  saveQuestsData(false);
+});
+
+$('qmRewardText')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.rewards) activeQuest.rewards = {};
+  activeQuest.rewards.text = e.target.value;
+  saveQuestsData(false);
+});
+$('qmRewardItem')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.rewards) activeQuest.rewards = {};
+  activeQuest.rewards.item = e.target.value;
+  saveQuestsData(false);
+});
+$('qmRewardCount')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.rewards) activeQuest.rewards = {};
+  activeQuest.rewards.count = parseInt(e.target.value, 10) || 0;
+  saveQuestsData(false);
+});
+$('qmRewardSkill')?.addEventListener('change', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.rewards) activeQuest.rewards = {};
+  activeQuest.rewards.xpSkill = e.target.value;
+  saveQuestsData(false);
+});
+$('qmRewardXp')?.addEventListener('input', e => {
+  if (!activeQuest) return;
+  if (!activeQuest.rewards) activeQuest.rewards = {};
+  activeQuest.rewards.xpCount = parseInt(e.target.value, 10) || 0;
+  saveQuestsData(false);
+});
+
+// Load quests on page startup
+loadQuestsData();
+
+// ---------------------------------------------------------------------------
 // Buttons and keys
 // ---------------------------------------------------------------------------
 function setMode(mode) {
@@ -2139,6 +3526,14 @@ window.addEventListener('drop', async e => {
     await openSave(file);
   }
 });
+window.__BASEBUILDER_INITIALIZED = true;
+window.openQuestModal = openQuestModal;
+window.closeQuestModal = closeQuestModal;
+window.saveQuestsData = saveQuestsData;
+window.questsData = questsData;
+window.setQuestTargetLocation = setQuestTargetLocation;
+window.questMarkersGroup = questMarkersGroup;
+console.log('BASEBUILDER INITIALIZED!');
 </script>
 </body>
 </html>

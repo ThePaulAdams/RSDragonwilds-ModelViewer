@@ -302,6 +302,11 @@ createServer(async (req, res) => {
     if (path === '/viewer') return sendPage(req, res, null);
     // Build-piece names and meshes for the base builder (ModelExporter "pieces", from the game files).
     if (path === '/pieces.json') return sendFile(req, res, join(DATA, 'pieces.json'), 'public, max-age=3600');
+    if (path === '/quests.json') {
+      let file = inside(DATA, 'quests.json');
+      if (!file || !(await stat(file).catch(() => null))?.isFile()) file = join(APP, 'quests.json');
+      return sendFile(req, res, file, 'public, max-age=60');
+    }
     // Crafting planner and calculators: plain pages plus a shared logic module, stylesheet and the game data.
     if (path === '/planner-lib.js' || path === '/site.css') return sendFile(req, res, join(APP, 'static', path.slice(1)), 'public, max-age=300');
     if (path === '/sample-gamedata.json') return sendFile(req, res, join(APP, 'data', 'sample-gamedata.json'), 'public, max-age=300');
@@ -314,7 +319,7 @@ createServer(async (req, res) => {
     if (path === '/base-builder' || path === '/basebuilder.html') {
       const body = gzipSync(await readFile(join(APP, 'basebuilder.html')));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
-        'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
+        'Cache-Control': 'no-cache', Vary: 'Accept-Encoding' });
       return res.end(req.method === 'HEAD' ? undefined : body);
     }
     // Drops and loot finder. Its data is extracted from the game files (ModelExporter "gamedata") and ships with the code.

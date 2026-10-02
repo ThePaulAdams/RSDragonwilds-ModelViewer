@@ -181,7 +181,7 @@ async function home() {
   }
   const count = list.length.toLocaleString('en');
   const title = `${SITE_NAME}: tools for RuneScape: Dragonwilds`;
-  const description = `Fan-made tools for RuneScape: Dragonwilds: a 3D viewer for ${count} game models, a base builder that reads your save, a drops and loot finder and a character save editor. Fan-made, not affiliated with Jagex.`;
+  const description = `Fan-made tools for RuneScape: Dragonwilds: a 3D viewer for ${count} game models, a base builder that reads your save, a crafting planner, calculators, drops and loot finder and character save editor. Fan-made, not affiliated with Jagex.`;
   const head = `<title>${esc(title)}</title>
 <meta name="description" content="${attr(description)}">
 <link rel="canonical" href="${attr(SITE_URL + '/')}">
@@ -254,7 +254,7 @@ createServer(async (req, res) => {
 
     if (path === '/robots.txt') return send(res, 200, `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`, { 'Cache-Control': 'public, max-age=86400' });
     if (path === '/sitemap.xml') {
-      const urls = [SITE_URL + '/', SITE_URL + '/viewer', SITE_URL + '/base-builder', SITE_URL + '/drops', SITE_URL + '/character', ...(await models()).list.map(x => SITE_URL + '/model/' + encodeURIComponent(x.slug))];
+      const urls = [SITE_URL + '/', SITE_URL + '/viewer', SITE_URL + '/base-builder', SITE_URL + '/crafting', SITE_URL + '/calculators', SITE_URL + '/drops', SITE_URL + '/character', ...(await models()).list.map(x => SITE_URL + '/model/' + encodeURIComponent(x.slug))];
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc></url>`).join('\n')}\n</urlset>\n`;
       return send(res, 200, xml, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=86400' });
     }
@@ -302,6 +302,15 @@ createServer(async (req, res) => {
     if (path === '/viewer') return sendPage(req, res, null);
     // Build-piece names and meshes for the base builder (ModelExporter "pieces", from the game files).
     if (path === '/pieces.json') return sendFile(req, res, join(DATA, 'pieces.json'), 'public, max-age=3600');
+    // Crafting planner and calculators: plain pages plus a shared logic module, stylesheet and the game data.
+    if (path === '/planner-lib.js' || path === '/site.css') return sendFile(req, res, join(APP, 'static', path.slice(1)), 'public, max-age=300');
+    if (path === '/sample-gamedata.json') return sendFile(req, res, join(APP, 'data', 'sample-gamedata.json'), 'public, max-age=300');
+    for (const [route, file] of [['/crafting', 'crafting.html'], ['/calculators', 'calculators.html']]) if (path === route) {
+      const body = gzipSync(await readFile(join(APP, file)));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
+        'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
     if (path === '/base-builder' || path === '/basebuilder.html') {
       const body = gzipSync(await readFile(join(APP, 'basebuilder.html')));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,

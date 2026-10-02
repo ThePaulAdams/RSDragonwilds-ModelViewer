@@ -1,0 +1,391 @@
+{
+ "sample": true,
+ "version": "sample (hand-written, NOT real game values)",
+ "skills": [
+  {
+   "id": "crafting",
+   "name": "Crafting"
+  },
+  {
+   "id": "smithing",
+   "name": "Smithing"
+  },
+  {
+   "id": "runecrafting",
+   "name": "Runecrafting"
+  }
+ ],
+ "stations": {
+  "workbench": {
+   "name": "Workbench"
+  },
+  "furnace": {
+   "name": "Furnace"
+  },
+  "anvil": {
+   "name": "Anvil"
+  }
+ },
+ "items": {
+  "oak_logs": {
+   "name": "Oak logs"
+  },
+  "copper_ore": {
+   "name": "Copper ore"
+  },
+  "tin_ore": {
+   "name": "Tin ore"
+  },
+  "coal": {
+   "name": "Coal"
+  },
+  "iron_ore": {
+   "name": "Iron ore"
+  },
+  "flax": {
+   "name": "Flax"
+  },
+  "bronze_bar": {
+   "name": "Bronze bar"
+  },
+  "iron_bar": {
+   "name": "Iron bar"
+  },
+  "steel_bar": {
+   "name": "Steel bar"
+  },
+  "bowstring": {
+   "name": "Bowstring"
+  },
+  "oak_bow": {
+   "name": "Oak bow"
+  },
+  "bronze_sword": {
+   "name": "Bronze sword"
+  },
+  "steel_sword": {
+   "name": "Steel sword"
+  },
+  "bronze_nails": {
+   "name": "Bronze nails"
+  },
+  "oak_plank": {
+   "name": "Oak plank"
+  },
+  "oak_chest": {
+   "name": "Oak chest"
+  }
+ },
+ "recipes": [
+  {
+   "id": "bronze_bar",
+   "output": {
+    "item": "bronze_bar",
+    "qty": 1
+   },
+   "ingredients": [
+    {
+     "item": "copper_ore",
+     "qty": 1
+    },
+    {
+     "item": "tin_ore",
+     "qty": 1
+    }
+   ],
+   "station": "furnace",
+   "skill": "smithing",
+   "level": 1,
+   "xp": 6
+  },
+  {
+   "id": "iron_bar",
+   "output": {
+    "item": "iron_bar",
+    "qty": 1
+   },
+   "ingredients": [
+    {
+     "item": "iron_ore",
+     "qty": 1
+    }
+   ],
+   "station": "furnace",
+   "skill": "smithing",
+   "level": 15,
+   "xp": 12
+  },
+  {
+   "id": "steel_bar",
+   "output": {
+    "item": "steel_bar",
+    "qty": 1
+   },
+   "ingredients": [
+    {
+     "item": "iron_bar",
+     "qty": 1
+    },
+    {
+     "item": "coal",
+     "qty": 2
+    }
+   ],
+   "station": "furnace",
+   "skill": "smithing",
+   "level": 30,
+   "xp": 18
+  },
+  {
+   "id": "bowstring",
+   "output": {
+    "item": "bowstring",
+    "qty": 1
+   },
+   "ingredients": [
+    {
+     "item": "flax",
+     "qty": 3
+    }
+   ],
+   "skill": "crafting",
+   "level": 1,
+   "xp": 4
+  },
+  {
+   "id": "oak_plank",
+   "output": {
+    "item": "oak_plank",
+    "qty": 2
+   },
+   "ingredients": [
+    {
+     "item": "oak_logs",
+     "qty": 1
+    }
+   ],
+   "station": "workbench",
+   "skill": "crafting",
+   "level": 5,
+   "xp": 3
+  },
+  {
+   "id": "oak_bow",
+   "output": {
+    "item": "oak_bow",
+    "qty": 1
+   },
+   "ingredients": [
+    {
+     "item": "oak_plank",
+     "qty": 2
+    },
+    {
+     "item": "bowstring",
+     "qty": 1
+    }
+   ],
+   "station": "workbench",
+   "skill": "crafting",
+   "level": 10,
+   "xp": 25
+  },
+  {
+   "id": "bronze_nails",
+   "output": {
+    "item": "bronze_nails",
+    "qty": 10
+   },
+   "ingredients": [
+    {
+     "item": "bronze_bar",
+     "qty": 1
+    }
+   ],
+   "station": "anvil",
+   "skill": "smithing",
+   "level": 4,
+   "xp": 8
+  },
+  {
+   "id": "bronze_sword",
+   "output": {
+    "item": "bronze_sword",
+    "qty": 1
+   },
+   "ingredients": [
+    {
+     "item": "bronze_bar",
+     "qty": 2
+    }
+   ],
+   "station": "anvil",
+   "skill": "smithing",
+   "level": 4,
+   "xp": 12
+  },
+  {
+   "id": "steel_sword",
+   "output": {
+    "item": "steel_sword",
+    "qty": 1
+   },
+   "ingredients": [
+    {
+     "item": "steel_bar",
+     "qty": 2
+    }
+   ],
+   "station": "anvil",
+   "skill": "smithing",
+   "level": 35,
+   "xp": 45
+  },
+  {
+   "id": "oak_chest",
+   "output": {
+    "item": "oak_chest",
+    "qty": 1
+   },
+   "ingredients": [
+    {
+     "item": "oak_plank",
+     "qty": 6
+    },
+    {
+     "item": "bronze_nails",
+     "qty": 10
+    }
+   ],
+   "station": "workbench",
+   "skill": "crafting",
+   "level": 20,
+   "xp": 60
+  }
+ ],
+ "xpTable": [
+  0,
+  83,
+  174,
+  276,
+  388,
+  512,
+  650,
+  801,
+  969,
+  1154,
+  1358,
+  1584,
+  1833,
+  2107,
+  2411,
+  2746,
+  3115,
+  3523,
+  3973,
+  4470,
+  5018,
+  5624,
+  6291,
+  7028,
+  7842,
+  8740,
+  9730,
+  10824,
+  12031,
+  13363,
+  14833,
+  16456,
+  18247,
+  20224,
+  22406,
+  24815,
+  27473,
+  30408,
+  33648,
+  37224,
+  41171,
+  45529,
+  50339,
+  55649,
+  61512,
+  67983,
+  75127,
+  83014,
+  91721,
+  101333,
+  111945,
+  123660,
+  136594,
+  150872,
+  166636,
+  184040,
+  203254,
+  224466,
+  247886,
+  273742,
+  302288,
+  333804,
+  368599,
+  407015,
+  449428,
+  496254,
+  547953,
+  605032,
+  668051,
+  737627,
+  814445,
+  899257,
+  992895,
+  1096278,
+  1210421,
+  1336443,
+  1475581,
+  1629200,
+  1798808,
+  1986068,
+  2192818,
+  2421087,
+  2673114,
+  2951373,
+  3258594,
+  3597792,
+  3972294,
+  4385776,
+  4842295,
+  5346332,
+  5902831,
+  6517253,
+  7195629,
+  7944614,
+  8771558,
+  9684577,
+  10692629,
+  11805606,
+  13034431
+ ],
+ "runecrafting": {
+  "altars": [
+   {
+    "id": "air",
+    "rune": "Air rune",
+    "level": 1,
+    "xpPerEssence": 2,
+    "runesPerEssence": 5,
+    "extraRuneChance": 0.05,
+    "bonusYieldLevel": 22,
+    "secondsPerCraft": 10
+   },
+   {
+    "id": "water",
+    "rune": "Water rune",
+    "level": 11,
+    "xpPerEssence": 4,
+    "runesPerEssence": 5,
+    "extraRuneChance": 0.05,
+    "bonusYieldLevel": 58,
+    "secondsPerCraft": 10
+   }
+  ]
+ }
+}

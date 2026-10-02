@@ -60,9 +60,9 @@
         "text": "Thanks again for the iron, friend! The forge has never burned brighter."
       },
       "rewards": {
-        "text": "150 Gold Coins & 250 Smithing XP",
-        "item": "Gold Coins",
-        "count": 150
+        "text": "10x Garou Pack & Dwarven Smithing Lore",
+        "item": "GarouPack",
+        "count": 10
       }
     },
     {

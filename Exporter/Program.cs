@@ -6,6 +6,7 @@ using CUE4Parse.Encryption.Aes;
 using CUE4Parse.FileProvider;
 using CUE4Parse.MappingsProvider.Usmap;
 using CUE4Parse.UE4.Assets.Exports.StaticMesh;
+using CUE4Parse.UE4.Assets.Exports.SkeletalMesh;
 using CUE4Parse.UE4.Assets.Exports.Texture;
 using CUE4Parse.UE4.Objects.Core.Misc;
 using CUE4Parse.UE4.Assets.Exports.Material;
@@ -14,7 +15,7 @@ using CUE4Parse_Conversion;
 using CUE4Parse_Conversion.Options;
 using CUE4Parse_Conversion.Writers.UEFormat.Enums;
 
-if (args.Length > 0 && args[0] == "types") { foreach (var n in args[1..]) { var t = typeof(CUE4Parse.FileProvider.DefaultFileProvider).Assembly.GetTypes().First(x => x.Name == n); Console.WriteLine(t.FullName); foreach (var m in t.GetMembers()) Console.WriteLine("  " + m); } return 0; }
+if (args.Length > 0 && args[0] == "types") { foreach (var n in args[1..]) { var t = new[] { typeof(CUE4Parse.FileProvider.DefaultFileProvider).Assembly, typeof(CUE4Parse_Conversion.ExportSession).Assembly }.SelectMany(a => a.GetTypes()).First(x => x.Name == n); Console.WriteLine(t.FullName); foreach (var m in t.GetMembers()) Console.WriteLine("  " + m); } return 0; }
 if (args.Length > 0 && args[0] == "gamedata") return GameData.Run(args[1..]);
 if (args.Length > 0 && args[0] == "gamedata-find") return GameData.Find(args[1..]);
 if (args.Length > 0 && args[0] == "world") return WorldTools.Run(args[1..]);
@@ -53,10 +54,10 @@ if (provider.MountedVfs.Count == 0)
     return 2;
 }
 
-// Candidates: packages named SM_* (the game's static mesh naming), optionally limited to path prefixes.
+// Candidates: packages named SM_* (or SK_* if skeletal/all-packages or included), optionally limited to path prefixes.
 var candidates = provider.Files.Values
     .Where(f => f.Extension.Equals("uasset", StringComparison.OrdinalIgnoreCase))
-    .Where(f => opt.AllPackages || f.Name.StartsWith("SM_", StringComparison.OrdinalIgnoreCase))
+    .Where(f => opt.AllPackages || f.Name.StartsWith("SM_", StringComparison.OrdinalIgnoreCase) || ((opt.Skeletal || opt.Include.Count > 0) && f.Name.StartsWith("SK_", StringComparison.OrdinalIgnoreCase)))
     .Where(f => opt.Include.Count == 0 || opt.Include.Any(p => f.Path.Contains(p, StringComparison.OrdinalIgnoreCase)))
     .OrderBy(f => f.Path, StringComparer.OrdinalIgnoreCase)
     .ToList();
@@ -96,11 +97,27 @@ foreach (var batch in candidates.Chunk(100))
         try
         {
             var pkg = provider.LoadPackage(file.Path);
-            foreach (var mesh in pkg.GetExports().OfType<UStaticMesh>())
+            foreach (var obj in pkg.GetExports())
             {
-                var key = Path.ChangeExtension(file.Path, null) + "." + mesh.Name;
-                var meshPath = mesh.GetPathName();
-                var mats = mesh.StaticMaterials.Select(m => m.MaterialInterface?.ResolvedObject?.GetPathName()).ToList();
+                List<string?>? mats = null;
+                string? meshPath = null;
+                string? key = null;
+
+                if (obj is UStaticMesh sm)
+                {
+                    key = Path.ChangeExtension(file.Path, null) + "." + sm.Name;
+                    meshPath = sm.GetPathName();
+                    mats = sm.StaticMaterials.Select(m => m.MaterialInterface?.ResolvedObject?.GetPathName()).ToList();
+                }
+                else if (obj is USkeletalMesh sk)
+                {
+                    key = Path.ChangeExtension(file.Path, null) + "." + sk.Name;
+                    meshPath = sk.GetPathName();
+                    mats = sk.SkeletalMaterials.Select(m => m.Material?.ResolvedObject?.GetPathName()).ToList();
+                }
+
+                if (mats == null || key == null) continue;
+
                 materialsOf[key] = mats;
                 if (meshPath != null)
                 {
@@ -108,7 +125,7 @@ foreach (var batch in candidates.Chunk(100))
                     materialsOf[meshPath.TrimStart('/')] = mats;
                 }
                 if (entries.ContainsKey(key) || (meshPath != null && (entries.ContainsKey(meshPath) || entries.ContainsKey(meshPath.TrimStart('/'))))) { skipped++; continue; }
-                session.Add(mesh);
+                session.Add(obj);
                 queued.Add(key);
                 if (meshPath != null)
                 {
@@ -222,7 +239,7 @@ class Options
     public List<string> Include = [];
     public int Limit;
     public int TextureQuality = 100;
-    public bool NoTextures, AllPackages, Verbose;
+    public bool NoTextures, AllPackages, Verbose, Skeletal;
 
     public static Options? Parse(string[] args)
     {
@@ -241,13 +258,14 @@ class Options
                 case "--texture-quality": o.TextureQuality = int.Parse(Next()); break;
                 case "--no-textures": o.NoTextures = true; break;
                 case "--all-packages": o.AllPackages = true; break;
+                case "--skeletal": o.Skeletal = true; break;
                 case "--verbose": o.Verbose = true; break;
                 default: Console.WriteLine($"Unknown option {args[i]}"); return null;
             }
         }
         if (o.Paks == "" || o.Out == "" || !Directory.Exists(o.Paks))
         {
-            Console.WriteLine("Usage: ModelExporter --paks <Content\\Paks dir> --out <dir> [--usmap <file>] [--aes 0x...] [--include <path part>]... [--limit N] [--no-textures]");
+            Console.WriteLine("Usage: ModelExporter --paks <Content\\Paks dir> --out <dir> [--usmap <file>] [--aes 0x...] [--include <path part>]... [--limit N] [--skeletal] [--no-textures]");
             return null;
         }
         if (o.Usmap != null && !File.Exists(o.Usmap)) { Console.WriteLine($"Mappings file not found: {o.Usmap}"); return null; }

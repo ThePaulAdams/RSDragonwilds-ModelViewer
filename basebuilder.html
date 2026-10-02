@@ -250,7 +250,13 @@ function gamePath(p) {
   if (!/\.[^/]+$/.test(p)) p += '.' + p.split('/').pop();
   return p;
 }
-const pretty = n => n.replace(/^(SM|SK)_/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/\s+/g, ' ').trim();
+const pretty = n => n
+  .replace(/^(SM|SK)_/, '')
+  .replace(/^[MFU]_(MED|LRG|SML)_/i, '')
+  .replace(/_/g, ' ')
+  .replace(/([a-z])([A-Z0-9])/g, '$1 $2')
+  .replace(/\s+/g, ' ')
+  .trim();
 
 let models = [];
 const byGamePath = new Map();
@@ -260,7 +266,13 @@ const byGamePath = new Map();
     const file = e.File.replace(/\\/g, '/');
     const path = gamePath(e.ObjectPath);
     const name = path.split('/').pop().split('.')[0];
-    const folder = path.split('/').slice(2, -1).filter(s => !/^(Art|Env|Meshes|Mesh)$/i.test(s)).slice(0, 2).join(' / ') || 'Other';
+    let folder;
+    if (path.includes('/Art/Skeleton/NPC/') || path.includes('/NPC/')) {
+      const sub = path.split(/NPC\//i)[1]?.split('/')[0] || 'Characters';
+      folder = `NPCs & Creatures / ${sub.replace(/_/g, ' ')}`;
+    } else {
+      folder = path.split('/').slice(2, -1).filter(s => !/^(Art|Env|Meshes|Mesh)$/i.test(s)).slice(0, 2).join(' / ') || 'Other';
+    }
     const materials = (e.Materials || []).map(x => ({
       name: x.Name || '', diffuse: x.BaseColor ? DATA_BASE + enc(x.BaseColor.replace(/\\/g, '/')) : null,
       normal: x.Normal ? DATA_BASE + enc(x.Normal.replace(/\\/g, '/')) : null, color: x.Color || null, masked: !!x.Masked }));

@@ -5,6 +5,7 @@
       "npc": "SK_Doric_01",
       "npcName": "Doric",
       "title": "Doric's Iron Delivery",
+      "repeatable": "daily",
       "description": "Gather 3 Iron Ore from the hills and deliver them to Doric.",
       "startDialogue": {
         "speaker": "Doric",

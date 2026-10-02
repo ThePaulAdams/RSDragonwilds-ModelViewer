@@ -1,10 +1,23 @@
-# Ashenfallen (Model Viewer)
+# Ashenfallen: 3D Base-Builder & Quest Storyboarder
 
-A browser app for finding the game's 3D objects (castle walls, towers, furniture, props) so they can be picked for the toolkit's building features later. It is not a UE4SS mod and `deploy.ps1` does not touch it.
+A browser-based 3D design studio and quest storyboarder for **RuneScape: Dragonwilds** ([https://ashenfallen.com](https://ashenfallen.com) or local web app).
 
-It shows every exported model as a thumbnail grid you can search and filter by folder, opens any model in a 3D view you can orbit, and shows its in-game object path (for example `/Game/Art/Env/Base_Building/Furniture/Cosiness/Chest/SM_Storage_Chest_01v2.SM_Storage_Chest_01v2`). That path is what a UE4SS mod passes to `StaticFindObject` to load the mesh in game. You can star the models you like and download the starred list as `starred-objects.json`.
+---
 
-Nothing is uploaded. The page reads the files straight from your disk.
+## 🎮 Does Ashenfallen Base-Builder require the in-game Modpack?
+**YES!** 
+
+- **Ashenfallen Base-Builder** is your **creative workspace**: freely search and inspect over 3,600+ extracted game models, plan castle layouts, place NPC companions (Doric, Wise Old Man, Cook, Zanik...), write branching dialogue trees, configure item collection or slaying objectives, and assign real rewards.
+- **RSDragonwilds-Toolkit (CustomBuilds mod)** is the **in-game runtime engine**: to see your placed objects and play your custom quests inside *RuneScape: Dragonwilds*, you must install the **CustomBuilds** mod via UE4SS. The mod reads your exported `base.txt`, `placed.txt`, and `quests.json`, materializes the models in the UE5 world, hooks the `E` interaction key, animates 3D overhead `!` markers, tracks inventory, and hands out real items.
+
+### How to use with the game:
+1. Design your base layout or quest storyboard in the web builder.
+2. Click **Save / Export**:
+   - If using the **File System Access API**, connect your game's `RSDragonwilds\Binaries\Win64\ue4ss\Mods\CustomBuilds` folder for instant live syncing.
+   - Or download `quests.json` / `placed.txt` and place them directly into `ue4ss\Mods\CustomBuilds\`.
+3. Launch the game or type `cb quest reload` in the `F10` console to immediately enjoy your custom quests and builds!
+
+---
 
 ## Quick start (automatic)
 

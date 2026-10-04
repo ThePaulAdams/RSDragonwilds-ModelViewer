@@ -77,10 +77,43 @@
   #selPath { color: var(--accent2); font-size: 11px; word-break: break-all; }
   .row { display: flex; gap: 6px; flex-wrap: wrap; }
   .muted { color: var(--muted); font-size: 12px; }
-  #list { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; }
-  #list div { padding: 3px 6px; border-radius: 4px; font-size: 12px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #list div:hover { background: var(--panel2); }
-  #list div.sel { background: var(--accent); color: #1a1a1a; }
+  #list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-height: 280px;
+    overflow-y: auto;
+    background: #131519;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px;
+  }
+  #list div {
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #f0f3f6;
+    background: var(--panel2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    user-select: none;
+  }
+  #list div:hover {
+    background: #2e3542;
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+  #list div.sel {
+    background: var(--accent);
+    color: #14161a;
+    font-weight: 600;
+    border-color: var(--accent);
+    box-shadow: 0 0 8px rgba(224, 182, 74, 0.4);
+  }
   #help { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: grid; place-items: center; padding: 16px; z-index: 10; }
   #help > div { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; max-width: 620px;
     max-height: calc(100vh - 32px); overflow-y: auto; }

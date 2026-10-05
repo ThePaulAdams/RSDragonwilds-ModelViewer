@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <base href="/">
 <title>Base Builder | Ashenfallen</title>
-<meta name="description" content="Design your RuneScape: Dragonwilds base in 3D with any of the game's 3,647 models, and send it straight into your game with the Custom Builds mod. Fan-made, not affiliated with Jagex.">
+<meta name="description" content="Design your RuneScape: Dragonwilds base in 3D with 5,100+ game models, spawn companion NPCs, write custom quests, and sync live into your game with the Ashenfallen Modpack on CurseForge. Fan-made, not affiliated with Jagex.">
 <meta name="theme-color" content="#14161a">
 <link rel="icon" href="/favicon.ico?v=1" sizes="48x48">
 <link rel="icon" href="/favicon-32.png?v=1" type="image/png" sizes="32x32">
@@ -114,12 +114,79 @@
     border-color: var(--accent);
     box-shadow: 0 0 8px rgba(224, 182, 74, 0.4);
   }
-  #help { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: grid; place-items: center; padding: 16px; z-index: 10; }
-  #help > div { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; max-width: 620px;
-    max-height: calc(100vh - 32px); overflow-y: auto; }
-  #help h3 { margin: 0 0 6px; }
-  #help ol { padding-left: 20px; margin: 8px 0 14px; }
-  #help li { margin: 4px 0; }
+  #help {
+    position: fixed; inset: 0; background: rgba(5, 7, 10, .85);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; z-index: 160; backdrop-filter: blur(6px);
+  }
+  #help[hidden] { display: none !important; }
+  .help-dialog {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    width: 860px; max-width: 96vw; max-height: calc(100vh - 36px);
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.85);
+  }
+  .help-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel2);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0;
+  }
+  .help-header h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; color: var(--accent); }
+  .help-tabs {
+    display: flex; gap: 6px; padding: 10px 20px; background: rgba(16, 18, 22, 0.7);
+    border-bottom: 1px solid var(--line); overflow-x: auto; flex-shrink: 0;
+  }
+  .help-tab-btn {
+    background: transparent; border: 1px solid transparent; color: var(--muted); font-size: 13px;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; white-space: nowrap;
+    display: flex; align-items: center; gap: 6px; transition: all .15s ease;
+  }
+  .help-tab-btn:hover { color: var(--text); background: var(--panel2); border-color: var(--line); }
+  .help-tab-btn.active { color: #38bdf8; background: rgba(56, 189, 248, 0.12); border-color: #38bdf8; font-weight: 600; }
+  .help-body {
+    padding: 20px 24px; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px;
+    font-size: 13.5px; line-height: 1.6;
+  }
+  .help-tab-pane { display: none; flex-direction: column; gap: 16px; }
+  .help-tab-pane.active { display: flex; }
+  .help-card {
+    background: rgba(18, 20, 24, 0.7); border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px;
+  }
+  .help-card-highlight {
+    background: linear-gradient(135deg, rgba(30, 58, 95, 0.45) 0%, rgba(16, 25, 40, 0.7) 100%);
+    border: 1px solid #38bdf8;
+  }
+  .help-card-gold {
+    background: linear-gradient(135deg, rgba(74, 58, 20, 0.35) 0%, rgba(28, 22, 10, 0.6) 100%);
+    border: 1px solid var(--accent);
+  }
+  .help-step-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .help-step-list li { margin: 0; }
+  .help-code {
+    background: #0f1115; border: 1px solid #23272f; border-radius: 6px; padding: 8px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px;
+    color: #a5b4fc; overflow-x: auto; margin: 6px 0;
+  }
+  .help-badge {
+    font-size: 11px; padding: 2px 7px; border-radius: 999px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .help-badge-blue { background: #0c4a6e; color: #7dd3fc; border: 1px solid #0284c7; }
+  .help-badge-gold { background: #453408; color: #fde047; border: 1px solid #ca8a04; }
+  .help-badge-green { background: #14532d; color: #86efac; border: 1px solid #16a34a; }
+  .help-btn-link {
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 6px;
+    text-decoration: none; font-weight: 600; font-size: 13px; cursor: pointer; transition: all .15s ease;
+  }
+  .help-btn-primary { background: #0284c7; color: #fff; border: 1px solid #38bdf8; }
+  .help-btn-primary:hover { background: #0369a1; }
+  .help-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .help-table th, .help-table td { padding: 7px 10px; border: 1px solid var(--line); text-align: left; }
+  .help-table th { background: var(--panel2); color: var(--muted); font-weight: 600; }
+  .help-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+  .help-footer {
+    padding: 12px 20px; border-top: 1px solid var(--line); background: var(--panel2);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0;
+  }
   kbd { background: var(--panel2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 12px; }
   @media (max-width: 1000px) { #app { grid-template-columns: 240px 1fr; } #props { display: none; } }
 
@@ -256,7 +323,8 @@
       <button id="importBtn" title="Load a placed.txt file">Import</button>
       <button id="exportBtn" title="Download placed.txt">Export</button>
       <button id="questsBtn" title="Quest Creation & Storyboard Editor" style="background:#22381e; border-color:#4a8235; color:#aef595; font-weight:600;">📜 Quests</button>
-      <button id="helpBtn">Help</button>
+      <button id="installGuideBtn" style="background:#1e3a5f; border-color:#38bdf8; color:#38bdf8; font-weight:600;" title="Install Guide: CurseForge Modpack &amp; Base Builder">📦 Install &amp; Modpack</button>
+      <button id="helpBtn" title="Guide &amp; Controls">Help</button>
     </div>
   </header>
 
@@ -320,28 +388,242 @@
   </aside>
 </div>
 
-<div id="help" hidden><div>
-  <h3>Build your base here, see it in your game</h3>
-  <p class="muted">Works with or without mods. Live in-game sync needs the <b>Custom Builds</b> mod (in the RuneScape: Dragonwilds Toolkit) and Chrome or Edge.</p>
-  <p><b>Load your game save (No mods needed):</b> Click <b>Open save</b> and pick <code>Wilds.sav</code> from <code>%LOCALAPPDATA%\RSDragonwilds\Saved\SaveGames</code>. Your full base loads instantly in 3D right where you built it, surrounded by the real game terrain and world map. The save is only read, never modified.</p>
-  <p><b>To build and sync with your game:</b></p>
-  <ol>
-    <li>Click <b>Connect game folder</b> and pick your main <code>RSDragonwilds</code> game folder (Steam: right-click game &gt; Manage &gt; Browse local files). The builder automatically locates your mod directory or saves <code>placed.txt</code> right there.</li>
-    <li>In the game, stand where you want to build and the builder will automatically anchor to your live player position (or type <code>cb anchor</code> in console F10).</li>
-    <li>Pick models from the library (or click any world object to eyedropper it) and place them down. Every change saves into <code>placed.txt</code> and updates live in your game!</li>
-  </ol>
-  <h3>Controls</h3>
-  <p class="muted">
-    <b>Click</b> place / select &nbsp; <kbd>Shift</kbd>+<b>Click</b> multi-select &nbsp; <kbd>Ctrl+A</kbd> select all<br>
-    <b>Click world object</b> Eyedropper &nbsp; <kbd>Alt</kbd>+<b>Click world object</b> Clone into base<br>
-    <b>Drag</b> orbit &nbsp; <b>Right drag</b> pan &nbsp; <b>Wheel</b> zoom &nbsp; <kbd>F</kbd> focus &nbsp; <kbd>P</kbd> player<br>
-    <kbd>W</kbd> move &nbsp; <kbd>E</kbd> rotate &nbsp; <kbd>R</kbd> scale &nbsp; <kbd>G</kbd> grid snap &nbsp; <kbd>M</kbd> magnet connect<br>
-    <kbd>Q</kbd> / <kbd>E</kbd> rotate step &nbsp; <kbd>T</kbd> turn 90° &nbsp; <kbd>End</kbd> drop to floor &nbsp; <kbd>Alt</kbd> bypass snap / duplicate drag<br>
-    <kbd>Arrows</kbd> nudge &nbsp; <kbd>Shift+Arrows</kbd> fine rotate &nbsp; <kbd>Delete</kbd> delete &nbsp; <kbd>Ctrl+D</kbd> duplicate &nbsp; <kbd>Ctrl+Z</kbd> undo
-  </p>
-  <p class="muted">No game folder? Use <b>Export</b> to download <code>placed.txt</code> and copy it into that folder yourself (with the game closed).</p>
-  <div class="row"><button id="helpClose" class="primary">Got it</button></div>
-</div></div>
+<div id="help" hidden>
+  <div class="help-dialog">
+    <div class="help-header">
+      <h3>📖 Ashenfallen Base Builder &amp; Modpack Guide</h3>
+      <button id="helpCloseX" class="small" style="padding: 2px 8px; font-size: 14px;" title="Close">✕</button>
+    </div>
+    <div class="help-tabs">
+      <button class="help-tab-btn active" data-tab="helpTabModpack">📦 Modpack Install (CurseForge)</button>
+      <button class="help-tab-btn" data-tab="helpTabBuild">🏗️ How to Build &amp; Live Sync</button>
+      <button class="help-tab-btn" data-tab="helpTabQuests">📜 Companions &amp; Quests</button>
+      <button class="help-tab-btn" data-tab="helpTabControls">⌨️ Controls &amp; Shortcuts</button>
+    </div>
+    <div class="help-body">
+      <!-- TAB 1: MODPACK INSTALL -->
+      <div id="helpTabModpack" class="help-tab-pane active">
+        <div class="help-card help-card-highlight" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+              <span class="help-badge help-badge-blue">Official Modpack</span>
+              <strong style="font-size:15px; color:#fff;">Ashenfallen Modpack on CurseForge</strong>
+            </div>
+            <div class="muted" style="font-size:12px; max-width:540px;">
+              The all-in-one runtime engine for <i>RuneScape: Dragonwilds</i>. Powers CustomBuilds (live model &amp; quest sync), PauseGuard, OSRS Minimap, QuickStack, AutoRun, and more.
+            </div>
+          </div>
+          <a href="https://www.curseforge.com/runescape-dragonwilds/ue4ss-mods/ashenfallen-modpack" target="_blank" rel="noopener noreferrer" class="help-btn-link help-btn-primary">
+            <span>📥 View on CurseForge</span>
+            <span style="font-size:11px;">↗</span>
+          </a>
+        </div>
+
+        <div class="help-card">
+          <h4 style="margin:0 0 10px; color:#38bdf8; font-size:14px;">📋 Installation Steps</h4>
+          <ol class="help-step-list">
+            <li>
+              <strong>Prerequisite — Install UE4SS Experimental (UE 5.6):</strong>
+              <div class="muted" style="margin:2px 0 6px;">
+                <i>RuneScape: Dragonwilds</i> runs on Unreal Engine 5.6. Download the experimental UE4SS release compiled for UE 5.6.
+              </div>
+              <div class="muted">Extract the UE4SS files directly into your game's binary folder:</div>
+              <div class="help-code">&lt;SteamLibrary&gt;\steamapps\common\RSDragonwilds\RSDragonwilds\Binaries\Win64\</div>
+              <div class="muted" style="font-size:11.5px;">(You will see <code>ue4ss.dll</code>, proxy DLL e.g. <code>dwmapi.dll</code>, and a <code>ue4ss/</code> directory).</div>
+            </li>
+            <li>
+              <strong>Download the Ashenfallen Modpack:</strong>
+              <div class="muted" style="margin:2px 0 6px;">
+                Download the latest release zip from <a href="https://www.curseforge.com/runescape-dragonwilds/ue4ss-mods/ashenfallen-modpack" target="_blank" rel="noopener noreferrer" style="color:#38bdf8; text-decoration:underline;">CurseForge Ashenfallen Modpack</a>.
+              </div>
+            </li>
+            <li>
+              <strong>Extract into your Mods folder:</strong>
+              <div class="muted" style="margin:2px 0 6px;">Unzip the modpack contents directly into:</div>
+              <div class="help-code">&lt;SteamLibrary&gt;\steamapps\common\RSDragonwilds\RSDragonwilds\Binaries\Win64\ue4ss\Mods\</div>
+              <div class="muted">Your folder structure will look like this:</div>
+              <div class="help-code">RSDragonwilds\Binaries\Win64\ue4ss\Mods\
+├── CustomBuilds\             &lt;-- Live piece &amp; interactive quest engine
+│   ├── scripts\main.lua
+│   ├── placed.txt
+│   └── quests.json
+├── OSRSMinimap\              &lt;-- Old School RuneScape HUD minimap
+├── PauseGuard\               &lt;-- Anti-freeze &amp; pause safeguard
+├── QuickStack\               &lt;-- Instant 1-click chest sorting
+├── AutoRun\                  &lt;-- Auto-sprint / run toggle
+└── mods.txt                  &lt;-- Enables the mods</div>
+            </li>
+            <li>
+              <strong>Launch RuneScape: Dragonwilds:</strong>
+              <div class="muted" style="margin:2px 0 0;">
+                Start the game via Steam. UE4SS loads your mods automatically! Press <kbd>F10</kbd> in-game if you want to open the developer console.
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        <div class="help-card help-card-gold">
+          <div style="font-weight:600; color:var(--accent); margin-bottom:4px;">✨ What's Included in the Modpack?</div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:10px; font-size:12.5px; margin-top:8px;">
+            <div>• <b>CustomBuilds:</b> Reads web layouts &amp; custom quests, spawning models and companion NPCs live in your world.</div>
+            <div>• <b>PauseGuard:</b> Prevents game desyncs and freezing while paused or saving.</div>
+            <div>• <b>OSRSMinimap:</b> Classic Old School RuneScape minimap overlay with square/round toggle and player radar.</div>
+            <div>• <b>QuickStack:</b> Automatically deposits matching items into nearby chests.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: HOW TO BUILD & LIVE SYNC -->
+      <div id="helpTabBuild" class="help-tab-pane">
+        <div class="help-card help-card-highlight">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <span class="help-badge help-badge-green">Method 1</span>
+            <strong style="color:#fff; font-size:14px;">⚡ Live In-Game 2-Way Sync (Recommended)</strong>
+          </div>
+          <p class="muted" style="margin:4px 0 10px;">
+            Connect your browser directly to your game folder using the modern File System Access API (Chrome, Edge, Brave, or Opera).
+          </p>
+          <ol class="help-step-list">
+            <li>
+              Click the green <b>Connect game folder</b> button in the top toolbar.
+            </li>
+            <li>
+              In the folder dialog, select your main <code>RSDragonwilds</code> game folder (Steam Library &gt; right-click RuneScape: Dragonwilds &gt; Manage &gt; Browse local files). The builder automatically locates your <code>CustomBuilds</code> mod directory!
+            </li>
+            <li>
+              <b>Auto-Anchor to Player:</b> Stand in-game where you want your building or camp. The web builder auto-anchors to your live player coordinates! Click <b>👤 Player</b> (or press <kbd>P</kbd>) to fly the camera right to your character.
+            </li>
+            <li>
+              <b>Place &amp; Watch:</b> Browse over 5,100+ authentic models on the left, click to place them, and adjust with gizmos. Every movement or piece placed saves to <code>placed.txt</code> and materializes <b>live in your game</b> immediately!
+            </li>
+          </ol>
+        </div>
+
+        <div class="help-card">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <span class="help-badge help-badge-blue">Method 2</span>
+            <strong style="color:var(--text); font-size:14px;">💾 Manual Export &amp; Import (Offline / Any Browser)</strong>
+          </div>
+          <p class="muted" style="margin:4px 0 8px;">
+            Don't want to connect your folder live or using Firefox / Safari? You can still build offline!
+          </p>
+          <ul style="margin:0; padding-left:20px; display:flex; flex-direction:column; gap:6px;">
+            <li>Build and design your base freely in this 3D canvas.</li>
+            <li>Click <b>Export</b> in the top toolbar to download your <code>placed.txt</code> file.</li>
+            <li>Copy <code>placed.txt</code> into <code>RSDragonwilds\Binaries\Win64\ue4ss\Mods\CustomBuilds\</code>.</li>
+            <li>When you launch the game or enter the world, all pieces will spawn around your anchor position.</li>
+            <li>Click <b>Import</b> anytime to re-load an existing <code>placed.txt</code> back into the web builder.</li>
+          </ul>
+        </div>
+
+        <div class="help-card">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <span class="help-badge help-badge-gold">Method 3</span>
+            <strong style="color:var(--text); font-size:14px;">🔍 Mod-Free Save Game Inspector</strong>
+          </div>
+          <p class="muted" style="margin:4px 0 8px;">
+            Want to see your vanilla game base in 3D without installing any mods?
+          </p>
+          <ul style="margin:0; padding-left:20px; display:flex; flex-direction:column; gap:6px;">
+            <li>Click <b>Open save</b> in the top toolbar.</li>
+            <li>Select <code>Wilds.sav</code> from <code>%LOCALAPPDATA%\RSDragonwilds\Saved\SaveGames\</code>.</li>
+            <li>Your full vanilla building pieces load in full 3D surrounded by authentic terrain. Completely read-only and safe!</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- TAB 3: COMPANIONS & QUESTS -->
+      <div id="helpTabQuests" class="help-tab-pane">
+        <div class="help-card help-card-highlight">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <span class="help-badge help-badge-blue">Storyboarding</span>
+            <strong style="color:#fff; font-size:14px;">📜 Creating Custom Interactive Quests &amp; Companions</strong>
+          </div>
+          <p class="muted" style="margin:4px 0 10px;">
+            Turn your base into a living RuneScape settlement! Spawn iconic NPCs, write dialogue trees, and reward players with real items and XP.
+          </p>
+          <ol class="help-step-list">
+            <li>
+              <b>Place Companion NPCs:</b> Search for characters in the left library (e.g. <code>Doric</code>, <code>Cook</code>, <code>Wise Old Man</code>, <code>Father Aereck</code>, guards, shopkeepers) and place them in your base.
+            </li>
+            <li>
+              <b>Open Storyboard Editor:</b> Select the placed NPC and click <b>📜 Storyboard for this NPC</b> in the right sidebar (or click <b>📜 Quests</b> in the top toolbar).
+            </li>
+            <li>
+              <b>Configure Dialogue &amp; Choices:</b> Write NPC lines, add player response options (e.g. <i>"I can help with that!"</i>), and configure branching quest paths.
+            </li>
+            <li>
+              <b>Set Objectives &amp; 3D Waypoints:</b> Require players to talk to NPCs, collect specific items (ores, logs, runes, food), or visit coordinates. Click <b>📍 Pick in 3D</b> to set the exact waypoint location in the 3D scene!
+            </li>
+            <li>
+              <b>Assign In-Game Rewards:</b> Configure gold, skill XP (Smithing, Cooking, Combat), or item packs awarded to the player upon quest completion.
+            </li>
+            <li>
+              <b>Live In-Game Interaction:</b> NPCs display animated 3D <code>!</code> exclamation markers overhead in-game. Walk up to them and press <kbd>E</kbd> to initiate dialogue and start the quest!
+            </li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- TAB 4: CONTROLS & SHORTCUTS -->
+      <div id="helpTabControls" class="help-tab-pane">
+        <table class="help-table">
+          <thead>
+            <tr><th style="width:160px;">Action / Category</th><th>Controls &amp; Hotkeys</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>Camera Navigation</b></td>
+              <td>
+                <b>Left Drag:</b> Orbit camera &nbsp;|&nbsp; <b>Right Drag:</b> Pan camera &nbsp;|&nbsp; <b>Scroll Wheel:</b> Zoom<br>
+                <kbd>F</kbd>: Focus on selected object &nbsp;|&nbsp; <kbd>P</kbd>: Focus on player location
+              </td>
+            </tr>
+            <tr>
+              <td><b>Gizmo Modes</b></td>
+              <td>
+                <kbd>W</kbd>: Move (Translate) &nbsp;|&nbsp; <kbd>E</kbd>: Rotate &nbsp;|&nbsp; <kbd>R</kbd>: Scale
+              </td>
+            </tr>
+            <tr>
+              <td><b>Snapping &amp; Alignment</b></td>
+              <td>
+                <kbd>G</kbd>: Toggle Grid Snap &nbsp;|&nbsp; <kbd>M</kbd>: Toggle Magnet Snap (Edge-to-edge magnetic snapping)<br>
+                <kbd>Alt</kbd> (Hold): Temporarily bypass snapping while dragging &nbsp;|&nbsp;
+                <kbd>End</kbd>: Drop bottom flush to floor
+              </td>
+            </tr>
+            <tr>
+              <td><b>Selection &amp; Cloning</b></td>
+              <td>
+                <b>Click:</b> Place model / Select object &nbsp;|&nbsp; <kbd>Shift</kbd>+<b>Click:</b> Multi-select<br>
+                <kbd>Ctrl+A</kbd>: Select all placed &nbsp;|&nbsp; <kbd>Ctrl+D</kbd>: Duplicate selected &nbsp;|&nbsp; <kbd>Alt</kbd>+Drag: Clone piece<br>
+                <kbd>Delete</kbd>: Delete selected &nbsp;|&nbsp; <kbd>Ctrl+Z</kbd>: Undo last action
+              </td>
+            </tr>
+            <tr>
+              <td><b>Fine Manipulation</b></td>
+              <td>
+                <kbd>T</kbd>: Rotate 90° &nbsp;|&nbsp; <kbd>Q</kbd> / <kbd>E</kbd>: Rotate by snap step &nbsp;|&nbsp; <kbd>Arrows</kbd>: Nudge position &nbsp;|&nbsp; <kbd>Shift+Arrows</kbd>: Fine rotate
+              </td>
+            </tr>
+            <tr>
+              <td><b>World Eyedropper</b></td>
+              <td>
+                <b>Click world object:</b> Eyedropper (selects model in library)<br>
+                <kbd>Alt</kbd>+<b>Click world object:</b> Clone world object directly into your base!
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="help-footer">
+      <span class="muted" style="font-size:12px;">Ashenfallen Base Builder &bull; Built for RuneScape: Dragonwilds</span>
+      <button id="helpClose" class="primary">Got it</button>
+    </div>
+  </div>
+</div>
 
 <div id="questPickBar" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#182b15; border:2px solid #55a83b; color:#fff; padding:10px 22px; border-radius:30px; box-shadow:0 12px 35px rgba(0,0,0,0.8); z-index:200; display:flex; align-items:center; gap:16px; font-weight:600; font-size:13px;" hidden>
   <span>📍 Click anywhere in the 3D scene to set the Quest Objective location</span>
@@ -3336,9 +3618,39 @@ $('snapBtn').onclick = toggleSnap;
 $('delBtn').onclick = del;
 $('dupBtn').onclick = duplicate;
 $('undoBtn').onclick = undo;
-$('helpBtn').onclick = () => $('help').hidden = false;
-$('helpClose').onclick = () => { $('help').hidden = true; try { localStorage.setItem('bb.helpSeen', '1'); } catch {} };
-try { if (!localStorage.getItem('bb.helpSeen')) $('help').hidden = false; } catch { $('help').hidden = false; }
+function switchHelpTab(tabId) {
+  document.querySelectorAll('.help-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  });
+  document.querySelectorAll('.help-tab-pane').forEach(pane => {
+    pane.classList.toggle('active', pane.id === tabId);
+  });
+}
+function openGuide(tabId = 'helpTabModpack') {
+  $('help').hidden = false;
+  switchHelpTab(tabId);
+}
+const closeHelpModal = () => {
+  $('help').hidden = true;
+  try { localStorage.setItem('bb.helpSeen', '1'); } catch {}
+};
+document.querySelectorAll('.help-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchHelpTab(btn.dataset.tab));
+});
+$('installGuideBtn')?.addEventListener('click', () => openGuide('helpTabModpack'));
+$('helpBtn').onclick = () => openGuide('helpTabBuild');
+$('helpClose').onclick = closeHelpModal;
+$('helpCloseX')?.addEventListener('click', closeHelpModal);
+$('help').addEventListener('click', e => {
+  if (e.target === $('help')) closeHelpModal();
+});
+try {
+  if (!localStorage.getItem('bb.helpSeen')) {
+    openGuide('helpTabModpack');
+  }
+} catch {
+  openGuide('helpTabModpack');
+}
 
 function toggleMagnet() {
   magnetOn = !magnetOn;
@@ -3462,7 +3774,10 @@ renderRecent();
 addEventListener('keydown', e => {
   if (e.target.matches('input, select, textarea')) return;
   const k = e.key.toLowerCase();
-  if (k === 'escape') { if (picked) setPicked(null); else select(null); }
+  if (k === 'escape') {
+    if (!$('help').hidden) { closeHelpModal(); return; }
+    if (picked) setPicked(null); else select(null);
+  }
   else if (k === 'delete' || k === 'backspace') { e.preventDefault(); del(); }
   else if (k === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
   else if (k === 'd' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); duplicate(); }

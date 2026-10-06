@@ -1851,16 +1851,23 @@ async function focusPlayer() {
   const p = livePlayer || toGame(playerAvatar.position);
 
   const dist = Math.hypot(p.X - anchor.X, p.Y - anchor.Y);
-  if (dist > 3000 || !worldShown) {
+  const zDist = Math.abs((p.Z || 0) - (anchor.Z || 0));
+  if (dist > 50 || zDist > 50 || !worldShown) {
     await setAnchorTo({ X: p.X, Y: p.Y, Z: p.Z, Yaw: p.Yaw || 0 });
     toast('Anchored to player & loaded world map');
   } else {
-    toast('Focused on player');
+    await loadWorld();
+    toast('Focused on player & refreshed world map');
   }
 
-  const c = playerAvatar.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+  const c = playerAvatar.position.clone().add(new THREE.Vector3(0, 1.2, 0));
   orbit.target.copy(c);
-  camera.position.copy(c).add(new THREE.Vector3(1, 0.8, 1).normalize().multiplyScalar(5));
+  const yawRad = (p.Yaw || 0) * D;
+  camera.position.set(
+    c.x - Math.cos(yawRad) * 16,
+    c.y + 7,
+    c.z - Math.sin(yawRad) * 16
+  );
 }
 async function focusCamp() {
   const c = getCampCenter();
@@ -2656,8 +2663,13 @@ const terrainGroup = new THREE.Group(), worldGroup = new THREE.Group();
 scene.add(terrainGroup, worldGroup);
 const SQUARE = 25600;   // cm per objects file
 let worldIndex = null;  // { tiles, meshes } once loaded, false when the site has no world data
-// Ground cover (flowers, grass, fallen branches): tens of thousands per square, off unless asked for.
-const isPlant = p => /\/SM_GF_|\/SM_Branches_/i.test(p);
+// Ground cover (flowers, grass, small bushes, weeds, fallen branches): tens of thousands per square, off unless asked for.
+// Never cull cliffs, cave walls, boulders, buildings, architecture, trees, ruins, or props.
+const isPlant = p => {
+  if (!p) return false;
+  if (/Cliff|Rock|Cave|Wall|Stone|Architecture|Building|Temple|Fortress|Castle|Tower|Gate|Bridge|Ruin|Road|Cobble|Prop|Crate|Barrel|Chest|Camp|Tent|Ore|Node|Mining|Tree|Water/i.test(p)) return false;
+  return /\/Foliage\/|\/Grass\/|\/Flowers\/|\/Branches_/i.test(p) || /WildGrass|LongSeededGrass|Fern|Dandelion|Clover|Weed|Reeds|Poppy|Thistle|Mushroom|Bush|Ivy|Vine|Flora/i.test(p);
+};
 async function worldData() {
   if (worldIndex !== null) return worldIndex;
   try {
@@ -2715,6 +2727,7 @@ function addInstances(root, rows, m) {
       _m.compose(_p, ueToThreeQuat({ x: r[4], y: r[5], z: r[6], w: r[7] }), _s).multiply(o.matrixWorld);
       im.setMatrixAt(i, _m);
     });
+    im.instanceMatrix.needsUpdate = true;
     im.computeBoundingSphere();
     worldGroup.add(im);
   });

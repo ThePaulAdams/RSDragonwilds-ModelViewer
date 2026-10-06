@@ -287,7 +287,8 @@
     <div class="group">
       <button id="saveBtn" title="Show your base from your save file (Wilds.sav). Read only: the save is never changed.">Open save</button>
       <button id="connectBtn" class="primary" title="Pick your RSDragonwilds game root folder (Steam > Manage > Browse local files). Works automatically with root folder or mod folder!">Connect game folder</button>
-      <button id="playerBtn" style="display:none; color: #38bdf8; font-weight: 600;" title="Focus camera on player in 3D (P)">👤 Player</button>
+      <button id="playerBtn" style="display:none; color: #38bdf8; font-weight: 600;" title="Focus camera and world on your in-game character (P)">👤 Player</button>
+      <button id="campBtn" style="display:none; color: #a78bfa; font-weight: 600;" title="Focus camera and world on your camp / placed models (C)">🏕️ Camp</button>
       <span id="sync">Not connected: changes stay in this page until you connect or export.</span>
     </div>
     <div class="grow"></div>
@@ -982,6 +983,7 @@ const byGamePath = new Map();
 // metres, Y up, right-handed, origin at the anchor. Swapping Y/Z flips handedness.
 // ---------------------------------------------------------------------------
 let anchor = { X: 0, Y: 0, Z: 0, Yaw: 0 };
+let livePlayer = null;
 const toScene = (x, y, z) => new THREE.Vector3((x - anchor.X) / 100, (z - anchor.Z) / 100, (y - anchor.Y) / 100);
 const toGame = v => ({ X: v.x * 100 + anchor.X, Y: v.z * 100 + anchor.Y, Z: v.y * 100 + anchor.Z });
 const D = Math.PI / 180;
@@ -1586,7 +1588,7 @@ function refreshList() {
     list.append(d);
   }
 }
-function focusSelected() {
+async function focusSelected() {
   if (!selection.size) return;
   const box = new THREE.Box3();
   for (const id of selection) {
@@ -1595,17 +1597,105 @@ function focusSelected() {
   }
   const c = box.isEmpty() ? (selection.size === 1 ? objects.get(selected).position.clone() : selectionPivot.position.clone()) : box.getCenter(new THREE.Vector3());
   const size = box.isEmpty() ? 4 : box.getSize(new THREE.Vector3()).length();
+  const gamePos = toGame(c);
+  const dist = Math.hypot(gamePos.X - anchor.X, gamePos.Y - anchor.Y);
+  if (dist > 5000) {
+    await setAnchorTo({ X: gamePos.X, Y: gamePos.Y, Z: gamePos.Z, Yaw: 0 });
+    orbit.target.set(0, 0, 0);
+    camera.position.set(14, 11, 14);
+    toast('Moved anchor & world to selected object');
+    return;
+  }
   orbit.target.copy(c);
   camera.position.copy(c).add(new THREE.Vector3(1, 0.8, 1).normalize().multiplyScalar(Math.max(4, size * 1.4)));
 }
-function focusPlayer() {
-  if (!playerAvatar.visible) return;
+function getCampCenter() {
+  if (!records.size) return null;
+  const mid = k => { const v = [...records.values()].map(r => r[k]).sort((a, b) => a - b); return v[v.length >> 1]; };
+  return { X: mid('X'), Y: mid('Y'), Z: mid('Z'), Yaw: 0 };
+}
+function updateNavButtons() {
+  const pb = $('playerBtn'), cb = $('campBtn');
+  if (pb && (livePlayer || playerAvatar.visible)) {
+    pb.style.display = '';
+  }
+  if (cb) {
+    const camp = getCampCenter();
+    if (camp && Math.hypot(camp.X - anchor.X, camp.Y - anchor.Y) > 5000) {
+      cb.style.display = '';
+      cb.textContent = `🏕️ Camp (${records.size})`;
+    } else {
+      cb.style.display = 'none';
+    }
+  }
+}
+async function setAnchorTo(newAnchor) {
+  if (!newAnchor) return;
+  anchor = { X: newAnchor.X, Y: newAnchor.Y, Z: newAnchor.Z, Yaw: newAnchor.Yaw || 0 };
+  anchorFromGame = true;
+
+  // Re-position placed objects relative to the new anchor
+  rebuildAll();
+
+  // Re-position player avatar
+  if (livePlayer) {
+    playerAvatar.position.copy(toScene(livePlayer.X, livePlayer.Y, livePlayer.Z));
+    playerAvatar.rotation.y = -livePlayer.Yaw * D;
+    playerAvatar.visible = true;
+  }
+
+  // Update anchor marker in scene
+  anchorMark.position.set(0, 0, 0);
+  anchorMark.rotation.y = -anchor.Yaw * D;
+
+  // Refresh native pieces from base.txt if loaded
+  if (typeof loadBase === 'function') {
+    await loadBase();
+  }
+
+  // Refresh quest markers
+  if (typeof updateQuestVisuals === 'function') {
+    updateQuestVisuals();
+  }
+
+  // Save anchor.txt to game folder if connected
+  if (dir) {
+    try {
+      await writeText('anchor.txt', `# CustomBuilds anchor: x|y|z|yaw\n${anchor.X.toFixed(2)}|${anchor.Y.toFixed(2)}|${anchor.Z.toFixed(2)}|${anchor.Yaw.toFixed(2)}\n`);
+    } catch {}
+  }
+
+  updateNavButtons();
+
+  // Load the world around the new anchor
+  await loadWorld();
+}
+async function focusPlayer() {
+  if (!livePlayer && !playerAvatar.visible) return;
+  const p = livePlayer || toGame(playerAvatar.position);
+
+  const dist = Math.hypot(p.X - anchor.X, p.Y - anchor.Y);
+  if (dist > 3000 || !worldShown) {
+    await setAnchorTo({ X: p.X, Y: p.Y, Z: p.Z, Yaw: p.Yaw || 0 });
+    toast('Anchored to player & loaded world map');
+  } else {
+    toast('Focused on player');
+  }
+
   const c = playerAvatar.position.clone().add(new THREE.Vector3(0, 0.9, 0));
   orbit.target.copy(c);
   camera.position.copy(c).add(new THREE.Vector3(1, 0.8, 1).normalize().multiplyScalar(5));
-  toast('Focused on player');
+}
+async function focusCamp() {
+  const c = getCampCenter();
+  if (!c) return;
+  await setAnchorTo(c);
+  orbit.target.set(0, 0, 0);
+  camera.position.set(14, 11, 14);
+  toast(`Anchored to camp (${records.size} pieces) & loaded world map`);
 }
 $('playerBtn')?.addEventListener('click', focusPlayer);
+$('campBtn')?.addEventListener('click', focusCamp);
 
 // ---------------------------------------------------------------------------
 // Undo
@@ -2127,6 +2217,7 @@ async function loadFromFolder() {
     if (line) {
       const [x, y, z, yaw] = line.split('|').map(Number);
       playerLoc = { X: x, Y: y, Z: z, Yaw: yaw || 0 };
+      livePlayer = playerLoc;
     }
   }
 
@@ -2136,16 +2227,24 @@ async function loadFromFolder() {
   const a = await readText('anchor.txt');
   if (a) {
     const line = a.split(/\r?\n/).find(l => /^-?[\d.]+\|/.test(l));
-    if (line) { const [x, y, z, yaw] = line.split('|').map(Number); anchor = { X: x, Y: y, Z: z, Yaw: yaw || 0 }; anchorFromGame = true; }
+    if (line) {
+      const [x, y, z, yaw] = line.split('|').map(Number);
+      if (playerLoc && Math.hypot(playerLoc.X - x, playerLoc.Y - y) > 30000) {
+        anchor = { X: playerLoc.X, Y: playerLoc.Y, Z: playerLoc.Z, Yaw: playerLoc.Yaw };
+      } else {
+        anchor = { X: x, Y: y, Z: z, Yaw: yaw || 0 };
+      }
+      anchorFromGame = true;
+    }
+  } else if (playerLoc) {
+    // Fresh build or no explicit anchor: anchor directly to player's current location
+    anchor = { X: playerLoc.X, Y: playerLoc.Y, Z: playerLoc.Z, Yaw: playerLoc.Yaw };
+    anchorFromGame = true;
   } else if (!savePieces && records.size) {
-    // If models already exist and no explicit anchor.txt was saved, center on the existing models
+    // If models already exist and no player connected, center on the existing models
     const mid = k => { const v = [...records.values()].map(r => r[k]).sort((a, b) => a - b); return v[v.length >> 1]; };
     anchor = { X: mid('X'), Y: mid('Y'), Z: mid('Z'), Yaw: 0 };
     anchorFromGame = false;
-  } else if (playerLoc) {
-    // Fresh build: anchor directly to player's current location
-    anchor = { X: playerLoc.X, Y: playerLoc.Y, Z: playerLoc.Z, Yaw: playerLoc.Yaw };
-    anchorFromGame = true;
   }
 
   if (playerLoc) {
@@ -2165,8 +2264,9 @@ async function loadFromFolder() {
   camera.position.copy(back); orbit.target.set(0, 0, 0);
   rebuildAll();
   await loadBase();
-  loadWorld();
+  await loadWorld();
   if (typeof loadQuestsData === 'function') await loadQuestsData();
+  updateNavButtons();
   if (savePieces) { showBase(+$('baseSel').value || 0, false); return; }
   if (!a && !playerLoc && records.size) { $('baseInfo').textContent = 'Centred on your placed models. Type "cb anchor" in the game console to line up with a spot in game, or Open save to see your base.'; return; }
   $('baseInfo').textContent = (a || playerLoc) ? `Anchor at ${anchor.X.toFixed(0)}, ${anchor.Y.toFixed(0)}, ${anchor.Z.toFixed(0)} (game cm). Player visible in 3D.` : 'No anchor yet: type "cb anchor" in the game console (F10), then reconnect.';
@@ -2495,7 +2595,9 @@ async function loadWorld() {
   if (token !== worldToken) return;
   grid.visible = !tiles;
   worldShown = true;
-  $('worldInfo').textContent = `${R / 100} m around your base: ` + [tiles && 'the ground', objects && `${objects.toLocaleString('en')} rocks, trees and buildings`].filter(Boolean).join(' and ') + '.';
+  const isNearPlayer = livePlayer && Math.hypot(anchor.X - livePlayer.X, anchor.Y - livePlayer.Y) < 5000;
+  const placeDesc = isNearPlayer ? 'player' : 'base';
+  $('worldInfo').textContent = `${R / 100} m around your ${placeDesc}: ` + [tiles && 'the ground', objects && `${objects.toLocaleString('en')} rocks, trees and buildings`].filter(Boolean).join(' and ') + '.';
 }
 for (const id of ['showTerrain', 'showWorld', 'showPlants', 'worldRange']) $(id).addEventListener('change', loadWorld);
 
@@ -2541,10 +2643,12 @@ setInterval(async () => {
       const line = pl.split(/\r?\n/).find(l => /^-?[\d.]+\|/.test(l));
       if (line) {
         const [px, py, pz, pyaw] = line.split('|').map(Number);
+        livePlayer = { X: px, Y: py, Z: pz, Yaw: pyaw || 0 };
         playerAvatar.position.copy(toScene(px, py, pz));
         playerAvatar.rotation.y = -pyaw * D;
         playerAvatar.visible = true;
         const pb = $('playerBtn'); if (pb) pb.style.display = '';
+        updateNavButtons();
       }
     }
   } catch {}
@@ -4257,6 +4361,7 @@ addEventListener('keydown', e => {
   }
   else if (k === 'f') focusSelected();
   else if (k === 'p') focusPlayer();
+  else if (k === 'c' && !picked && !selection.size) focusCamp();
   else if (k === 'q' && picked) {
     const step = e.shiftKey ? 15 : (rotSnapVal || 1);
     ghostYaw = norm(ghostYaw - step);

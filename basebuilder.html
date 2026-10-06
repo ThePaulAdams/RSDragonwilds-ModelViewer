@@ -80,32 +80,39 @@
   #list {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    max-height: 280px;
+    gap: 4px;
+    max-height: 320px;
     overflow-y: auto;
-    background: #131519;
+    background: #101216;
     border: 1px solid var(--line);
     border-radius: 6px;
     padding: 4px;
   }
   #list div {
-    padding: 6px 10px;
+    flex-shrink: 0;
+    min-height: 28px;
+    height: 28px;
+    box-sizing: border-box;
+    padding: 0 10px;
     border-radius: 4px;
     font-size: 12px;
+    line-height: 26px;
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     color: #f0f3f6;
     background: var(--panel2);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     transition: background 0.15s, border-color 0.15s, color 0.15s;
     user-select: none;
+    display: flex;
+    align-items: center;
   }
   #list div:hover {
     background: #2e3542;
     color: #ffffff;
-    border-color: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.3);
   }
   #list div.sel {
     background: var(--accent);
@@ -322,6 +329,7 @@
     <div class="group">
       <button id="importBtn" title="Load a placed.txt file">Import</button>
       <button id="exportBtn" title="Download placed.txt">Export</button>
+      <button id="addPortalBtn" style="background:#1b2a47; border-color:#3b82f6; color:#93c5fd; font-weight:600;" title="Create a linked Teleporter / Portal pair (Portal 1 &amp; Portal 2)">🌀 Add Portal</button>
       <button id="questsBtn" title="Quest Creation & Storyboard Editor" style="background:#22381e; border-color:#4a8235; color:#aef595; font-weight:600;">📜 Quests</button>
       <button id="installGuideBtn" style="background:#1e3a5f; border-color:#38bdf8; color:#38bdf8; font-weight:600;" title="Install Guide: CurseForge Modpack &amp; Base Builder">📦 Install &amp; Modpack</button>
       <button id="helpBtn" title="Guide &amp; Controls">Help</button>
@@ -342,7 +350,7 @@
   </aside>
 
   <main id="view">
-    <div id="tip">Pick a model on the left, then <b>click in the scene</b> to place it. <b>Click</b> a placed model to select it. Drag the gizmo to move or rotate.</div>
+    <div id="tip">Pick a model on left to place. <b>Click</b> to select. <b>Shift+Click</b> world objects to move them. Drag gizmo to move/rotate.</div>
     <div id="toast" hidden></div>
   </main>
 
@@ -371,6 +379,25 @@
           <span id="npcQuestBadge" style="font-size:10px; background:#1c2d18; padding:1px 6px; border-radius:10px; color:#d4f7c2;">No Quest</span>
         </div>
         <button id="npcQuestBtn" class="small" style="width: 100%; background: #2d5a22; color: #fff; font-weight: 600; padding: 5px 8px; cursor: pointer; border: 1px solid #5c9e45; border-radius: 4px;">📜 Storyboard for this NPC</button>
+      </div>
+      <div id="portalPropBox" style="margin-top: 8px; padding: 8px 10px; background: rgba(20, 35, 60, 0.45); border: 1px solid #3b82f6; border-radius: 6px;" hidden>
+        <div style="font-size: 11px; font-weight: 600; color: #93c5fd; display:flex; align-items:center; justify-content:space-between; margin-bottom: 5px;">
+          <span>🌀 TELEPORTER / PORTAL</span>
+          <span id="portalBadge" style="font-size:10px; background:#172554; padding:1px 6px; border-radius:10px; color:#bfdbfe;">Inactive</span>
+        </div>
+        <div class="row" style="margin-bottom: 6px; align-items:center;">
+          <label class="muted" style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer;">
+            <input id="portalToggle" type="checkbox"> Set as Teleporter
+          </label>
+        </div>
+        <div id="portalSettings" hidden>
+          <div class="field"><span>Channel</span><input id="portalName" type="text" placeholder="e.g. Portal 1"></div>
+          <div class="field"><span>Target</span><select id="portalTargetSel"></select></div>
+          <div class="row" style="margin-top: 6px; gap:4px;">
+            <button id="portalJumpBtn" class="small" style="flex:1;" title="Focus camera on destination portal">🚀 Jump to Exit</button>
+            <button id="portalPairBtn" class="small" style="flex:1; background:#1e3a5f; color:#93c5fd; border-color:#3b82f6;" title="Spawn and link paired exit portal">➕ Spawn Exit</button>
+          </div>
+        </div>
       </div>
     </div>
     <h2>Placed <span id="placedCount" class="muted"></span></h2>
@@ -608,10 +635,18 @@
               </td>
             </tr>
             <tr>
-              <td><b>World Eyedropper</b></td>
+              <td><b>World Objects &amp; Terrain</b></td>
               <td>
+                <kbd>Shift</kbd>+<b>Click world object:</b> Select &amp; move/delete world object directly!<br>
                 <b>Click world object:</b> Eyedropper (selects model in library)<br>
-                <kbd>Alt</kbd>+<b>Click world object:</b> Clone world object directly into your base!
+                <kbd>Alt</kbd>+<b>Click world object:</b> Clone world object into your base!
+              </td>
+            </tr>
+            <tr>
+              <td><b>Teleporters / Portals</b></td>
+              <td>
+                <b>🌀 Add Portal:</b> Click in toolbar to spawn paired Portal 1 &amp; Portal 2.<br>
+                <b>In-Game:</b> Walking into either portal teleports you instantly to the other!
               </td>
             </tr>
           </tbody>
@@ -991,6 +1026,7 @@ function parsePlaced(text) {
       const [k, v] = kv.split('=');
       if (k === 'pitch') r.Pitch = +v || 0; else if (k === 'roll') r.Roll = +v || 0;
       else if (k === 'scale') r.Scale = +v || 1; else if (k === 'base') r.Base = v || '';
+      else if (k === 'portal') r.Portal = v || ''; else if (k === 'target') r.Target = v || '';
     } else r.Base = extra;
     // Remember the mod's own line so untouched records are written back byte-for-byte
     // (otherwise rounding differences would make the game respawn them).
@@ -1006,7 +1042,10 @@ function recordLine(id, r) {
 }
 function buildLine(id, r) {
   const h = r.Yaw * D / 2;
-  return `${id}|${f2(r.X)}|${f2(r.Y)}|${f2(r.Z)}|${f6(0)}|${f6(0)}|${f6(Math.sin(h))}|${f6(Math.cos(h))}|${r.Mesh}|base=${r.Base || ''};pitch=${g(r.Pitch)};roll=${g(r.Roll)};scale=${g(r.Scale)}`;
+  let line = `${id}|${f2(r.X)}|${f2(r.Y)}|${f2(r.Z)}|${f6(0)}|${f6(0)}|${f6(Math.sin(h))}|${f6(Math.cos(h))}|${r.Mesh}|base=${r.Base || ''};pitch=${g(r.Pitch)};roll=${g(r.Roll)};scale=${g(r.Scale)}`;
+  if (r.Portal) line += `;portal=${r.Portal}`;
+  if (r.Target) line += `;target=${r.Target}`;
+  return line;
 }
 function placedText() {
   const lines = ['# CustomBuilds: piece id|x|y|z|qx|qy|qz|qw|mesh|base=..;pitch=..;roll=..;scale=.. Written by the Ashenfallen base builder.'];
@@ -1274,6 +1313,9 @@ renderer.setAnimationLoop(() => {
       }
     }
   }
+  if (typeof updatePortalVortexAnimation === 'function') {
+    updatePortalVortexAnimation();
+  }
   renderer.render(scene, camera);
 });
 
@@ -1366,6 +1408,7 @@ function rebuildAll() {
   objects.clear();
   for (const [id, r] of records) spawn(id, r);
   refreshList();
+  if (typeof updatePortalVisuals === 'function') updatePortalVisuals();
 }
 
 // ---------------------------------------------------------------------------
@@ -1436,10 +1479,37 @@ function showSelection() {
         }
       }
     }
+
+    // Portal / Teleporter properties
+    const portalBox = $('portalPropBox');
+    if (portalBox) {
+      portalBox.hidden = false;
+      const isPortal = !!(r.Portal && r.Portal.trim());
+      $('portalToggle').checked = isPortal;
+      $('portalSettings').hidden = !isPortal;
+      $('portalBadge').textContent = isPortal ? (r.Target ? `Linked ➔ ${r.Target}` : 'Unlinked') : 'Inactive';
+      $('portalBadge').style.background = isPortal ? (r.Target ? '#14532d' : '#854d0e') : '#172554';
+      $('portalBadge').style.color = isPortal ? (r.Target ? '#86efac' : '#fef08a') : '#bfdbfe';
+      $('portalName').value = r.Portal || '';
+
+      const sel = $('portalTargetSel');
+      sel.innerHTML = '<option value="">(None - select destination)</option>';
+      for (const [oid, or] of records) {
+        if (oid !== selected && or.Portal && or.Portal.trim()) {
+          const opt = document.createElement('option');
+          opt.value = or.Portal;
+          opt.textContent = `${or.Portal} (${or.Mesh.split('/').pop().replace(/\.\w+$/, '')})`;
+          if (r.Target === or.Portal) opt.selected = true;
+          sel.appendChild(opt);
+        }
+      }
+    }
   } else {
     if (rotWrap) rotWrap.style.display = 'none';
     const npcBox = $('npcQuestBox');
     if (npcBox) npcBox.hidden = true;
+    const portalBox = $('portalPropBox');
+    if (portalBox) portalBox.hidden = true;
     $('selName').textContent = `${selection.size} objects selected`;
     $('selPath').textContent = 'Shift+click to add/remove. Ctrl+D duplicate, Del delete, T rotate.';
     const center = selectionPivot.position;
@@ -1501,8 +1571,17 @@ function refreshList() {
   for (const [id, r] of records) {
     const m = byGamePath.get(r.Mesh.toLowerCase());
     const d = document.createElement('div');
-    d.textContent = m ? m.title : r.Mesh.split('/').pop();
+    const title = m ? m.title : r.Mesh.split('/').pop().replace(/\.\w+$/, '');
+    if (r.Portal) {
+      const isSel = selection.has(id);
+      const badgeBg = isSel ? 'rgba(0,0,0,0.25)' : '#1e3a5f';
+      const badgeColor = isSel ? '#14161a' : '#93c5fd';
+      d.innerHTML = `<span style="margin-right:6px; flex-shrink:0;">🌀</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span><span style="font-size:10px; background:${badgeBg}; color:${badgeColor}; padding:1px 5px; border-radius:4px; font-weight:600; flex-shrink:0; margin-left:4px;">${r.Portal}</span>`;
+    } else {
+      d.textContent = title;
+    }
     if (selection.has(id)) d.className = 'sel';
+    d.title = `${title} (${r.Mesh})`;
     d.onclick = (e) => { select(id, e.shiftKey); focusSelected(); };
     list.append(d);
   }
@@ -1833,6 +1912,33 @@ renderer.domElement.addEventListener('pointerup', e => {
       const rows = worldHit.object.userData.rows;
       const row = (rows && worldHit.instanceId != null) ? rows[worldHit.instanceId] : null;
 
+      if (e.shiftKey && row) {
+        pushUndo();
+        // Hide original stationary world instance so it doesn't duplicate
+        const zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+        worldHit.object.setMatrixAt(worldHit.instanceId, zeroMatrix);
+        worldHit.object.instanceMatrix.needsUpdate = true;
+
+        const cloneId = newId();
+        const rot = quatToRot({ x: row[4], y: row[5], z: row[6], w: row[7] });
+        const r = {
+          X: row[1], Y: row[2], Z: row[3],
+          Yaw: rot.yaw, Pitch: rot.pitch, Roll: rot.roll,
+          Scale: row[8] || 1,
+          Mesh: wm.path,
+          Base: ''
+        };
+        records.set(cloneId, r);
+        spawn(cloneId, r);
+        refreshList();
+        changed();
+        addRecent(wm);
+        select(cloneId);
+        setMode('translate');
+        toast(`Selected world object "${wm.title}"! Drag gizmo to move it.`);
+        return;
+      }
+
       if (e.altKey && row) {
         pushUndo();
         const cloneId = newId();
@@ -1856,7 +1962,7 @@ renderer.domElement.addEventListener('pointerup', e => {
 
       setPicked(wm);
       addRecent(wm);
-      toast(`Eyedropper: Picked "${wm.title}" from world (Click to place, or Alt+Click to clone in-place)`);
+      toast(`Eyedropper: Picked "${wm.title}" from world (Shift+Click to select & move, Alt+Click to clone)`);
       return;
     }
   }
@@ -1871,6 +1977,27 @@ renderer.domElement.addEventListener('pointerup', e => {
         const pieceName = bo.userData.piece;
         const bm = bo.userData.model;
         if (bm) {
+          if (e.shiftKey) {
+            pushUndo();
+            bo.visible = false;
+            const cloneId = newId();
+            const r = {
+              ...toGame(bo.position),
+              Yaw: norm(-bo.rotation.y / D), Pitch: 0, Roll: 0,
+              Scale: 1,
+              Mesh: bm.path,
+              Base: ''
+            };
+            records.set(cloneId, r);
+            spawn(cloneId, r);
+            refreshList();
+            changed();
+            addRecent(bm);
+            select(cloneId);
+            setMode('translate');
+            toast(`Selected base piece "${pieceName}"! Drag gizmo to move it.`);
+            return;
+          }
           if (e.altKey) {
             pushUndo();
             const cloneId = newId();
@@ -1892,7 +2019,7 @@ renderer.domElement.addEventListener('pointerup', e => {
           }
           setPicked(bm);
           addRecent(bm);
-          toast(`Eyedropper: Picked "${pieceName}" (Click to place, or Alt+Click to clone in-place)`);
+          toast(`Eyedropper: Picked "${pieceName}" (Shift+Click to select & move, Alt+Click to clone)`);
           return;
         } else {
           toast(`Native building piece: ${pieceName}`);
@@ -1976,6 +2103,7 @@ function changed() {
   showSelection();
   refreshList();
   if (typeof updateQuestVisuals === 'function') updateQuestVisuals();
+  if (typeof updatePortalVisuals === 'function') updatePortalVisuals();
   if (!dir) { status('Not connected: export placed.txt or connect the game folder to keep these changes.', 'bad'); return; }
   clearTimeout(writeTimer);
   writeTimer = setTimeout(save, 400);
@@ -3537,6 +3665,329 @@ $('qmRewardXp')?.addEventListener('input', e => {
 
 // Load quests on page startup
 loadQuestsData();
+
+// ---------------------------------------------------------------------------
+// Teleporters & Portals (Portal 1 / Portal 2)
+// ---------------------------------------------------------------------------
+const portalLinksGroup = new THREE.Group();
+scene.add(portalLinksGroup);
+
+const PORTAL_MESHES = [
+  'rsdragonwilds/content/marketplace/depthsbelow/geometry/architecture/sm_portal01.sm_portal01',
+  '/dowdunreach/art/env/props/env_props/nexus_portal/sm_dreamstone_lodestone_01.sm_dreamstone_lodestone_01',
+  'rsdragonwilds/content/art/env/base_building/crafting_stations/rune_altar/sm_rune_altar_01.sm_rune_altar_01',
+  'rsdragonwilds/content/art/env/props/env_props/dragonkin_props/vault/statues/sm_obelisk_01.sm_obelisk_01'
+];
+function findDefaultPortalModel() {
+  for (const pm of PORTAL_MESHES) {
+    const m = byGamePath.get(pm.toLowerCase());
+    if (m) return m;
+  }
+  for (const [path, m] of byGamePath) {
+    if (/portal|altar|obelisk/i.test(path)) return m;
+  }
+  return null;
+}
+
+function getPortalColor(channelName) {
+  const norm = String(channelName || '').toLowerCase().trim();
+  if (norm.includes('1') || norm.includes('a') || norm.includes('blue')) {
+    return { hex: 0x00b4d8, css: '#00b4d8', name: 'Blue (Portal 1)' };
+  }
+  if (norm.includes('2') || norm.includes('b') || norm.includes('orange')) {
+    return { hex: 0xf77f00, css: '#f77f00', name: 'Orange (Portal 2)' };
+  }
+  if (norm.includes('3') || norm.includes('c') || norm.includes('purple')) {
+    return { hex: 0xa855f7, css: '#a855f7', name: 'Purple' };
+  }
+  return { hex: 0x10b981, css: '#10b981', name: 'Green' };
+}
+
+function createPortalBadgeSprite(text, colorCss) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+  ctx.strokeStyle = colorCss;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(8, 8, 368, 80, 24);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = colorCss;
+  ctx.beginPath();
+  ctx.arc(36, 48, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 60, 48);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(3.4, 0.85, 1);
+  return sprite;
+}
+
+function updatePortalVisuals() {
+  for (const [id, r] of records) {
+    const obj = objects.get(id);
+    if (!obj) continue;
+
+    let fx = obj.getObjectByName('portalFX');
+    if (r.Portal && r.Portal.trim()) {
+      const pColor = getPortalColor(r.Portal);
+      if (!fx) {
+        fx = new THREE.Group();
+        fx.name = 'portalFX';
+
+        const ringGeo = new THREE.TorusGeometry(1.3, 0.08, 16, 48);
+        const ringMat = new THREE.MeshBasicMaterial({ color: pColor.hex, transparent: true, opacity: 0.95 });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.name = 'portalRing';
+        ring.position.set(0, 1.4, 0);
+        fx.add(ring);
+
+        const discGeo = new THREE.RingGeometry(0.04, 1.22, 32);
+        const discMat = new THREE.MeshBasicMaterial({
+          color: pColor.hex,
+          transparent: true,
+          opacity: 0.65,
+          side: THREE.DoubleSide
+        });
+        const disc = new THREE.Mesh(discGeo, discMat);
+        disc.name = 'portalDisc';
+        disc.position.set(0, 1.4, 0);
+        fx.add(disc);
+
+        obj.add(fx);
+      } else {
+        const ring = fx.getObjectByName('portalRing');
+        if (ring) ring.material.color.setHex(pColor.hex);
+        const disc = fx.getObjectByName('portalDisc');
+        if (disc) disc.material.color.setHex(pColor.hex);
+      }
+
+      let badge = fx.getObjectByName('portalBadge');
+      if (badge) fx.remove(badge);
+      const labelText = `🌀 ${r.Portal}${r.Target ? ' ➔ ' + r.Target : ''}`;
+      badge = createPortalBadgeSprite(labelText, pColor.css);
+      badge.name = 'portalBadge';
+      badge.position.set(0, 3.2, 0);
+      fx.add(badge);
+
+    } else if (fx) {
+      obj.remove(fx);
+    }
+  }
+
+  updatePortalLinkArcs();
+}
+
+function updatePortalLinkArcs() {
+  portalLinksGroup.clear();
+  const drawnPairs = new Set();
+
+  for (const [idA, rA] of records) {
+    if (!rA.Portal || !rA.Target) continue;
+    for (const [idB, rB] of records) {
+      if (idA !== idB && rB.Portal === rA.Target) {
+        const pairKey = [idA, idB].sort().join(':');
+        if (drawnPairs.has(pairKey)) continue;
+        drawnPairs.add(pairKey);
+
+        const objA = objects.get(idA), objB = objects.get(idB);
+        if (!objA || !objB) continue;
+
+        const start = objA.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+        const end = objB.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+        const dist = start.distanceTo(end);
+        const mid = start.clone().add(end).multiplyScalar(0.5);
+        mid.y += Math.min(25, Math.max(2.5, dist * 0.22));
+
+        const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+        const pts = curve.getPoints(Math.min(60, Math.max(20, Math.floor(dist * 2))));
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        const mat = new THREE.LineDashedMaterial({
+          color: 0x38bdf8,
+          dashSize: 0.5,
+          gapSize: 0.3,
+          transparent: true,
+          opacity: 0.85
+        });
+        const line = new THREE.Line(geo, mat);
+        line.computeLineDistances();
+        portalLinksGroup.add(line);
+      }
+    }
+  }
+}
+
+function updatePortalVortexAnimation() {
+  for (const [id, r] of records) {
+    if (!r.Portal) continue;
+    const obj = objects.get(id);
+    const fx = obj?.getObjectByName('portalFX');
+    const disc = fx?.getObjectByName('portalDisc');
+    if (disc) disc.rotation.z += 0.03;
+  }
+}
+
+// Wire portal properties UI in sidebar
+$('portalToggle')?.addEventListener('change', e => {
+  if (!selection.size || selection.size !== 1) return;
+  const r = records.get(selected);
+  if (!r) return;
+  pushUndo();
+  if (e.target.checked) {
+    if (!r.Portal || !r.Portal.trim()) {
+      let num = 1;
+      const existingNames = new Set([...records.values()].map(x => (x.Portal || '').toLowerCase()));
+      while (existingNames.has(`portal ${num}`)) num++;
+      r.Portal = `Portal ${num}`;
+
+      for (const [oid, or] of records) {
+        if (oid !== selected && or.Portal && (!or.Target || !records.has(or.Target))) {
+          r.Target = or.Portal;
+          if (!or.Target) or.Target = r.Portal;
+          break;
+        }
+      }
+    }
+  } else {
+    delete r.Portal;
+    delete r.Target;
+  }
+  changed();
+  showSelection();
+  toast(e.target.checked ? `Configured as ${r.Portal}!` : 'Portal disabled for this object.');
+});
+
+$('portalName')?.addEventListener('input', e => {
+  if (!selection.size || selection.size !== 1) return;
+  const r = records.get(selected);
+  if (!r) return;
+  r.Portal = e.target.value.trim();
+  changed();
+});
+
+$('portalTargetSel')?.addEventListener('change', e => {
+  if (!selection.size || selection.size !== 1) return;
+  const r = records.get(selected);
+  if (!r) return;
+  pushUndo();
+  r.Target = e.target.value;
+  for (const [oid, or] of records) {
+    if (oid !== selected && or.Portal === r.Target && !or.Target) {
+      or.Target = r.Portal;
+    }
+  }
+  changed();
+  showSelection();
+  toast(r.Target ? `Linked to ${r.Target}!` : 'Target unlinked.');
+});
+
+$('portalJumpBtn')?.addEventListener('click', () => {
+  if (!selection.size || selection.size !== 1) return;
+  const r = records.get(selected);
+  if (!r || !r.Target) { toast('No target portal selected'); return; }
+  for (const [oid, or] of records) {
+    if (or.Portal === r.Target) {
+      const obj = objects.get(oid);
+      if (obj) {
+        orbit.target.copy(obj.position);
+        select(oid);
+        toast(`Jumped to ${r.Target}!`);
+        return;
+      }
+    }
+  }
+  toast(`Target portal "${r.Target}" not found in scene`);
+});
+
+$('portalPairBtn')?.addEventListener('click', () => {
+  if (!selection.size || selection.size !== 1) return;
+  const r = records.get(selected);
+  if (!r) return;
+  pushUndo();
+  const obj = objects.get(selected);
+  const pairId = newId();
+
+  let num = 2;
+  const existingNames = new Set([...records.values()].map(x => (x.Portal || '').toLowerCase()));
+  while (existingNames.has(`portal ${num}`)) num++;
+  const exitName = `Portal ${num}`;
+
+  const exitPos = obj ? obj.position.clone().add(new THREE.Vector3(5, 0, 0)) : orbit.target.clone();
+  const g = toGame(exitPos);
+
+  const pairRec = {
+    X: g.X, Y: g.Y, Z: g.Z,
+    Yaw: norm((r.Yaw || 0) + 180), Pitch: 0, Roll: 0, Scale: r.Scale || 1,
+    Mesh: r.Mesh, Base: '',
+    Portal: exitName, Target: r.Portal || 'Portal 1'
+  };
+
+  r.Target = exitName;
+  if (!r.Portal) r.Portal = 'Portal 1';
+
+  records.set(pairId, pairRec);
+  spawn(pairId, pairRec);
+
+  changed();
+  showSelection();
+  select(pairId);
+  setMode('translate');
+  toast(`Spawned paired exit "${exitName}"! Both portals are now linked.`);
+});
+
+// Top bar 1-click "Add Portal" button
+$('addPortalBtn')?.addEventListener('click', () => {
+  pushUndo();
+  const m = findDefaultPortalModel();
+  const meshPath = m ? m.path : (byGamePath.keys().next().value || 'RSDragonwilds/Content/Marketplace/DepthsBelow/Geometry/Architecture/SM_Portal01.SM_Portal01');
+
+  const id1 = newId();
+  const id2 = newId();
+
+  const center = orbit.target.clone();
+  const pos1 = center.clone().add(new THREE.Vector3(-3.5, 0, 0));
+  const pos2 = center.clone().add(new THREE.Vector3(3.5, 0, 0));
+
+  const g1 = toGame(pos1);
+  const g2 = toGame(pos2);
+
+  const r1 = {
+    X: g1.X, Y: g1.Y, Z: g1.Z,
+    Yaw: 0, Pitch: 0, Roll: 0, Scale: 1,
+    Mesh: meshPath, Base: '',
+    Portal: 'Portal 1', Target: 'Portal 2'
+  };
+  const r2 = {
+    X: g2.X, Y: g2.Y, Z: g2.Z,
+    Yaw: 180, Pitch: 0, Roll: 0, Scale: 1,
+    Mesh: meshPath, Base: '',
+    Portal: 'Portal 2', Target: 'Portal 1'
+  };
+
+  records.set(id1, r1); spawn(id1, r1);
+  records.set(id2, r2); spawn(id2, r2);
+
+  refreshList();
+  changed();
+  updatePortalVisuals();
+  select(id1);
+  setMode('translate');
+
+  toast(`Spawned Portal 1 (Blue) & Portal 2 (Orange)! Touching either portal in-game teleports you to the other.`);
+});
 
 // ---------------------------------------------------------------------------
 // Buttons and keys

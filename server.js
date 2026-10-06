@@ -307,6 +307,11 @@ createServer(async (req, res) => {
       if (!file || !(await stat(file).catch(() => null))?.isFile()) file = join(APP, 'quests.json');
       return sendFile(req, res, file, 'public, max-age=60');
     }
+    if (path === '/items.json') {
+      let file = inside(DATA, 'items.json');
+      if (!file || !(await stat(file).catch(() => null))?.isFile()) file = join(APP, 'items.json');
+      return sendFile(req, res, file, 'public, max-age=3600');
+    }
     // Crafting planner and calculators: plain pages plus a shared logic module, stylesheet and the game data.
     if (path === '/planner-lib.js' || path === '/site.css') return sendFile(req, res, join(APP, 'static', path.slice(1)), 'public, max-age=300');
     if (path === '/sample-gamedata.json') return sendFile(req, res, join(APP, 'data', 'sample-gamedata.json'), 'public, max-age=300');

@@ -272,6 +272,109 @@
     padding: 10px 20px; border-top: 1px solid var(--line); background: var(--panel2);
     display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted);
   }
+
+  /* Inventory Editor Modal Styles */
+  #invModal {
+    position: fixed; inset: 0; background: rgba(5, 7, 10, .85);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; z-index: 150; backdrop-filter: blur(6px);
+  }
+  #invModal.hidden { display: none !important; }
+  .im-window {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    width: 1180px; max-width: 96vw; height: 88vh; max-height: 860px;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.85);
+  }
+  .im-header {
+    padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel2);
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  }
+  .im-header h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; color: #fbbf24; }
+  .im-header-actions { display: flex; align-items: center; gap: 8px; }
+  .im-body { flex: 1; display: flex; min-height: 0; }
+  .im-inv-pane {
+    flex: 1.25; border-right: 1px solid var(--line); background: rgba(16, 18, 22, 0.7);
+    display: flex; flex-direction: column; min-height: 0; padding: 16px;
+  }
+  .im-inv-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+  }
+  .im-inv-grid {
+    display: grid; grid-template-columns: repeat(8, 1fr); grid-auto-rows: 72px; gap: 6px;
+    overflow-y: auto; padding: 2px;
+  }
+  .im-slot {
+    background: rgba(24, 28, 36, 0.8); border: 1px solid #334155; border-radius: 6px;
+    position: relative; padding: 5px; display: flex; flex-direction: column;
+    justify-content: space-between; cursor: pointer; transition: all 0.15s ease;
+    user-select: none;
+  }
+  .im-slot:hover { border-color: #f59e0b; background: rgba(38, 44, 58, 0.95); }
+  .im-slot.sel { border-color: #fbbf24; box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.4); background: rgba(50, 40, 20, 0.85); }
+  .im-slot.empty { opacity: 0.45; border-style: dashed; }
+  .im-slot.drag-over { border-color: #38bdf8; background: rgba(14, 116, 144, 0.4); }
+  .im-slot-num { font-size: 9px; color: #64748b; font-weight: bold; position: absolute; top: 3px; left: 4px; pointer-events: none; }
+  .im-slot-count {
+    position: absolute; top: 3px; right: 4px; font-size: 10px; font-weight: bold;
+    color: #fbbf24; background: rgba(0, 0, 0, 0.6); padding: 0 4px; border-radius: 4px;
+    pointer-events: none;
+  }
+  .im-slot-title {
+    font-size: 11px; font-weight: 600; color: #e2e8f0; line-height: 1.15;
+    margin-top: 14px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical; pointer-events: none;
+  }
+  .im-slot-durability {
+    height: 3px; width: 100%; background: #334155; border-radius: 2px; overflow: hidden;
+  }
+  .im-slot-durability-fill { height: 100%; background: #22c55e; }
+  .im-slot-actions {
+    position: absolute; inset: 0; background: rgba(15, 23, 42, 0.92); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; gap: 4px; opacity: 0;
+    pointer-events: none; transition: opacity 0.15s;
+  }
+  .im-slot:hover .im-slot-actions { opacity: 1; pointer-events: auto; }
+  .im-slot-action-btn {
+    padding: 3px 6px; font-size: 10px; border-radius: 4px; background: #1e293b;
+    border: 1px solid #475569; color: #f8fafc; cursor: pointer;
+  }
+  .im-slot-action-btn:hover { background: #b91c1c; border-color: #ef4444; }
+  .im-catalog-pane {
+    flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 16px;
+    background: rgba(12, 14, 18, 0.6);
+  }
+  .im-search-bar { display: flex; gap: 8px; margin-bottom: 8px; }
+  .im-cat-pills {
+    display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .im-pill {
+    padding: 3px 9px; font-size: 11px; border-radius: 12px; background: #1e293b;
+    color: #94a3b8; border: 1px solid #334155; cursor: pointer; transition: all 0.15s;
+  }
+  .im-pill:hover { color: #f8fafc; border-color: #64748b; }
+  .im-pill.active { background: #b45309; border-color: #f59e0b; color: #fff; font-weight: 600; }
+  .im-qty-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    padding: 8px 10px; background: rgba(30, 41, 59, 0.5); border-radius: 6px; border: 1px solid #334155;
+  }
+  .im-item-list {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;
+  }
+  .im-item-card {
+    padding: 8px 10px; background: rgba(24, 28, 36, 0.7); border: 1px solid var(--line);
+    border-radius: 6px; display: flex; align-items: center; justify-content: space-between;
+    transition: all 0.15s;
+  }
+  .im-item-card:hover { border-color: #f59e0b; background: rgba(30, 36, 48, 0.9); }
+  .im-item-info { display: flex; flex-direction: column; gap: 2px; }
+  .im-item-name { font-size: 12.5px; font-weight: 600; color: #f1f5f9; }
+  .im-item-cat { font-size: 10px; color: #94a3b8; }
+  .im-add-btn {
+    padding: 4px 10px; font-size: 11.5px; font-weight: 600; background: #92400e;
+    border: 1px solid #d97706; color: #fff; border-radius: 4px; cursor: pointer;
+  }
+  .im-add-btn:hover { background: #b45309; border-color: #f59e0b; }
 </style>
 <script type="importmap">
 { "imports": {
@@ -332,6 +435,7 @@
       <button id="exportBtn" title="Download placed.txt">Export</button>
       <button id="addPortalBtn" style="background:#1b2a47; border-color:#3b82f6; color:#93c5fd; font-weight:600;" title="Create a linked Teleporter / Portal pair (Portal 1 &amp; Portal 2)">🌀 Add Portal</button>
       <button id="questsBtn" title="Quest Creation & Storyboard Editor" style="background:#22381e; border-color:#4a8235; color:#aef595; font-weight:600;">📜 Quests</button>
+      <button id="invBtn" title="Player Inventory Editor &amp; Item Spawner (I)" style="background:#3b2413; border-color:#b45309; color:#fde68a; font-weight:600;">🎒 Inventory</button>
       <button id="installGuideBtn" style="background:#1e3a5f; border-color:#38bdf8; color:#38bdf8; font-weight:600;" title="Install Guide: CurseForge Modpack &amp; Base Builder">📦 Install &amp; Modpack</button>
       <button id="helpBtn" title="Guide &amp; Controls">Help</button>
     </div>
@@ -902,6 +1006,65 @@
   </div>
 </div>
 
+<div id="invModal" class="hidden">
+  <div class="im-window">
+    <div class="im-header">
+      <h3>🎒 Player Inventory Editor &amp; Item Spawner</h3>
+      <div class="im-header-actions">
+        <span id="invSyncStatus" style="font-size: 12px; color: #94a3b8; padding: 2px 8px; background: #1e293b; border-radius: 10px; border: 1px solid #334155;">Connecting...</span>
+        <button id="invCleanBtn" class="small" title="Auto-stack and organize matching items in inventory">🧹 Clean &amp; Stack</button>
+        <button id="invClearBtn" class="small" style="background:#450a0a; border-color:#991b1b; color:#fca5a5;" title="Clear all items from player inventory">🗑️ Clear Inventory</button>
+        <button id="invCloseBtn" class="small" style="padding: 2px 8px; font-size: 14px;" title="Close (Esc or I)">✕</button>
+      </div>
+    </div>
+    <div class="im-body">
+      <!-- Left: Player Inventory Grid -->
+      <div class="im-inv-pane">
+        <div class="im-inv-header">
+          <div>
+            <span style="font-weight: 600; color: #fbbf24; font-size: 13px;">Live In-Game Inventory</span>
+            <span id="invSlotCount" class="muted" style="font-size: 11px; margin-left: 6px;">(0 / 40 slots)</span>
+          </div>
+          <span class="muted" style="font-size: 11px;">Drag &amp; drop to move/swap • Hover slot to drop</span>
+        </div>
+        <div id="invGrid" class="im-inv-grid"></div>
+        <div id="invNotice" style="margin-top: 10px; padding: 8px 12px; background: rgba(30, 41, 59, 0.4); border-radius: 6px; font-size: 11.5px; color: #94a3b8; display: flex; align-items: center; justify-content: space-between;">
+          <span>💡 <b>Tip:</b> All additions and slot rearrangements reflect live inside the running game immediately.</span>
+          <button id="invRefreshBtn" class="small" style="padding: 2px 8px;">🔄 Refresh</button>
+        </div>
+      </div>
+      <!-- Right: Item Catalog & Spawner -->
+      <div class="im-catalog-pane">
+        <div class="im-search-bar">
+          <input id="invItemSearch" type="search" placeholder="Search 1,250+ items (e.g. Iron, Dragon, Tome, Shark)..." style="flex: 1; padding: 6px 10px; font-size: 12.5px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; color: var(--text);">
+        </div>
+        <div id="invCatPills" class="im-cat-pills">
+          <span class="im-pill active" data-cat="All">All (1,259)</span>
+          <span class="im-pill" data-cat="Resources">Resources</span>
+          <span class="im-pill" data-cat="Consumables & Food">Food &amp; Potions</span>
+          <span class="im-pill" data-cat="Weapons">Weapons</span>
+          <span class="im-pill" data-cat="Armour">Armour</span>
+          <span class="im-pill" data-cat="Tools">Tools</span>
+          <span class="im-pill" data-cat="Tomes & Recipes">Tomes</span>
+          <span class="im-pill" data-cat="Misc">Misc</span>
+        </div>
+        <div class="im-qty-row">
+          <span style="font-size: 11.5px; font-weight: 600; color: #cbd5e1;">Add Amount:</span>
+          <div style="display: flex; gap: 4px;">
+            <button class="small inv-qty-preset" data-qty="1">1</button>
+            <button class="small inv-qty-preset" data-qty="5">5</button>
+            <button class="small inv-qty-preset" data-qty="10">10</button>
+            <button class="small inv-qty-preset" data-qty="50">50</button>
+            <button class="small inv-qty-preset" data-qty="100">100</button>
+          </div>
+          <input id="invItemQty" type="number" min="1" max="9999" value="1" style="width: 65px; padding: 3px 6px; font-size: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; color: var(--text); text-align: center;">
+        </div>
+        <div id="invItemList" class="im-item-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -971,6 +1134,19 @@ const byGamePath = new Map();
       normal: x.Normal ? DATA_BASE + enc(x.Normal.replace(/\\/g, '/')) : null, color: x.Color || null, masked: !!x.Masked }));
     const m = { path, name, title: pretty(name), folder, url: DATA_BASE + enc(file),
       thumb: DATA_BASE + thumbBase + '/' + enc(file.replace(/\.glb$/i, '.webp')), materials, search: (path + ' ' + pretty(name)).toLowerCase() };
+    if (name === 'SK_M_MED_MoonGarou_01_Outfit_03') {
+      m.title = 'Domri - The Merchant';
+      m.folder = 'NPCs & Creatures / Traders & Merchants';
+      m.search += ' domri the merchant trader hawker vendor alcarrid camp moonstone shop';
+    } else if (name === 'SK_M_MED_MoonGarou_01_Outfit_04') {
+      m.title = 'Valas - The Blacksmith';
+      m.folder = 'NPCs & Creatures / Traders & Merchants';
+      m.search += ' valas the blacksmith smith vendor alcarrid camp forge';
+    } else if (name === 'SK_M_MED_MoonGarou_01_Outfit_05') {
+      m.title = 'Lagra - The Hunter';
+      m.folder = 'NPCs & Creatures / Traders & Merchants';
+      m.search += ' lagra the hunter butcher vendor alcarrid camp';
+    }
     models.push(m);
     byGamePath.set(path.toLowerCase(), m);
   }
@@ -2664,6 +2840,13 @@ setInterval(async () => {
     }
   } catch {}
 
+  // Live inventory sync
+  try {
+    if (typeof pollInventory === 'function' && !$('invModal')?.classList.contains('hidden')) {
+      await pollInventory();
+    }
+  } catch {}
+
   const text = await readText('placed.txt');
   if (text === null || text === lastText) return;
   lastText = text;
@@ -2777,7 +2960,10 @@ const STANDARD_NPCS = [
   { name: 'Elder Garou', key: 'BP_NPC_Elder_Garou', path: '/Game/Gameplay/NPCs/BP_NPC_Elder_Garou.BP_NPC_Elder_Garou_C' },
   { name: 'Chinchompa Pet', key: 'Pet_Chinchompa', path: '/ScornedWilderness/Gameplay/BaseBuilding/Blueprints/BP_BaseBuilding_Decoration_DeluxeEdition_Pet_Chinchompa.BP_BaseBuilding_Decoration_DeluxeEdition_Pet_Chinchompa_C' },
   { name: 'Guard / Bouncer', key: 'BP_NPC_KotHaarBouncer', path: '/Game/Gameplay/NPCs/BP_NPC_KotHaarBouncer.BP_NPC_KotHaarBouncer_C' },
-  { name: 'Commander Zilyana', key: 'BP_NPC_SW_Zilyana', path: '/ScornedWilderness/Gameplay/Quests/NPCs/BP_NPC_SW_Zilyana.BP_NPC_SW_Zilyana_C' }
+  { name: 'Commander Zilyana', key: 'BP_NPC_SW_Zilyana', path: '/ScornedWilderness/Gameplay/Quests/NPCs/BP_NPC_SW_Zilyana.BP_NPC_SW_Zilyana_C' },
+  { name: 'Domri - The Merchant', key: 'SK_M_MED_MoonGarou_01_Outfit_03', path: '/UmbralSands/Gameplay/NPCs/BP_NPC_UmS_Trader_Hawker.BP_NPC_UmS_Trader_Hawker_C' },
+  { name: 'Valas - The Blacksmith', key: 'SK_M_MED_MoonGarou_01_Outfit_04', path: '/UmbralSands/Gameplay/NPCs/BP_NPC_UmS_Trader_Smith.BP_NPC_UmS_Trader_Smith_C' },
+  { name: 'Lagra - The Hunter', key: 'SK_M_MED_MoonGarou_01_Outfit_05', path: '/UmbralSands/Gameplay/NPCs/BP_NPC_UmS_Trader_Hunter.BP_NPC_UmS_Trader_Hunter_C' }
 ];
 
 function isNpcRecord(r) {
@@ -4334,8 +4520,14 @@ addEventListener('keydown', e => {
   if (e.target.matches('input, select, textarea')) return;
   const k = e.key.toLowerCase();
   if (k === 'escape') {
+    if (!$('invModal')?.classList.contains('hidden')) { closeInvModal(); return; }
+    if (!$('questModal')?.classList.contains('hidden')) { closeQuestModal(); return; }
     if (!$('help').hidden) { closeHelpModal(); return; }
     if (picked) setPicked(null); else select(null);
+  }
+  else if (k === 'i' && !picked && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    if ($('invModal')?.classList.contains('hidden')) openInvModal(); else closeInvModal();
   }
   else if (k === 'delete' || k === 'backspace') { e.preventDefault(); del(); }
   else if (k === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
@@ -4434,7 +4626,321 @@ window.addEventListener('drop', async e => {
     await openSave(file);
   }
 });
+// ---------------------------------------------------------------------------
+// Live In-Game Inventory Editor & Item Spawner
+// ---------------------------------------------------------------------------
+let catalogItems = [];
+let invData = { maxSlots: 40, slots: [] };
+let selectedInvSlot = null;
+let currentCatFilter = 'All';
+let draggedSlot = null;
+let invPollTimer = null;
+
+async function loadCatalogItems() {
+  try {
+    let res = await fetch('items.json');
+    if (!res.ok) res = await fetch('export/items.json');
+    if (res.ok) {
+      catalogItems = await res.json();
+      renderCatalogItems();
+    }
+  } catch (e) {
+    console.warn('Could not load items catalog:', e);
+  }
+}
+loadCatalogItems();
+
+async function pollInventory() {
+  const statusEl = $('invSyncStatus');
+  if (!dir) {
+    if (statusEl) {
+      statusEl.textContent = '⚠️ Mod Folder Not Connected';
+      statusEl.style.color = '#f87171';
+    }
+    renderInventoryGrid();
+    return;
+  }
+  try {
+    const text = await readText('inventory.json');
+    if (text) {
+      invData = JSON.parse(text);
+      if (statusEl) {
+        statusEl.textContent = '🟢 Live In-Game Sync Active';
+        statusEl.style.color = '#4ade80';
+      }
+    } else {
+      if (statusEl) {
+        statusEl.textContent = '⏳ Waiting for Game World...';
+        statusEl.style.color = '#fbbf24';
+      }
+    }
+  } catch (e) {
+    console.warn('pollInventory error:', e);
+  }
+  renderInventoryGrid();
+}
+
+async function sendInventoryCmd(cmdLine) {
+  if (!dir) {
+    toast('Connect your game folder (CustomBuilds) to sync with live inventory!');
+    return;
+  }
+  try {
+    let existing = await readText('inventory_cmd.txt') || '';
+    if (existing.trim()) existing += '\n';
+    await writeText('inventory_cmd.txt', existing + cmdLine + '\n');
+    toast(`Command queued: ${cmdLine}`);
+    setTimeout(pollInventory, 350);
+    setTimeout(pollInventory, 1000);
+  } catch (e) {
+    toast(`Command failed: ${e.message}`);
+  }
+}
+
+function renderInventoryGrid() {
+  const grid = $('invGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const maxSlots = invData.maxSlots || 40;
+  const slotMap = new Map();
+  for (const s of (invData.slots || [])) {
+    slotMap.set(s.slot, s);
+  }
+  if ($('invSlotCount')) {
+    $('invSlotCount').textContent = `(${slotMap.size} / ${maxSlots} slots filled)`;
+  }
+
+  for (let i = 0; i < maxSlots; i++) {
+    const slotEl = document.createElement('div');
+    slotEl.className = 'im-slot';
+    slotEl.dataset.slot = i;
+    slotEl.draggable = true;
+
+    const numEl = document.createElement('span');
+    numEl.className = 'im-slot-num';
+    numEl.textContent = i + 1;
+    slotEl.appendChild(numEl);
+
+    const item = slotMap.get(i);
+    if (item) {
+      if (selectedInvSlot === i) slotEl.classList.add('sel');
+
+      const countEl = document.createElement('span');
+      countEl.className = 'im-slot-count';
+      countEl.textContent = item.count;
+      slotEl.appendChild(countEl);
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'im-slot-title';
+      titleEl.textContent = item.name || item.id;
+      titleEl.title = `${item.name}\nID: ${item.id}\nCount: ${item.count}/${item.maxStack || 20}`;
+      slotEl.appendChild(titleEl);
+
+      if (item.durability !== undefined && item.durability < 1.0) {
+        const bar = document.createElement('div');
+        bar.className = 'im-slot-durability';
+        const fill = document.createElement('div');
+        fill.className = 'im-slot-durability-fill';
+        fill.style.width = Math.max(0, Math.min(100, Math.round(item.durability * 100))) + '%';
+        bar.appendChild(fill);
+        slotEl.appendChild(bar);
+      }
+
+      // Action buttons on hover
+      const actions = document.createElement('div');
+      actions.className = 'im-slot-actions';
+
+      const drop1Btn = document.createElement('button');
+      drop1Btn.className = 'im-slot-action-btn';
+      drop1Btn.textContent = '-1';
+      drop1Btn.title = 'Drop 1 item';
+      drop1Btn.onclick = (e) => {
+        e.stopPropagation();
+        sendInventoryCmd(`remove|${i}|1`);
+      };
+
+      const dropAllBtn = document.createElement('button');
+      dropAllBtn.className = 'im-slot-action-btn';
+      dropAllBtn.textContent = '🗑️';
+      dropAllBtn.title = 'Drop entire stack';
+      dropAllBtn.onclick = (e) => {
+        e.stopPropagation();
+        sendInventoryCmd(`remove|${i}|${item.count}`);
+      };
+
+      actions.appendChild(drop1Btn);
+      actions.appendChild(dropAllBtn);
+      slotEl.appendChild(actions);
+    } else {
+      slotEl.classList.add('empty');
+      const emptyLabel = document.createElement('div');
+      emptyLabel.className = 'im-slot-title';
+      emptyLabel.style.color = '#475569';
+      emptyLabel.style.fontSize = '10px';
+      emptyLabel.textContent = 'Empty';
+      slotEl.appendChild(emptyLabel);
+    }
+
+    // Click to select & click-to-swap
+    slotEl.onclick = () => {
+      if (selectedInvSlot === null) {
+        if (item) {
+          selectedInvSlot = i;
+          renderInventoryGrid();
+        }
+      } else {
+        if (selectedInvSlot !== i) {
+          sendInventoryCmd(`move|${selectedInvSlot}|${i}|-1`);
+        }
+        selectedInvSlot = null;
+        renderInventoryGrid();
+      }
+    };
+
+    // Drag and drop
+    slotEl.ondragstart = (e) => {
+      if (!item) { e.preventDefault(); return; }
+      draggedSlot = i;
+      e.dataTransfer.setData('text/plain', String(i));
+      e.dataTransfer.effectAllowed = 'move';
+    };
+    slotEl.ondragover = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      slotEl.classList.add('drag-over');
+    };
+    slotEl.ondragleave = () => {
+      slotEl.classList.remove('drag-over');
+    };
+    slotEl.ondrop = (e) => {
+      e.preventDefault();
+      slotEl.classList.remove('drag-over');
+      if (draggedSlot !== null && draggedSlot !== i) {
+        sendInventoryCmd(`move|${draggedSlot}|${i}|-1`);
+      }
+      draggedSlot = null;
+    };
+
+    grid.appendChild(slotEl);
+  }
+}
+
+function renderCatalogItems() {
+  const list = $('invItemList');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const q = ($('invItemSearch')?.value || '').trim().toLowerCase();
+  const cat = currentCatFilter;
+
+  const filtered = catalogItems.filter(item => {
+    if (cat !== 'All' && item.category !== cat) return false;
+    if (!q) return true;
+    const nameMatch = (item.name || '').toLowerCase().includes(q);
+    const idMatch = (item.id || '').toLowerCase().includes(q);
+    const catMatch = (item.category || '').toLowerCase().includes(q);
+    return nameMatch || idMatch || catMatch;
+  });
+
+  const shown = filtered.slice(0, 100);
+  for (const item of shown) {
+    const card = document.createElement('div');
+    card.className = 'im-item-card';
+
+    const info = document.createElement('div');
+    info.className = 'im-item-info';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'im-item-name';
+    nameEl.textContent = item.name;
+
+    const catEl = document.createElement('div');
+    catEl.className = 'im-item-cat';
+    catEl.textContent = `${item.category} • ${item.id}`;
+
+    info.appendChild(nameEl);
+    info.appendChild(catEl);
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'im-add-btn';
+    addBtn.textContent = '➕ Add';
+    addBtn.onclick = () => {
+      const qty = parseInt($('invItemQty')?.value, 10) || 1;
+      sendInventoryCmd(`add|${item.asset || item.id}|${qty}`);
+    };
+
+    card.appendChild(info);
+    card.appendChild(addBtn);
+    list.appendChild(card);
+  }
+  if (filtered.length === 0) {
+    const emptyNotice = document.createElement('div');
+    emptyNotice.className = 'muted';
+    emptyNotice.style.padding = '20px';
+    emptyNotice.style.textAlign = 'center';
+    emptyNotice.textContent = 'No matching items found.';
+    list.appendChild(emptyNotice);
+  }
+}
+
+function openInvModal() {
+  $('invModal')?.classList.remove('hidden');
+  pollInventory();
+  if (!invPollTimer) {
+    invPollTimer = setInterval(pollInventory, 1500);
+  }
+}
+
+function closeInvModal() {
+  $('invModal')?.classList.add('hidden');
+  selectedInvSlot = null;
+  if (invPollTimer) {
+    clearInterval(invPollTimer);
+    invPollTimer = null;
+  }
+}
+
+$('invBtn')?.addEventListener('click', () => {
+  if ($('invModal')?.classList.contains('hidden')) openInvModal(); else closeInvModal();
+});
+$('invCloseBtn')?.addEventListener('click', closeInvModal);
+$('invRefreshBtn')?.addEventListener('click', pollInventory);
+
+$('invCleanBtn')?.addEventListener('click', () => {
+  sendInventoryCmd('clean');
+});
+
+$('invClearBtn')?.addEventListener('click', () => {
+  if (confirm('Are you sure you want to completely clear your player inventory?')) {
+    sendInventoryCmd('clear');
+  }
+});
+
+$('invItemSearch')?.addEventListener('input', () => {
+  renderCatalogItems();
+});
+
+document.querySelectorAll('#invCatPills .im-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('#invCatPills .im-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    currentCatFilter = pill.dataset.cat;
+    renderCatalogItems();
+  });
+});
+
+document.querySelectorAll('.inv-qty-preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const qty = btn.dataset.qty;
+    if ($('invItemQty')) $('invItemQty').value = qty;
+  });
+});
+
 window.__BASEBUILDER_INITIALIZED = true;
+window.openInvModal = openInvModal;
+window.closeInvModal = closeInvModal;
+window.pollInventory = pollInventory;
+window.sendInventoryCmd = sendInventoryCmd;
 window.openQuestModal = openQuestModal;
 window.closeQuestModal = closeQuestModal;
 window.saveQuestsData = saveQuestsData;

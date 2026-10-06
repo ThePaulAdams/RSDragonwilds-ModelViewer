@@ -2130,12 +2130,20 @@ async function loadFromFolder() {
     }
   }
 
+  const text = await readText('placed.txt');
+  if (text !== null) { const p = parsePlaced(text); records = p.out; otherLines = p.other; lastText = text; }
+
   const a = await readText('anchor.txt');
   if (a) {
     const line = a.split(/\r?\n/).find(l => /^-?[\d.]+\|/.test(l));
     if (line) { const [x, y, z, yaw] = line.split('|').map(Number); anchor = { X: x, Y: y, Z: z, Yaw: yaw || 0 }; anchorFromGame = true; }
+  } else if (!savePieces && records.size) {
+    // If models already exist and no explicit anchor.txt was saved, center on the existing models
+    const mid = k => { const v = [...records.values()].map(r => r[k]).sort((a, b) => a - b); return v[v.length >> 1]; };
+    anchor = { X: mid('X'), Y: mid('Y'), Z: mid('Z'), Yaw: 0 };
+    anchorFromGame = false;
   } else if (playerLoc) {
-    // If no manual anchor was set, anchor directly to the player's position!
+    // Fresh build: anchor directly to player's current location
     anchor = { X: playerLoc.X, Y: playerLoc.Y, Z: playerLoc.Z, Yaw: playerLoc.Yaw };
     anchorFromGame = true;
   }
@@ -2152,12 +2160,6 @@ async function loadFromFolder() {
     const pb = $('playerBtn'); if (pb) pb.style.display = '';
   }
 
-  const text = await readText('placed.txt');
-  if (text !== null) { const p = parsePlaced(text); records = p.out; otherLines = p.other; lastText = text; }
-  if (!anchorFromGame && !savePieces && records.size) {
-    const mid = k => { const v = [...records.values()].map(r => r[k]).sort((a, b) => a - b); return v[v.length >> 1]; };
-    anchor = { X: mid('X'), Y: mid('Y'), Z: mid('Z'), Yaw: 0 };
-  }
   // Start with the camera looking the way the player looked when setting the anchor.
   const back = toScene(anchor.X - Math.cos(anchor.Yaw * D) * 1600, anchor.Y - Math.sin(anchor.Yaw * D) * 1600, anchor.Z + 900);
   camera.position.copy(back); orbit.target.set(0, 0, 0);

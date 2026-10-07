@@ -7,7 +7,7 @@ A browser-based 3D design studio and quest storyboarder for **RuneScape: Dragonw
 ## 🎮 Does Ashenfallen Base-Builder require the in-game Modpack?
 **YES!** 
 
-- **Ashenfallen Base-Builder** is your **creative workspace**: freely search and inspect over 3,600+ extracted game models, plan castle layouts, place NPC companions (Doric, Wise Old Man, Cook, Zanik...), write branching dialogue trees, configure item collection or slaying objectives, and assign real rewards.
+- **Ashenfallen Base-Builder** is your **creative workspace**: freely search and inspect over 5,100+ extracted game models, plan castle layouts, place NPC companions (Doric, Wise Old Man, Cook, Zanik...), write branching dialogue trees, configure item collection or slaying objectives, and assign real rewards.
 - **RSDragonwilds-Toolkit (CustomBuilds mod)** is the **in-game runtime engine**: to see your placed objects and play your custom quests inside *RuneScape: Dragonwilds*, you must install the **CustomBuilds** mod via UE4SS. The mod reads your exported `base.txt`, `placed.txt`, and `quests.json`, materializes the models in the UE5 world, hooks the `E` interaction key, animates 3D overhead `!` markers, tracks inventory, and hands out real items.
 
 ### How to use with the game:

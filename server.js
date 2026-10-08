@@ -349,39 +349,45 @@ createServer(async (req, res) => {
       let html = await readFile(join(APP, 'basebuilder.html'), 'utf8');
       const adminScript = `
 <script type="module">
+  console.log('[Admin] Attempting to load Private Architect module...');
   try {
     const mod = await import('/private-architect.js');
+    console.log('[Admin] Private architect module imported:', !!mod);
     if (mod && mod.initArchitect) {
-      const tryInit = () => {
-        if (window.__BASEBUILDER_INITIALIZED && window.records && window.rebuildAll) {
-          mod.initArchitect({
-            THREE: window.THREE,
-            scene: window.scene,
-            camera: window.camera,
-            orbit: window.orbit,
-            records: window.records,
-            spawn: window.spawn,
-            refreshList: window.refreshList,
-            changed: window.changed || (() => {}),
-            toScene: window.toScene,
-            toGame: window.toGame,
-            placedGroup: window.placedGroup,
-            models: window.models,
-            byGamePath: window.byGamePath,
-            anchor: window.anchor,
-            playerAvatar: window.playerAvatar,
-            toast: window.toast || console.log,
-            rebuildAll: window.rebuildAll,
-            select: window.select
-          });
-        } else {
-          setTimeout(tryInit, 80);
-        }
+      const startInit = () => {
+        console.log('[Admin] Initializing architect interface...');
+        const ctx = {
+          THREE: window.THREE,
+          scene: window.scene,
+          camera: window.camera,
+          orbit: window.orbit,
+          records: window.records || new Map(),
+          spawn: window.spawn || (() => {}),
+          refreshList: window.refreshList || (() => {}),
+          changed: window.changed || (() => {}),
+          toScene: window.toScene || ((x,y,z) => ({x,y,z})),
+          toGame: window.toGame || ((x,y,z) => ({x,y,z})),
+          placedGroup: window.placedGroup,
+          models: window.models || [],
+          byGamePath: window.byGamePath || new Map(),
+          anchor: window.anchor,
+          playerAvatar: window.playerAvatar,
+          toast: window.toast || ((m) => console.log('[Toast]', m)),
+          rebuildAll: window.rebuildAll || (() => {}),
+          select: window.select || (() => {})
+        };
+        mod.initArchitect(ctx);
+        console.log('[Admin] 🏰 Private Architect successfully initialized and button mounted!');
       };
-      tryInit();
+
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(startInit, 100);
+      } else {
+        window.addEventListener('DOMContentLoaded', () => setTimeout(startInit, 100));
+      }
     }
   } catch (err) {
-    console.warn('[Admin] Private architect module not present or error loading:', err);
+    console.error('[Admin] Error importing /private-architect.js:', err);
   }
 </script>
 `;

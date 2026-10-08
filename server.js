@@ -401,7 +401,9 @@ createServer(async (req, res) => {
       if (!authedAdmin(req)) {
         return send(res, 403, 'Forbidden');
       }
-      return sendFile(req, res, join(APP, 'private-architect.js'), 'private, no-cache');
+      let file = inside(DATA, 'private-architect.js');
+      if (!file || !(await stat(file).catch(() => null))?.isFile()) file = join(APP, 'private-architect.js');
+      return sendFile(req, res, file, 'private, no-cache');
     }
 
     if (!authed(req)) {

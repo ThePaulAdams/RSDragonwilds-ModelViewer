@@ -1736,7 +1736,7 @@ function spawn(id, r) {
   applyRecord(obj, r);
   placedGroup.add(obj);
   objects.set(id, obj);
-  const m = byGamePath.get(r.Mesh.toLowerCase());
+  const m = r.Mesh ? byGamePath.get(r.Mesh.toLowerCase()) : null;
   if (!m) { obj.add(placeholder()); return obj; }
   loadMesh(m).then(root => { if (objects.get(id) === obj) obj.add(root.clone(true)); }).catch(() => obj.add(placeholder()));
   return obj;
@@ -1807,9 +1807,9 @@ function showSelection() {
     if (rotWrap) rotWrap.style.display = '';
     const r = records.get(selected), obj = objects.get(selected);
     const tmp = { ...r }; readObject(obj, tmp);
-    const m = byGamePath.get(r.Mesh.toLowerCase());
-    $('selName').textContent = m ? m.title : r.Mesh.split('/').pop();
-    $('selPath').textContent = r.Mesh;
+    const m = r.Mesh ? byGamePath.get(r.Mesh.toLowerCase()) : null;
+    $('selName').textContent = m ? m.title : (r.Mesh ? r.Mesh.split('/').pop() : 'Unknown');
+    $('selPath').textContent = r.Mesh || '';
     const rel = obj.position;
     $('fX').value = rel.x.toFixed(2); $('fY').value = rel.z.toFixed(2); $('fZ').value = rel.y.toFixed(2);
     $('fYaw').value = +(tmp.Yaw.toFixed(2)); $('fPitch').value = +(tmp.Pitch.toFixed(2)); $('fRoll').value = +(tmp.Roll.toFixed(2)); $('fScale').value = tmp.Scale;
@@ -1994,9 +1994,9 @@ function refreshList() {
 
     if (!isCollapsed) {
       for (const [id, r] of items) {
-        const m = byGamePath.get(r.Mesh.toLowerCase());
+        const m = r.Mesh ? byGamePath.get(r.Mesh.toLowerCase()) : null;
         const d = document.createElement('div');
-        const title = m ? m.title : r.Mesh.split('/').pop().replace(/\.\w+$/, '');
+        const title = m ? m.title : (r.Mesh ? r.Mesh.split('/').pop().replace(/\.\w+$/, '') : 'Unknown');
         const isSel = selection.has(id);
         const isGb = isGlobalBuildMesh(r.Mesh);
         const gbIcon = isGb
@@ -2006,7 +2006,7 @@ function refreshList() {
         d.style.cssText = 'padding-left:18px; font-size:11.5px; opacity:0.9;';
         d.innerHTML = `<span style="opacity:0.5; margin-right:4px;">└</span>${gbIcon}<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span>`;
         if (isSel) d.className = 'sel';
-        d.title = `${title} (${r.Mesh}) [${groupTitle}] - ${isGb ? 'Visible to all players' : 'Mod-only asset'}`;
+        d.title = `${title} (${r.Mesh || ''}) [${groupTitle}] - ${isGb ? 'Visible to all players' : 'Mod-only asset'}`;
         d.onclick = (e) => {
           select(id, e.shiftKey, e.altKey);
           focusSelected();
@@ -2018,9 +2018,9 @@ function refreshList() {
 
   // Render standalone items
   for (const [id, r] of standalone) {
-    const m = byGamePath.get(r.Mesh.toLowerCase());
+    const m = r.Mesh ? byGamePath.get(r.Mesh.toLowerCase()) : null;
     const d = document.createElement('div');
-    const title = m ? m.title : r.Mesh.split('/').pop().replace(/\.\w+$/, '');
+    const title = m ? m.title : (r.Mesh ? r.Mesh.split('/').pop().replace(/\.\w+$/, '') : 'Unknown');
     const isGb = isGlobalBuildMesh(r.Mesh);
     const gbIcon = isGb
       ? '<span style="color:#38bdf8; font-size:11px; margin-right:4px;" title="Visible to ALL players without mods (GlobalBuildingManager)">🌐</span>'

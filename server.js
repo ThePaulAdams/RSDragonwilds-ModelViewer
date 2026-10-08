@@ -340,14 +340,7 @@ createServer(async (req, res) => {
       return res.end();
     }
 
-    if (path === '/admin' || path === '/admin/basebuilder') {
-      if (!authedAdmin(req)) {
-        res.writeHead(303, { Location: '/admin/login' });
-        return res.end();
-      }
-      // Inject auto-loading of private architect for authenticated admin
-      let html = await readFile(join(APP, 'basebuilder.html'), 'utf8');
-      const adminScript = `
+    const adminScript = `
 <script type="module">
   console.log('[Admin] Attempting to load Private Architect module...');
   try {
@@ -402,6 +395,14 @@ createServer(async (req, res) => {
   }
 </script>
 `;
+
+    if (path === '/admin' || path === '/admin/basebuilder') {
+      if (!authedAdmin(req)) {
+        res.writeHead(303, { Location: '/admin/login' });
+        return res.end();
+      }
+      // Inject auto-loading of private architect for authenticated admin
+      let html = await readFile(join(APP, 'basebuilder.html'), 'utf8');
       html = html.replace('</body>', `${adminScript}</body>`);
       const body = gzipSync(html);
       res.writeHead(200, {
@@ -461,7 +462,11 @@ createServer(async (req, res) => {
       return res.end(req.method === 'HEAD' ? undefined : body);
     }
     if (path === '/base-builder' || path === '/basebuilder.html') {
-      const body = gzipSync(await readFile(join(APP, 'basebuilder.html')));
+      let html = await readFile(join(APP, 'basebuilder.html'), 'utf8');
+      if (authedAdmin(req)) {
+        html = html.replace('</body>', `${adminScript}</body>`);
+      }
+      const body = gzipSync(html);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
         'Cache-Control': 'no-cache', Vary: 'Accept-Encoding' });
       return res.end(req.method === 'HEAD' ? undefined : body);

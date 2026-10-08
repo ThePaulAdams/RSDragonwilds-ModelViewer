@@ -5730,7 +5730,21 @@ window.setQuestTargetLocation = setQuestTargetLocation;
 window.questMarkersGroup = questMarkersGroup;
 
 // Expose internal builder engine for extensions & admin architect
-window.records = records;
+Object.defineProperty(window, 'records', {
+  get() { return records; },
+  set(v) { records = v; },
+  configurable: true
+});
+Object.defineProperty(window, 'anchor', {
+  get() { return anchor; },
+  set(v) { anchor = v; },
+  configurable: true
+});
+Object.defineProperty(window, 'livePlayer', {
+  get() { return livePlayer; },
+  set(v) { livePlayer = v; },
+  configurable: true
+});
 window.rebuildAll = rebuildAll;
 window.spawn = spawn;
 window.refreshList = refreshList;
@@ -5740,7 +5754,6 @@ window.toGame = toGame;
 window.placedGroup = placedGroup;
 window.models = models;
 window.byGamePath = byGamePath;
-window.anchor = anchor;
 window.playerAvatar = playerAvatar;
 window.toast = toast;
 window.select = select;

@@ -273,6 +273,44 @@
     display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted);
   }
 
+  /* World / Save Profile Manager Modal Styles */
+  #worldModal {
+    position: fixed; inset: 0; background: rgba(5, 7, 10, .85);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; z-index: 155; backdrop-filter: blur(6px);
+  }
+  #worldModal.hidden { display: none !important; }
+  .wm-window {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    width: 680px; max-width: 96vw; max-height: 85vh;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.85);
+  }
+  .wm-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel2);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .wm-header h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; color: #38bdf8; }
+  .wm-body { padding: 18px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+  .wm-card {
+    background: rgba(18, 20, 24, 0.7); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .wm-profile-list { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; }
+  .wm-profile-item {
+    display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .wm-profile-item:hover { border-color: #38bdf8; background: #28303d; }
+  .wm-profile-item.active { border-color: #38bdf8; background: rgba(56, 189, 248, 0.15); box-shadow: 0 0 0 1px #38bdf8; }
+  .wm-profile-title { font-weight: 600; color: var(--text); font-size: 13px; }
+  .wm-profile-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .wm-footer {
+    padding: 12px 20px; border-top: 1px solid var(--line); background: var(--panel2);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
   /* Inventory Editor Modal Styles */
   #invModal {
     position: fixed; inset: 0; background: rgba(5, 7, 10, .85);
@@ -390,6 +428,7 @@
     <div class="group">
       <button id="saveBtn" title="Show your base from your save file (Wilds.sav). Read only: the save is never changed.">Open save</button>
       <button id="connectBtn" class="primary" title="Pick your RSDragonwilds game root folder (Steam > Manage > Browse local files). Works automatically with root folder or mod folder!">Connect game folder</button>
+      <button id="worldMgrBtn" style="background:#132e3d; border-color:#0284c7; color:#38bdf8; font-weight:600;" title="Manage Worlds &amp; Save Profiles: Switch worlds, create new base saves, prevent cross-world overwrites">🌍 Worlds</button>
       <button id="playerBtn" style="display:none; color: #38bdf8; font-weight: 600;" title="Focus camera and world on your in-game character (P)">👤 Player</button>
       <button id="campBtn" style="display:none; color: #a78bfa; font-weight: 600;" title="Focus camera and world on your camp / placed models (C)">🏕️ Camp</button>
       <span id="sync">Not connected: changes stay in this page until you connect or export.</span>
@@ -426,6 +465,7 @@
       </label>
     </div>
     <div class="group">
+      <button id="groupBtn" style="background:#2a2340; border-color:#8b5cf6; color:#c4b5fd; font-weight:600;" title="Group Selected into a single Manipulable Building Object (Ctrl+G)">📦 Group</button>
       <button id="dupBtn" title="Duplicate (Ctrl+D)">Duplicate</button>
       <button id="delBtn" title="Delete (Delete)">Delete</button>
       <button id="undoBtn" title="Undo (Ctrl+Z)">Undo</button>
@@ -1065,6 +1105,50 @@
   </div>
 </div>
 
+<div id="worldModal" class="hidden">
+  <div class="wm-window">
+    <div class="wm-header">
+      <h3>🌍 World &amp; Save Profile Manager</h3>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span id="wmSaveStatus" style="font-size:11.5px; color:#94a3b8; background:#1e293b; padding:2px 8px; border-radius:10px; border:1px solid #334155;">Active Profile: default</span>
+        <button id="wmCloseBtn" class="small" style="padding:2px 8px; font-size:14px;">✕</button>
+      </div>
+    </div>
+    <div class="wm-body">
+      <div class="wm-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong style="color:#e0b64a; font-size:13px;">Saved World Profiles</strong>
+          <span class="muted" style="font-size:11px;">Switching profiles loads its placed models &amp; anchor</span>
+        </div>
+        <div id="wmProfileList" class="wm-profile-list"></div>
+      </div>
+
+      <div class="wm-card">
+        <strong style="color:#38bdf8; font-size:13px;">Create New World Profile</strong>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+          <input id="wmNewProfileName" type="text" placeholder="e.g. CreativeWorld2, HardcoreBase, CastleLayout..." style="flex:1;">
+          <button id="wmCreateProfileBtn" class="primary small" style="padding:6px 14px;">➕ Create &amp; Switch</button>
+        </div>
+        <span class="muted" style="font-size:11px;">Creates an isolated <code>placed_&lt;name&gt;.txt</code> file so your builds never overwrite each other.</span>
+      </div>
+
+      <div class="wm-card" style="border-color:#334155; background:rgba(30, 41, 59, 0.3);">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div>
+            <strong style="color:#94a3b8; font-size:12.5px;">Auto-Sync with Active Game World</strong>
+            <div class="muted" style="font-size:11px; margin-top:2px;">When checked, the builder watches for world/save transitions and prompts before switching.</div>
+          </div>
+          <input id="wmAutoSyncCheck" type="checkbox" checked style="width:16px; height:16px; cursor:pointer;">
+        </div>
+      </div>
+    </div>
+    <div class="wm-footer">
+      <span class="muted" style="font-size:11.5px;">💡 Each profile has its own placed pieces, anchor point, and backup history.</span>
+      <button id="wmDoneBtn" class="small primary" style="padding:5px 16px;">Done</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -1205,6 +1289,7 @@ function parsePlaced(text) {
       if (k === 'pitch') r.Pitch = +v || 0; else if (k === 'roll') r.Roll = +v || 0;
       else if (k === 'scale') r.Scale = +v || 1; else if (k === 'base') r.Base = v || '';
       else if (k === 'portal') r.Portal = v || ''; else if (k === 'target') r.Target = v || '';
+      else if (k === 'group') r.Group = v || '';
     } else r.Base = extra;
     // Remember the mod's own line so untouched records are written back byte-for-byte
     // (otherwise rounding differences would make the game respawn them).
@@ -1223,6 +1308,7 @@ function buildLine(id, r) {
   let line = `${id}|${f2(r.X)}|${f2(r.Y)}|${f2(r.Z)}|${f6(0)}|${f6(0)}|${f6(Math.sin(h))}|${f6(Math.cos(h))}|${r.Mesh}|base=${r.Base || ''};pitch=${g(r.Pitch)};roll=${g(r.Roll)};scale=${g(r.Scale)}`;
   if (r.Portal) line += `;portal=${r.Portal}`;
   if (r.Target) line += `;target=${r.Target}`;
+  if (r.Group) line += `;group=${r.Group}`;
   return line;
 }
 function placedText() {
@@ -1592,7 +1678,7 @@ function rebuildAll() {
 // ---------------------------------------------------------------------------
 // Selection, gizmo, list
 // ---------------------------------------------------------------------------
-function select(id, shiftKey = false) {
+function select(id, shiftKey = false, singleOnly = false) {
   if (shiftKey) {
     if (!id || !objects.has(id)) return;
     if (selection.has(id)) {
@@ -1605,8 +1691,19 @@ function select(id, shiftKey = false) {
   } else {
     selection.clear();
     if (id && objects.has(id)) {
-      selection.add(id);
-      selected = id;
+      const r = records.get(id);
+      if (r && r.Group && !singleOnly) {
+        const grp = r.Group;
+        for (const [oid, or] of records) {
+          if (or.Group === grp && objects.has(oid)) {
+            selection.add(oid);
+          }
+        }
+        selected = id;
+      } else {
+        selection.add(id);
+        selected = id;
+      }
     } else {
       selected = null;
     }
@@ -1614,6 +1711,7 @@ function select(id, shiftKey = false) {
   updateSelectionPivot();
   showSelection();
   refreshList();
+  updateGroupBtnState();
 }
 function selectAll() {
   if (!records.size) return;
@@ -1688,12 +1786,21 @@ function showSelection() {
     if (npcBox) npcBox.hidden = true;
     const portalBox = $('portalPropBox');
     if (portalBox) portalBox.hidden = true;
-    $('selName').textContent = `${selection.size} objects selected`;
-    $('selPath').textContent = 'Shift+click to add/remove. Ctrl+D duplicate, Del delete, T rotate.';
+    const firstId = [...selection][0];
+    const grp = records.get(firstId)?.Group;
+    const isSingleGroup = grp && [...selection].every(id => records.get(id)?.Group === grp);
+    if (isSingleGroup) {
+      $('selName').textContent = `📦 Building Group (${selection.size} pieces)`;
+      $('selPath').textContent = 'Manipulate as a single unit (Move/Rotate/Scale). Alt+Click piece to edit solo. Ctrl+G to ungroup.';
+    } else {
+      $('selName').textContent = `${selection.size} objects selected`;
+      $('selPath').textContent = 'Shift+click to add/remove. Ctrl+G group, Ctrl+D duplicate, Del delete, T rotate.';
+    }
     const center = selectionPivot.position;
     $('fX').value = center.x.toFixed(2); $('fY').value = center.z.toFixed(2); $('fZ').value = center.y.toFixed(2);
     $('fYaw').value = 0; $('fPitch').value = 0; $('fRoll').value = 0; $('fScale').value = 1;
   }
+  updateGroupBtnState();
 }
 for (const k of ['fX', 'fY', 'fZ', 'fYaw', 'fPitch', 'fRoll', 'fScale']) $(k).addEventListener('change', () => {
   if (!selection.size) return;
@@ -1755,12 +1862,17 @@ function refreshList() {
       const badgeBg = isSel ? 'rgba(0,0,0,0.25)' : '#1e3a5f';
       const badgeColor = isSel ? '#14161a' : '#93c5fd';
       d.innerHTML = `<span style="margin-right:6px; flex-shrink:0;">🌀</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span><span style="font-size:10px; background:${badgeBg}; color:${badgeColor}; padding:1px 5px; border-radius:4px; font-weight:600; flex-shrink:0; margin-left:4px;">${r.Portal}</span>`;
+    } else if (r.Group) {
+      const isSel = selection.has(id);
+      const badgeBg = isSel ? 'rgba(0,0,0,0.25)' : '#2e1065';
+      const badgeColor = isSel ? '#14161a' : '#c4b5fd';
+      d.innerHTML = `<span style="margin-right:6px; flex-shrink:0;">📦</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span><span style="font-size:9.5px; background:${badgeBg}; color:${badgeColor}; padding:1px 5px; border-radius:4px; font-weight:600; flex-shrink:0; margin-left:4px;" title="Group: ${r.Group}">GRP</span>`;
     } else {
       d.textContent = title;
     }
     if (selection.has(id)) d.className = 'sel';
-    d.title = `${title} (${r.Mesh})`;
-    d.onclick = (e) => { select(id, e.shiftKey); focusSelected(); };
+    d.title = `${title} (${r.Mesh})${r.Group ? ' [Grouped: ' + r.Group + ']' : ''}`;
+    d.onclick = (e) => { select(id, e.shiftKey, e.altKey); focusSelected(); };
     list.append(d);
   }
 }
@@ -2303,7 +2415,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   }
 
   if (!id && e.shiftKey) return;
-  select(id, e.shiftKey);
+  select(id, e.shiftKey, e.altKey);
 });
 
 // ---------------------------------------------------------------------------
@@ -2360,6 +2472,267 @@ gridToggleBtn?.addEventListener('click', () => {
 });
 
 // ---------------------------------------------------------------------------
+// World / Save Profile Manager
+// Allows switching between different world saves or base profiles without
+// cross-world file overwrites.
+// ---------------------------------------------------------------------------
+let activeWorldProfile = localStorage.getItem('bb.active_world_profile') || 'default';
+let worldProfiles = ['default'];
+
+function loadWorldProfilesList() {
+  try {
+    const list = JSON.parse(localStorage.getItem('bb.world_profiles') || '[]');
+    if (Array.isArray(list) && list.length) {
+      worldProfiles = list;
+    }
+  } catch {}
+  if (!worldProfiles.includes('default')) worldProfiles.unshift('default');
+}
+loadWorldProfilesList();
+
+function saveWorldProfilesList() {
+  if (!worldProfiles.includes('default')) worldProfiles.unshift('default');
+  try { localStorage.setItem('bb.world_profiles', JSON.stringify(worldProfiles)); } catch {}
+}
+
+async function scanDirForProfiles() {
+  if (!dir) return;
+  loadWorldProfilesList();
+  try {
+    for await (const entry of dir.values()) {
+      if (entry.kind === 'file') {
+        const m = entry.name.match(/^placed_([a-zA-Z0-9_\-]+)\.txt$/i);
+        if (m && m[1]) {
+          const pName = m[1];
+          if (!worldProfiles.includes(pName)) {
+            worldProfiles.push(pName);
+          }
+        }
+      }
+    }
+    saveWorldProfilesList();
+  } catch (err) {
+    console.warn('scanDirForProfiles error:', err);
+  }
+}
+
+function updateWorldMgrBtn() {
+  const btn = $('worldMgrBtn');
+  if (!btn) return;
+  const isDef = activeWorldProfile === 'default';
+  btn.innerHTML = `🌍 World: <span style="color:${isDef ? '#38bdf8' : '#e0b64a'}; font-weight:700;">${activeWorldProfile}</span>`;
+  btn.title = `Active World Profile: "${activeWorldProfile}". Click to switch or create save profiles.`;
+}
+updateWorldMgrBtn();
+
+function openWorldModal() {
+  $('worldModal')?.classList.remove('hidden');
+  renderWorldProfiles();
+}
+
+function closeWorldModal() {
+  $('worldModal')?.classList.add('hidden');
+}
+
+async function renderWorldProfiles() {
+  const listEl = $('wmProfileList');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  if ($('wmSaveStatus')) $('wmSaveStatus').textContent = `Active Profile: ${activeWorldProfile}`;
+
+  for (const prof of worldProfiles) {
+    const item = document.createElement('div');
+    const isActive = prof === activeWorldProfile;
+    item.className = 'wm-profile-item' + (isActive ? ' active' : '');
+
+    let modelCountInfo = '';
+    if (isActive) {
+      modelCountInfo = `(${records.size} models loaded in builder)`;
+    }
+
+    item.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:2px; flex:1;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="wm-profile-title" style="font-size:13.5px; color:${isActive ? '#38bdf8' : '#e2e8f0'};">${prof}</span>
+          ${isActive ? '<span style="font-size:10px; background:#0284c7; color:#fff; padding:2px 7px; border-radius:10px; font-weight:700;">ACTIVE</span>' : ''}
+        </div>
+        <div class="wm-profile-meta">
+          ${prof === 'default' ? 'Primary game world (placed.txt / anchor.txt)' : `Dedicated save files (placed_${prof}.txt, anchor_${prof}.txt)`} ${modelCountInfo}
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        ${!isActive ? `<button class="small primary wm-switch-btn" data-prof="${prof}" style="padding:4px 12px; font-size:12px;">Switch</button>` : '<span style="font-size:12px; color:#38bdf8; font-weight:600;">✓ In Use</span>'}
+        ${prof !== 'default' ? `<button class="small wm-del-btn" data-prof="${prof}" title="Delete profile from list" style="padding:4px 8px; background:rgba(239,68,68,0.15); border-color:#ef4444; color:#fca5a5; font-size:12px;">🗑️</button>` : ''}
+      </div>
+    `;
+
+    item.querySelector('.wm-switch-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      switchWorldProfile(prof);
+    });
+
+    item.querySelector('.wm-del-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteWorldProfile(prof);
+    });
+
+    item.addEventListener('click', () => {
+      if (!isActive) switchWorldProfile(prof);
+    });
+
+    listEl.appendChild(item);
+  }
+}
+
+async function switchWorldProfile(newProfile) {
+  if (newProfile === activeWorldProfile) return;
+
+  // 1. Auto-save current world profile to its profile file first
+  if (dir && records.size > 0) {
+    try {
+      const curText = placedText();
+      const curProfFile = activeWorldProfile === 'default' ? 'placed_default.txt' : `placed_${activeWorldProfile}.txt`;
+      await writeText(curProfFile, curText);
+      const curAnchorLine = `# CustomBuilds anchor: x|y|z|yaw\n${f2(anchor.X)}|${f2(anchor.Y)}|${f2(anchor.Z)}|${f2(anchor.Yaw || 0)}\n`;
+      const curAnchorFile = activeWorldProfile === 'default' ? 'anchor_default.txt' : `anchor_${activeWorldProfile}.txt`;
+      await writeText(curAnchorFile, curAnchorLine);
+    } catch (e) {
+      console.warn('Failed auto-saving previous profile:', e);
+    }
+  }
+
+  // 2. Set active profile
+  activeWorldProfile = newProfile;
+  localStorage.setItem('bb.active_world_profile', activeWorldProfile);
+
+  // 3. Load from folder or fallback
+  if (dir) {
+    let profFile = newProfile === 'default' ? 'placed.txt' : `placed_${newProfile}.txt`;
+    let text = await readText(profFile);
+    if (text === null && newProfile !== 'default') {
+      text = await readText('placed.txt');
+    }
+
+    if (text !== null) {
+      const p = parsePlaced(text);
+      records = p.out;
+      otherLines = p.other;
+      lastText = text;
+    } else {
+      records.clear();
+      otherLines = [];
+      lastText = '';
+    }
+
+    // Load anchor
+    let anchorFile = newProfile === 'default' ? 'anchor.txt' : `anchor_${newProfile}.txt`;
+    let a = await readText(anchorFile);
+    if (!a && newProfile !== 'default') a = await readText('anchor.txt');
+    if (a) {
+      const line = a.split(/\r?\n/).find(l => /^-?[\d.]+\|/.test(l));
+      if (line) {
+        const [x, y, z, yaw] = line.split('|').map(Number);
+        anchor = { X: x, Y: y, Z: z, Yaw: yaw || 0 };
+      }
+    }
+
+    // Sync to placed.txt and anchor.txt so live game matches this world immediately
+    const outText = placedText();
+    await writeText('placed.txt', outText);
+    const anchorLine = `# CustomBuilds anchor: x|y|z|yaw\n${f2(anchor.X)}|${f2(anchor.Y)}|${f2(anchor.Z)}|${f2(anchor.Yaw || 0)}\n`;
+    await writeText('anchor.txt', anchorLine);
+
+    rebuildAll();
+    refreshList();
+    status(`Switched to world profile "${activeWorldProfile}" (${records.size} models)`, 'ok');
+  } else {
+    toast(`Switched profile to "${activeWorldProfile}". Connect game folder to sync files.`);
+  }
+
+  updateWorldMgrBtn();
+  renderWorldProfiles();
+}
+
+async function createNewWorldProfile(name) {
+  name = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+  if (!name) {
+    toast('Please enter a valid profile name');
+    return;
+  }
+  if (!worldProfiles.includes(name)) {
+    worldProfiles.push(name);
+    saveWorldProfilesList();
+  }
+
+  // Auto-save current build to current profile before creating new one
+  if (dir && records.size > 0) {
+    const curText = placedText();
+    const curProfFile = activeWorldProfile === 'default' ? 'placed_default.txt' : `placed_${activeWorldProfile}.txt`;
+    await writeText(curProfFile, curText);
+  }
+
+  // Ask user if they want to clone current build or start blank
+  const startBlank = confirm(`Create profile "${name}":\n\nClick OK to start with a BLANK canvas for this world.\nClick Cancel to CLONE your current build into this new profile.`);
+  if (startBlank) {
+    records.clear();
+    otherLines = [];
+  }
+
+  activeWorldProfile = name;
+  localStorage.setItem('bb.active_world_profile', activeWorldProfile);
+
+  if (dir) {
+    const text = placedText();
+    await writeText(`placed_${name}.txt`, text);
+    await writeText('placed.txt', text);
+    const anchorLine = `# CustomBuilds anchor: x|y|z|yaw\n${f2(anchor.X)}|${f2(anchor.Y)}|${f2(anchor.Z)}|${f2(anchor.Yaw || 0)}\n`;
+    await writeText(`anchor_${name}.txt`, anchorLine);
+    await writeText('anchor.txt', anchorLine);
+  }
+
+  rebuildAll();
+  refreshList();
+  updateWorldMgrBtn();
+  renderWorldProfiles();
+  toast(`Created and switched to world profile "${name}"!`);
+}
+
+function deleteWorldProfile(name) {
+  if (name === 'default') {
+    alert('Cannot delete the default profile.');
+    return;
+  }
+  if (!confirm(`Are you sure you want to remove profile "${name}" from the list?`)) return;
+
+  worldProfiles = worldProfiles.filter(p => p !== name);
+  saveWorldProfilesList();
+
+  if (activeWorldProfile === name) {
+    switchWorldProfile('default');
+  } else {
+    renderWorldProfiles();
+  }
+  toast(`Removed profile "${name}"`);
+}
+
+$('worldMgrBtn')?.addEventListener('click', openWorldModal);
+$('wmCloseBtn')?.addEventListener('click', closeWorldModal);
+$('wmDoneBtn')?.addEventListener('click', closeWorldModal);
+$('wmCreateProfileBtn')?.addEventListener('click', () => {
+  const inp = $('wmNewProfileName');
+  if (inp && inp.value.trim()) {
+    createNewWorldProfile(inp.value.trim());
+    inp.value = '';
+  }
+});
+$('wmNewProfileName')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    $('wmCreateProfileBtn')?.click();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Game folder sync (File System Access API: Chrome / Edge)
 // ---------------------------------------------------------------------------
 let dir = null, lastText = null, writeTimer = null;
@@ -2388,11 +2761,22 @@ async function save() {
     const old = await readText('placed.txt');
     if (old !== null) await writeText('placed.txt.bak', old);
     await writeText('placed.txt', text);
+
+    // Also mirror to active world profile file
+    if (activeWorldProfile !== 'default') {
+      await writeText(`placed_${activeWorldProfile}.txt`, text);
+      const anchorLine = `# CustomBuilds anchor: x|y|z|yaw\n${f2(anchor.X)}|${f2(anchor.Y)}|${f2(anchor.Z)}|${f2(anchor.Yaw || 0)}\n`;
+      await writeText(`anchor_${activeWorldProfile}.txt`, anchorLine);
+    } else {
+      await writeText('placed_default.txt', text);
+    }
+
     lastText = text;
-    status(`Saved ${records.size} models to the game folder ${new Date().toLocaleTimeString()}`, 'ok');
+    status(`Saved ${records.size} models [${activeWorldProfile}] ${new Date().toLocaleTimeString()}`, 'ok');
   } catch (e) { status('Could not save: ' + e.message, 'bad'); }
 }
-async function loadFromFolder() {
+async function loadFromFolder(profileToLoad = activeWorldProfile) {
+  await scanDirForProfiles();
   let playerLoc = null;
   const pl = await readText('player.txt');
   if (pl) {
@@ -2404,10 +2788,18 @@ async function loadFromFolder() {
     }
   }
 
-  const text = await readText('placed.txt');
+  let profFile = profileToLoad === 'default' ? 'placed.txt' : `placed_${profileToLoad}.txt`;
+  let text = await readText(profFile);
+  if (text === null && profileToLoad !== 'default') {
+    text = await readText('placed.txt');
+  }
   if (text !== null) { const p = parsePlaced(text); records = p.out; otherLines = p.other; lastText = text; }
+  else { records.clear(); otherLines = []; lastText = ''; }
 
-  const a = await readText('anchor.txt');
+  let anchorFile = profileToLoad === 'default' ? 'anchor.txt' : `anchor_${profileToLoad}.txt`;
+  let a = await readText(anchorFile);
+  if (!a && profileToLoad !== 'default') a = await readText('anchor.txt');
+
   if (a) {
     const line = a.split(/\r?\n/).find(l => /^-?[\d.]+\|/.test(l));
     if (line) {
@@ -2450,6 +2842,7 @@ async function loadFromFolder() {
   await loadWorld();
   if (typeof loadQuestsData === 'function') await loadQuestsData();
   updateNavButtons();
+  updateWorldMgrBtn();
   if (savePieces) { showBase(+$('baseSel').value || 0, false); return; }
   if (!a && !playerLoc && records.size) { $('baseInfo').textContent = 'Centred on your placed models. Type "cb anchor" in the game console to line up with a spot in game, or Open save to see your base.'; return; }
   $('baseInfo').textContent = (a || playerLoc) ? `Anchor at ${anchor.X.toFixed(0)}, ${anchor.Y.toFixed(0)}, ${anchor.Z.toFixed(0)} (game cm). Player visible in 3D.` : 'No anchor yet: type "cb anchor" in the game console (F10), then reconnect.';
@@ -2832,6 +3225,14 @@ setInterval(async () => {
       const line = pl.split(/\r?\n/).find(l => /^-?[\d.]+\|/.test(l));
       if (line) {
         const [px, py, pz, pyaw] = line.split('|').map(Number);
+        if (livePlayer && $('wmAutoSyncCheck')?.checked) {
+          const dist = Math.hypot(px - livePlayer.X, py - livePlayer.Y);
+          if (dist > 50000 && !window.__playerJumpNotified) {
+            window.__playerJumpNotified = true;
+            toast(`🌍 Player moved ${Math.round(dist/100)}m (Possible world/save switch). Open 🌍 Worlds menu to manage.`);
+            setTimeout(() => { window.__playerJumpNotified = false; }, 30000);
+          }
+        }
         livePlayer = { X: px, Y: py, Z: pz, Yaw: pyaw || 0 };
         playerAvatar.position.copy(toScene(px, py, pz));
         playerAvatar.rotation.y = -pyaw * D;
@@ -2860,12 +3261,14 @@ setInterval(async () => {
     }
   } catch {}
 
-  const text = await readText('placed.txt');
+  const profFile = activeWorldProfile === 'default' ? 'placed.txt' : `placed_${activeWorldProfile}.txt`;
+  let text = await readText(profFile);
+  if (text === null && activeWorldProfile !== 'default') text = await readText('placed.txt');
   if (text === null || text === lastText) return;
   lastText = text;
   const p = parsePlaced(text); records = p.out; otherLines = p.other;
   rebuildAll();
-  status(`Updated from the game ${new Date().toLocaleTimeString()}`, 'ok');
+  status(`Updated from the game [${activeWorldProfile}] ${new Date().toLocaleTimeString()}`, 'ok');
 }, 2000);
 
 // Accept the game root folder (e.g. Steam's RSDragonwilds) or any subfolder down to CustomBuilds.
@@ -2942,7 +3345,8 @@ $('connectBtn').onclick = async () => {
 $('exportBtn').onclick = () => {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([placedText()], { type: 'text/plain' }));
-  a.download = 'placed.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  a.download = activeWorldProfile === 'default' ? 'placed.txt' : `placed_${activeWorldProfile}.txt`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 $('importBtn').onclick = () => {
   const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.txt';
@@ -4349,11 +4753,18 @@ function duplicate() {
   if (!selection.size) return;
   pushUndo();
   const newIds = [];
+  const groupRemap = new Map();
   for (const oldId of [...selection]) {
     const oldR = records.get(oldId);
     if (!oldR) continue;
     const r = { ...oldR };
     r.X += 100;
+    if (r.Group) {
+      if (!groupRemap.has(r.Group)) {
+        groupRemap.set(r.Group, 'grp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6));
+      }
+      r.Group = groupRemap.get(r.Group);
+    }
     const id = newId();
     records.set(id, r);
     spawn(id, r);
@@ -4367,8 +4778,83 @@ function duplicate() {
   updateSelectionPivot();
   showSelection();
   refreshList();
+  updateGroupBtnState();
   toast(`Duplicated ${newIds.length} object${newIds.length > 1 ? 's' : ''}`);
 }
+
+function groupSelection() {
+  if (selection.size < 2) {
+    toast('Select 2 or more pieces to group together (Shift+Click)');
+    return;
+  }
+  pushUndo();
+  const gid = 'grp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+  for (const id of selection) {
+    const r = records.get(id);
+    if (r) r.Group = gid;
+  }
+  changed();
+  refreshList();
+  updateGroupBtnState();
+  showSelection();
+  toast(`📦 Grouped ${selection.size} pieces into a building object!`);
+}
+
+function ungroupSelection() {
+  if (!selection.size) return;
+  pushUndo();
+  let count = 0;
+  for (const id of selection) {
+    const r = records.get(id);
+    if (r && r.Group) {
+      delete r.Group;
+      count++;
+    }
+  }
+  changed();
+  refreshList();
+  updateGroupBtnState();
+  showSelection();
+  toast(`🔓 Ungrouped ${count} piece${count !== 1 ? 's' : ''}`);
+}
+
+function toggleGroupSelection() {
+  if (!selection.size) {
+    toast('Select pieces first to group or ungroup');
+    return;
+  }
+  const firstId = [...selection][0];
+  const firstGrp = records.get(firstId)?.Group;
+  const allSameGroup = firstGrp && [...selection].every(id => records.get(id)?.Group === firstGrp);
+  if (allSameGroup) {
+    ungroupSelection();
+  } else {
+    groupSelection();
+  }
+}
+
+function updateGroupBtnState() {
+  const btn = $('groupBtn');
+  if (!btn) return;
+  if (!selection.size) {
+    btn.textContent = '📦 Group';
+    btn.title = 'Select pieces to group into a single building (Ctrl+G)';
+    btn.style.opacity = '0.7';
+    return;
+  }
+  btn.style.opacity = '1';
+  const firstId = [...selection][0];
+  const firstGrp = records.get(firstId)?.Group;
+  const allSameGroup = firstGrp && [...selection].every(id => records.get(id)?.Group === firstGrp);
+  if (allSameGroup) {
+    btn.textContent = '🔓 Ungroup';
+    btn.title = `Ungroup ${selection.size} pieces (Ctrl+G)`;
+  } else {
+    btn.textContent = '📦 Group';
+    btn.title = `Group ${selection.size} pieces into a single building (Ctrl+G)`;
+  }
+}
+$('groupBtn')?.addEventListener('click', toggleGroupSelection);
 $('modeMove').onclick = () => setMode('translate');
 $('modeRotate').onclick = () => setMode('rotate');
 $('modeScale').onclick = () => setMode('scale');
@@ -4533,6 +5019,7 @@ addEventListener('keydown', e => {
   if (e.target.matches('input, select, textarea')) return;
   const k = e.key.toLowerCase();
   if (k === 'escape') {
+    if (!$('worldModal')?.classList.contains('hidden')) { closeWorldModal(); return; }
     if (!$('invModal')?.classList.contains('hidden')) { closeInvModal(); return; }
     if (!$('questModal')?.classList.contains('hidden')) { closeQuestModal(); return; }
     if (!$('help').hidden) { closeHelpModal(); return; }
@@ -4546,6 +5033,7 @@ addEventListener('keydown', e => {
   else if (k === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
   else if (k === 'd' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); duplicate(); }
   else if (k === 'a' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); selectAll(); }
+  else if (k === 'g' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); toggleGroupSelection(); }
   else if (k === 'w' && !picked) setMode('translate');
   else if (k === 'e' && !picked) setMode('rotate');
   else if (k === 'r') setMode('scale');
@@ -4976,6 +5464,15 @@ window.anchor = anchor;
 window.playerAvatar = playerAvatar;
 window.toast = toast;
 window.select = select;
+window.selection = selection;
+window.groupSelection = groupSelection;
+window.ungroupSelection = ungroupSelection;
+window.toggleGroupSelection = toggleGroupSelection;
+window.openWorldModal = openWorldModal;
+window.closeWorldModal = closeWorldModal;
+window.switchWorldProfile = switchWorldProfile;
+window.createNewWorldProfile = createNewWorldProfile;
+window.deleteWorldProfile = deleteWorldProfile;
 window.THREE = THREE;
 window.scene = scene;
 window.camera = camera;

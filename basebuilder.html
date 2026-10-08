@@ -1876,10 +1876,85 @@ function commitGizmo() {
   updateSelectionPivot();
   showSelection();
 }
+const collapsedGroups = new Set();
 function refreshList() {
   const list = $('list'); list.textContent = '';
   $('placedCount').textContent = `(${records.size})`;
+
+  const groups = new Map();
+  const standalone = [];
+
   for (const [id, r] of records) {
+    if (r.Group) {
+      if (!groups.has(r.Group)) groups.set(r.Group, []);
+      groups.get(r.Group).push([id, r]);
+    } else {
+      standalone.push([id, r]);
+    }
+  }
+
+  // Render Groups
+  for (const [grpId, items] of groups) {
+    const isCollapsed = collapsedGroups.has(grpId);
+    const allSel = items.every(([id]) => selection.has(id));
+    const someSel = !allSel && items.some(([id]) => selection.has(id));
+
+    let groupTitle = grpId;
+    if (grpId.startsWith('grp_') || grpId.startsWith('arch_')) {
+      const parts = grpId.replace(/^(grp_|arch_)/, '').split('_');
+      const nameParts = parts.filter(p => isNaN(p) && p.length > 2);
+      groupTitle = nameParts.length ? nameParts.join(' ') : 'Architect Building';
+    }
+
+    const header = document.createElement('div');
+    header.className = 'placed-grp-header' + (allSel ? ' sel' : (someSel ? ' partial' : ''));
+    header.style.cssText = `display:flex; align-items:center; justify-content:space-between; background:${allSel ? 'var(--accent)' : '#1e1b2e'}; color:${allSel ? '#14161a' : '#c4b5fd'}; border:1px solid ${allSel ? 'var(--accent)' : '#4c1d95'}; border-radius:4px; font-weight:600; padding:0 8px; margin-bottom:2px;`;
+    header.title = `Building: ${groupTitle} (${items.length} pieces). Click to select & move entire building.`;
+
+    const titleSpan = document.createElement('span');
+    titleSpan.style.cssText = 'flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:6px; cursor:pointer;';
+    titleSpan.innerHTML = `<span>🏛️</span><span style="font-weight:700;">${groupTitle}</span><span style="font-size:10px; opacity:0.85; font-weight:normal;">(${items.length} pcs)</span>`;
+    titleSpan.onclick = (e) => {
+      select(items[0][0], e.shiftKey);
+      focusSelected();
+    };
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.textContent = isCollapsed ? '▶' : '▼';
+    toggleBtn.style.cssText = 'background:transparent; border:none; color:inherit; font-size:10px; cursor:pointer; padding:2px 4px;';
+    toggleBtn.title = isCollapsed ? 'Expand pieces' : 'Collapse pieces';
+    toggleBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (isCollapsed) collapsedGroups.delete(grpId);
+      else collapsedGroups.add(grpId);
+      refreshList();
+    };
+
+    header.appendChild(titleSpan);
+    header.appendChild(toggleBtn);
+    list.append(header);
+
+    if (!isCollapsed) {
+      for (const [id, r] of items) {
+        const m = byGamePath.get(r.Mesh.toLowerCase());
+        const d = document.createElement('div');
+        const title = m ? m.title : r.Mesh.split('/').pop().replace(/\.\w+$/, '');
+        const isSel = selection.has(id);
+        d.style.cssText = 'padding-left:18px; font-size:11.5px; opacity:0.9;';
+        d.innerHTML = `<span style="opacity:0.5; margin-right:4px;">└</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span>`;
+        if (isSel) d.className = 'sel';
+        d.title = `${title} (${r.Mesh}) [${groupTitle}]`;
+        d.onclick = (e) => {
+          select(id, e.shiftKey, e.altKey);
+          focusSelected();
+        };
+        list.append(d);
+      }
+    }
+  }
+
+  // Render standalone items
+  for (const [id, r] of standalone) {
     const m = byGamePath.get(r.Mesh.toLowerCase());
     const d = document.createElement('div');
     const title = m ? m.title : r.Mesh.split('/').pop().replace(/\.\w+$/, '');
@@ -1888,16 +1963,11 @@ function refreshList() {
       const badgeBg = isSel ? 'rgba(0,0,0,0.25)' : '#1e3a5f';
       const badgeColor = isSel ? '#14161a' : '#93c5fd';
       d.innerHTML = `<span style="margin-right:6px; flex-shrink:0;">🌀</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span><span style="font-size:10px; background:${badgeBg}; color:${badgeColor}; padding:1px 5px; border-radius:4px; font-weight:600; flex-shrink:0; margin-left:4px;">${r.Portal}</span>`;
-    } else if (r.Group) {
-      const isSel = selection.has(id);
-      const badgeBg = isSel ? 'rgba(0,0,0,0.25)' : '#2e1065';
-      const badgeColor = isSel ? '#14161a' : '#c4b5fd';
-      d.innerHTML = `<span style="margin-right:6px; flex-shrink:0;">📦</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span><span style="font-size:9.5px; background:${badgeBg}; color:${badgeColor}; padding:1px 5px; border-radius:4px; font-weight:600; flex-shrink:0; margin-left:4px;" title="Group: ${r.Group}">GRP</span>`;
     } else {
       d.textContent = title;
     }
     if (selection.has(id)) d.className = 'sel';
-    d.title = `${title} (${r.Mesh})${r.Group ? ' [Grouped: ' + r.Group + ']' : ''}`;
+    d.title = `${title} (${r.Mesh})`;
     d.onclick = (e) => { select(id, e.shiftKey, e.altKey); focusSelected(); };
     list.append(d);
   }
@@ -5687,6 +5757,17 @@ window.THREE = THREE;
 window.scene = scene;
 window.camera = camera;
 window.orbit = orbit;
+window.objects = objects;
+window.hitSurface = hitSurface;
+window.ray = ray;
+window.renderer = renderer;
+window.pointer = pointer;
+window.pushUndo = pushUndo;
+window.newId = newId;
+window.loadMesh = loadMesh;
+window.ground = ground;
+window.baseGroup = baseGroup;
+window.terrainGroup = terrainGroup;
 
 console.log('BASEBUILDER INITIALIZED!');
 </script>

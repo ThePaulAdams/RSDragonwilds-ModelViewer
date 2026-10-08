@@ -355,36 +355,47 @@ createServer(async (req, res) => {
     console.log('[Admin] Private architect module imported:', !!mod);
     if (mod && mod.initArchitect) {
       const startInit = () => {
+        if (!window.records || !window.spawn) {
+          setTimeout(startInit, 50);
+          return;
+        }
         console.log('[Admin] Initializing architect interface...');
         const ctx = {
-          THREE: window.THREE,
-          scene: window.scene,
-          camera: window.camera,
-          orbit: window.orbit,
-          records: window.records || new Map(),
-          spawn: window.spawn || (() => {}),
-          refreshList: window.refreshList || (() => {}),
-          changed: window.changed || (() => {}),
-          toScene: window.toScene || ((x,y,z) => ({x,y,z})),
-          toGame: window.toGame || ((x,y,z) => ({x,y,z})),
-          placedGroup: window.placedGroup,
-          models: window.models || [],
-          byGamePath: window.byGamePath || new Map(),
-          anchor: window.anchor,
-          playerAvatar: window.playerAvatar,
-          toast: window.toast || ((m) => console.log('[Toast]', m)),
-          rebuildAll: window.rebuildAll || (() => {}),
-          select: window.select || (() => {})
+          get THREE() { return window.THREE; },
+          get scene() { return window.scene; },
+          get camera() { return window.camera; },
+          get orbit() { return window.orbit; },
+          get records() { return window.records; },
+          get spawn() { return window.spawn; },
+          get refreshList() { return window.refreshList; },
+          get changed() { return window.changed; },
+          get toScene() { return window.toScene; },
+          get toGame() { return window.toGame; },
+          get placedGroup() { return window.placedGroup; },
+          get models() { return window.models; },
+          get byGamePath() { return window.byGamePath; },
+          get anchor() { return window.anchor; },
+          get playerAvatar() { return window.playerAvatar; },
+          get toast() { return window.toast; },
+          get rebuildAll() { return window.rebuildAll; },
+          get select() { return window.select; },
+          get selection() { return window.selection; },
+          get groupSelection() { return window.groupSelection; },
+          get objects() { return window.objects; },
+          get ray() { return window.ray; },
+          get hitSurface() { return window.hitSurface; },
+          get renderer() { return window.renderer; },
+          get pushUndo() { return window.pushUndo; },
+          get newId() { return window.newId; },
+          get ground() { return window.ground; },
+          get baseGroup() { return window.baseGroup; },
+          get terrainGroup() { return window.terrainGroup; }
         };
         mod.initArchitect(ctx);
         console.log('[Admin] 🏰 Private Architect successfully initialized and button mounted!');
       };
 
-      if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(startInit, 100);
-      } else {
-        window.addEventListener('DOMContentLoaded', () => setTimeout(startInit, 100));
-      }
+      startInit();
     }
   } catch (err) {
     console.error('[Admin] Error importing /private-architect.js:', err);

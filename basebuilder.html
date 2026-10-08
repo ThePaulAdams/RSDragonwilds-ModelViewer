@@ -1108,42 +1108,68 @@
 <div id="worldModal" class="hidden">
   <div class="wm-window">
     <div class="wm-header">
-      <h3>🌍 World &amp; Save Profile Manager</h3>
+      <h3>🌍 Game Worlds &amp; Saves</h3>
       <div style="display:flex; align-items:center; gap:8px;">
-        <span id="wmSaveStatus" style="font-size:11.5px; color:#94a3b8; background:#1e293b; padding:2px 8px; border-radius:10px; border:1px solid #334155;">Active Profile: default</span>
+        <span id="wmSaveStatus" style="font-size:11.5px; color:#94a3b8; background:#1e293b; padding:2px 8px; border-radius:10px; border:1px solid #334155;">Active World: Wilds</span>
         <button id="wmCloseBtn" class="small" style="padding:2px 8px; font-size:14px;">✕</button>
       </div>
     </div>
     <div class="wm-body">
+      <!-- Live Game World Banner -->
+      <div id="wmLiveWorldBanner" style="background:rgba(2, 132, 199, 0.15); border:1px solid #0284c7; border-radius:8px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:20px;">🎮</span>
+          <div>
+            <div style="font-size:12.5px; font-weight:700; color:#38bdf8;">In-Game World: <span id="wmLiveWorldName">Wilds</span></div>
+            <div id="wmLiveWorldDetails" class="muted" style="font-size:11px; margin-top:1px;">Save: Wilds.sav • Character: Paul1337noob</div>
+          </div>
+        </div>
+        <span id="wmLiveSyncBadge" style="font-size:11px; background:#0284c7; color:#fff; padding:2px 8px; border-radius:10px; font-weight:600;">🟢 Live in Game</span>
+      </div>
+
+      <!-- Detected Game Worlds List -->
       <div class="wm-card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <strong style="color:#e0b64a; font-size:13px;">Saved World Profiles</strong>
-          <span class="muted" style="font-size:11px;">Switching profiles loads its placed models &amp; anchor</span>
+          <strong style="color:#e0b64a; font-size:13px;">Game Worlds (Saves)</strong>
+          <span class="muted" style="font-size:11px;">Select which game world to view and build in</span>
         </div>
         <div id="wmProfileList" class="wm-profile-list"></div>
       </div>
 
+      <!-- Connect / Select another save file -->
       <div class="wm-card">
-        <strong style="color:#38bdf8; font-size:13px;">Create New World Profile</strong>
-        <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
-          <input id="wmNewProfileName" type="text" placeholder="e.g. CreativeWorld2, HardcoreBase, CastleLayout..." style="flex:1;">
-          <button id="wmCreateProfileBtn" class="primary small" style="padding:6px 14px;">➕ Create &amp; Switch</button>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div>
+            <strong style="color:#38bdf8; font-size:13px;">Add Another Game World (.sav)</strong>
+            <div class="muted" style="font-size:11px; margin-top:2px;">Select another save file from <code>%LOCALAPPDATA%\RSDragonwilds\Saved\SaveGames\</code></div>
+          </div>
+          <button id="wmSelectSaveBtn" class="primary small" style="padding:6px 14px; white-space:nowrap;">📂 Select .sav File</button>
         </div>
-        <span class="muted" style="font-size:11px;">Creates an isolated <code>placed_&lt;name&gt;.txt</code> file so your builds never overwrite each other.</span>
+
+        <div style="margin-top:8px; border-top:1px solid #28303d; padding-top:8px;">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <button id="wmToggleCustomBtn" class="small" style="font-size:11px; color:#94a3b8; background:none; border:none; padding:0; cursor:pointer; text-decoration:underline;">➕ Add custom layout name...</button>
+          </div>
+          <div id="wmCustomLayoutBox" style="display:none; margin-top:8px; gap:8px; align-items:center;">
+            <input id="wmNewProfileName" type="text" placeholder="e.g. CreativeLayout, CastleBuild..." style="flex:1; font-size:12px;">
+            <button id="wmCreateProfileBtn" class="small primary" style="padding:5px 12px;">Create</button>
+          </div>
+        </div>
       </div>
 
+      <!-- Auto-sync toggle -->
       <div class="wm-card" style="border-color:#334155; background:rgba(30, 41, 59, 0.3);">
         <div style="display:flex; align-items:center; justify-content:space-between;">
           <div>
             <strong style="color:#94a3b8; font-size:12.5px;">Auto-Sync with Active Game World</strong>
-            <div class="muted" style="font-size:11px; margin-top:2px;">When checked, the builder watches for world/save transitions and prompts before switching.</div>
+            <div class="muted" style="font-size:11px; margin-top:2px;">Automatically detects when you switch worlds in-game and switches the builder to match.</div>
           </div>
           <input id="wmAutoSyncCheck" type="checkbox" checked style="width:16px; height:16px; cursor:pointer;">
         </div>
       </div>
     </div>
     <div class="wm-footer">
-      <span class="muted" style="font-size:11.5px;">💡 Each profile has its own placed pieces, anchor point, and backup history.</span>
+      <span class="muted" style="font-size:11.5px;">💡 Each game world retains its own placed models and coordinates.</span>
       <button id="wmDoneBtn" class="small primary" style="padding:5px 16px;">Done</button>
     </div>
   </div>
@@ -2472,58 +2498,150 @@ gridToggleBtn?.addEventListener('click', () => {
 });
 
 // ---------------------------------------------------------------------------
-// World / Save Profile Manager
-// Allows switching between different world saves or base profiles without
-// cross-world file overwrites.
+// Game Worlds & Saves Manager
+// Directly tracks authentic in-game worlds (from save files and live game world.txt).
 // ---------------------------------------------------------------------------
-let activeWorldProfile = localStorage.getItem('bb.active_world_profile') || 'default';
-let worldProfiles = ['default'];
+let activeWorldProfile = localStorage.getItem('bb.active_world_profile') || 'Wilds';
+if (activeWorldProfile === 'default') activeWorldProfile = 'Wilds';
 
-function loadWorldProfilesList() {
+let liveGameWorld = { name: 'Wilds', slot: 'Wilds.sav', owner: 'Paul1337noob' };
+let gameWorlds = [];
+
+function parseSavHeader(buffer) {
+  const u8 = new Uint8Array(buffer.slice(0, 4000));
+  let str = '';
+  for (let i = 0; i < u8.length; i++) str += String.fromCharCode(u8[i]);
+
+  let worldName = 'Wilds';
+  let slotName = 'Wilds.sav';
+  let ownerName = 'Paul1337noob';
+  let timeOfSave = null;
+
+  const timeMatch = str.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)/);
+  if (timeMatch) timeOfSave = timeMatch[1];
+
+  const idx = str.indexOf('L_World\0');
+  if (idx > 5) {
+    let end = idx - 5;
+    if (str.charCodeAt(end) === 0) {
+      let start = end - 1;
+      while (start > 0 && str.charCodeAt(start) >= 32 && str.charCodeAt(start) <= 126) start--;
+      const cand = str.slice(start + 1, end).trim();
+      if (cand && cand.length >= 2) worldName = cand;
+    }
+  }
+
+  return { worldName, slotName, ownerName, timeOfSave };
+}
+
+function loadGameWorldsList() {
   try {
-    const list = JSON.parse(localStorage.getItem('bb.world_profiles') || '[]');
+    const list = JSON.parse(localStorage.getItem('bb.game_worlds') || '[]');
     if (Array.isArray(list) && list.length) {
-      worldProfiles = list;
+      gameWorlds = list;
     }
   } catch {}
-  if (!worldProfiles.includes('default')) worldProfiles.unshift('default');
+  if (!gameWorlds.some(w => w.name.toLowerCase() === 'wilds')) {
+    gameWorlds.unshift({
+      name: 'Wilds',
+      slot: 'Wilds.sav',
+      owner: 'Paul1337noob',
+      time: '2026-10-08T13:00:46.442Z'
+    });
+  }
 }
-loadWorldProfilesList();
+loadGameWorldsList();
 
-function saveWorldProfilesList() {
-  if (!worldProfiles.includes('default')) worldProfiles.unshift('default');
-  try { localStorage.setItem('bb.world_profiles', JSON.stringify(worldProfiles)); } catch {}
+function saveGameWorldsList() {
+  try { localStorage.setItem('bb.game_worlds', JSON.stringify(gameWorlds)); } catch {}
+}
+
+function registerGameWorld(name, slot, owner, time) {
+  name = (name || 'Wilds').trim();
+  let existing = gameWorlds.find(w => w.name.toLowerCase() === name.toLowerCase());
+  if (!existing) {
+    existing = {
+      name,
+      slot: slot || `${name}.sav`,
+      owner: owner || 'Player',
+      time: time || new Date().toISOString()
+    };
+    gameWorlds.push(existing);
+  } else {
+    if (slot) existing.slot = slot;
+    if (owner) existing.owner = owner;
+    if (time) existing.time = time;
+  }
+  saveGameWorldsList();
+  renderWorldProfiles();
+  return existing;
 }
 
 async function scanDirForProfiles() {
   if (!dir) return;
-  loadWorldProfilesList();
+  loadGameWorldsList();
+
+  // 1. Read live game world from world.txt written by CustomBuilds mod
+  try {
+    const wt = await readText('world.txt');
+    if (wt) {
+      const [wn, sn, on] = wt.trim().split('|');
+      if (wn) {
+        liveGameWorld = { name: wn, slot: sn || (wn + '.sav'), owner: on || 'Player' };
+        registerGameWorld(wn, liveGameWorld.slot, liveGameWorld.owner);
+      }
+    }
+  } catch {}
+
+  // 2. Read worlds.json if available
+  try {
+    const wj = await readText('worlds.json');
+    if (wj) {
+      const data = JSON.parse(wj);
+      if (data.activeWorld) {
+        liveGameWorld = { name: data.activeWorld, slot: data.activeSlot, owner: data.activeOwner };
+      }
+      if (Array.isArray(data.worlds)) {
+        for (const w of data.worlds) registerGameWorld(w.name, w.slot, w.owner, w.lastSaved);
+      }
+    }
+  } catch {}
+
+  // 3. Scan for any existing placed_<world>.txt files
   try {
     for await (const entry of dir.values()) {
       if (entry.kind === 'file') {
         const m = entry.name.match(/^placed_([a-zA-Z0-9_\-]+)\.txt$/i);
-        if (m && m[1]) {
-          const pName = m[1];
-          if (!worldProfiles.includes(pName)) {
-            worldProfiles.push(pName);
-          }
+        if (m && m[1] && m[1] !== 'default') {
+          registerGameWorld(m[1], `${m[1]}.sav`, 'Player');
         }
       }
     }
-    saveWorldProfilesList();
   } catch (err) {
     console.warn('scanDirForProfiles error:', err);
   }
+
+  saveGameWorldsList();
+  renderWorldProfiles();
 }
 
 function updateWorldMgrBtn() {
   const btn = $('worldMgrBtn');
   if (!btn) return;
-  const isDef = activeWorldProfile === 'default';
-  btn.innerHTML = `🌍 World: <span style="color:${isDef ? '#38bdf8' : '#e0b64a'}; font-weight:700;">${activeWorldProfile}</span>`;
-  btn.title = `Active World Profile: "${activeWorldProfile}". Click to switch or create save profiles.`;
+  btn.innerHTML = `🌍 World: <span style="color:#38bdf8; font-weight:700;">${activeWorldProfile}</span>`;
+  btn.title = `Active Game World: "${activeWorldProfile}". Click to switch worlds or view saves.`;
 }
 updateWorldMgrBtn();
+
+function updateLiveWorldBanner() {
+  const nameEl = $('wmLiveWorldName');
+  const detailsEl = $('wmLiveWorldDetails');
+  const liveW = liveGameWorld?.name || activeWorldProfile || 'Wilds';
+  const liveS = liveGameWorld?.slot || (liveW + '.sav');
+  const liveO = liveGameWorld?.owner || 'Paul1337noob';
+  if (nameEl) nameEl.textContent = liveW;
+  if (detailsEl) detailsEl.textContent = `Save: ${liveS} • Character: ${liveO}`;
+}
 
 function openWorldModal() {
   $('worldModal')?.classList.remove('hidden');
@@ -2538,46 +2656,50 @@ async function renderWorldProfiles() {
   const listEl = $('wmProfileList');
   if (!listEl) return;
   listEl.innerHTML = '';
-  if ($('wmSaveStatus')) $('wmSaveStatus').textContent = `Active Profile: ${activeWorldProfile}`;
+  if ($('wmSaveStatus')) $('wmSaveStatus').textContent = `Active World: ${activeWorldProfile}`;
+  updateLiveWorldBanner();
 
-  for (const prof of worldProfiles) {
+  for (const w of gameWorlds) {
     const item = document.createElement('div');
-    const isActive = prof === activeWorldProfile;
-    item.className = 'wm-profile-item' + (isActive ? ' active' : '');
+    const isCurrentActive = w.name.toLowerCase() === activeWorldProfile.toLowerCase();
+    const isLiveInGame = liveGameWorld && w.name.toLowerCase() === liveGameWorld.name.toLowerCase();
+    item.className = 'wm-profile-item' + (isCurrentActive ? ' active' : '');
 
     let modelCountInfo = '';
-    if (isActive) {
-      modelCountInfo = `(${records.size} models loaded in builder)`;
+    if (isCurrentActive) {
+      modelCountInfo = `(${records.size} models loaded)`;
     }
 
     item.innerHTML = `
-      <div style="display:flex; flex-direction:column; gap:2px; flex:1;">
+      <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
         <div style="display:flex; align-items:center; gap:8px;">
-          <span class="wm-profile-title" style="font-size:13.5px; color:${isActive ? '#38bdf8' : '#e2e8f0'};">${prof}</span>
-          ${isActive ? '<span style="font-size:10px; background:#0284c7; color:#fff; padding:2px 7px; border-radius:10px; font-weight:700;">ACTIVE</span>' : ''}
+          <span style="font-size:15px;">🗺️</span>
+          <span class="wm-profile-title" style="font-size:14px; font-weight:700; color:${isCurrentActive ? '#38bdf8' : '#e2e8f0'};">${w.name}</span>
+          ${isLiveInGame ? '<span style="font-size:10px; background:#16a34a; color:#fff; padding:2px 7px; border-radius:10px; font-weight:700;">🟢 IN-GAME</span>' : ''}
+          ${isCurrentActive ? '<span style="font-size:10px; background:#0284c7; color:#fff; padding:2px 7px; border-radius:10px; font-weight:700;">ACTIVE IN BUILDER</span>' : ''}
         </div>
-        <div class="wm-profile-meta">
-          ${prof === 'default' ? 'Primary game world (placed.txt / anchor.txt)' : `Dedicated save files (placed_${prof}.txt, anchor_${prof}.txt)`} ${modelCountInfo}
+        <div class="wm-profile-meta" style="font-size:11.5px; color:#94a3b8; padding-left:24px;">
+          Save: <code>${w.slot || (w.name + '.sav')}</code> • Character: <b style="color:#cbd5e1;">${w.owner || 'Player'}</b> ${modelCountInfo}
         </div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
-        ${!isActive ? `<button class="small primary wm-switch-btn" data-prof="${prof}" style="padding:4px 12px; font-size:12px;">Switch</button>` : '<span style="font-size:12px; color:#38bdf8; font-weight:600;">✓ In Use</span>'}
-        ${prof !== 'default' ? `<button class="small wm-del-btn" data-prof="${prof}" title="Delete profile from list" style="padding:4px 8px; background:rgba(239,68,68,0.15); border-color:#ef4444; color:#fca5a5; font-size:12px;">🗑️</button>` : ''}
+        ${!isCurrentActive ? `<button class="small primary wm-switch-btn" data-prof="${w.name}" style="padding:5px 14px; font-size:12px; font-weight:600;">Switch</button>` : '<span style="font-size:12px; color:#38bdf8; font-weight:600;">✓ Connected</span>'}
+        ${w.name.toLowerCase() !== 'wilds' ? `<button class="small wm-del-btn" data-prof="${w.name}" title="Remove from list" style="padding:4px 8px; background:rgba(239,68,68,0.15); border-color:#ef4444; color:#fca5a5; font-size:12px;">🗑️</button>` : ''}
       </div>
     `;
 
     item.querySelector('.wm-switch-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      switchWorldProfile(prof);
+      switchWorldProfile(w.name);
     });
 
     item.querySelector('.wm-del-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      deleteWorldProfile(prof);
+      deleteWorldProfile(w.name);
     });
 
     item.addEventListener('click', () => {
-      if (!isActive) switchWorldProfile(prof);
+      if (!isCurrentActive) switchWorldProfile(w.name);
     });
 
     listEl.appendChild(item);
@@ -2587,29 +2709,30 @@ async function renderWorldProfiles() {
 async function switchWorldProfile(newProfile) {
   if (newProfile === activeWorldProfile) return;
 
-  // 1. Auto-save current world profile to its profile file first
+  // 1. Auto-save current world build first
   if (dir && records.size > 0) {
     try {
       const curText = placedText();
-      const curProfFile = activeWorldProfile === 'default' ? 'placed_default.txt' : `placed_${activeWorldProfile}.txt`;
-      await writeText(curProfFile, curText);
+      await writeText(`placed_${activeWorldProfile}.txt`, curText);
+      if (activeWorldProfile === 'Wilds') {
+        await writeText('placed.txt', curText);
+      }
       const curAnchorLine = `# CustomBuilds anchor: x|y|z|yaw\n${f2(anchor.X)}|${f2(anchor.Y)}|${f2(anchor.Z)}|${f2(anchor.Yaw || 0)}\n`;
-      const curAnchorFile = activeWorldProfile === 'default' ? 'anchor_default.txt' : `anchor_${activeWorldProfile}.txt`;
-      await writeText(curAnchorFile, curAnchorLine);
+      await writeText(`anchor_${activeWorldProfile}.txt`, curAnchorLine);
     } catch (e) {
       console.warn('Failed auto-saving previous profile:', e);
     }
   }
 
-  // 2. Set active profile
+  // 2. Set active world profile
   activeWorldProfile = newProfile;
   localStorage.setItem('bb.active_world_profile', activeWorldProfile);
 
   // 3. Load from folder or fallback
   if (dir) {
-    let profFile = newProfile === 'default' ? 'placed.txt' : `placed_${newProfile}.txt`;
+    let profFile = `placed_${newProfile}.txt`;
     let text = await readText(profFile);
-    if (text === null && newProfile !== 'default') {
+    if (text === null && (newProfile === 'Wilds' || newProfile === 'default')) {
       text = await readText('placed.txt');
     }
 
@@ -2625,9 +2748,9 @@ async function switchWorldProfile(newProfile) {
     }
 
     // Load anchor
-    let anchorFile = newProfile === 'default' ? 'anchor.txt' : `anchor_${newProfile}.txt`;
+    let anchorFile = `anchor_${newProfile}.txt`;
     let a = await readText(anchorFile);
-    if (!a && newProfile !== 'default') a = await readText('anchor.txt');
+    if (!a && (newProfile === 'Wilds' || newProfile === 'default')) a = await readText('anchor.txt');
     if (a) {
       const line = a.split(/\r?\n/).find(l => /^-?[\d.]+\|/.test(l));
       if (line) {
@@ -2636,7 +2759,7 @@ async function switchWorldProfile(newProfile) {
       }
     }
 
-    // Sync to placed.txt and anchor.txt so live game matches this world immediately
+    // Sync to placed.txt and anchor.txt so live game displays this world
     const outText = placedText();
     await writeText('placed.txt', outText);
     const anchorLine = `# CustomBuilds anchor: x|y|z|yaw\n${f2(anchor.X)}|${f2(anchor.Y)}|${f2(anchor.Z)}|${f2(anchor.Yaw || 0)}\n`;
@@ -2644,9 +2767,9 @@ async function switchWorldProfile(newProfile) {
 
     rebuildAll();
     refreshList();
-    status(`Switched to world profile "${activeWorldProfile}" (${records.size} models)`, 'ok');
+    status(`Switched to game world "${activeWorldProfile}" (${records.size} models)`, 'ok');
   } else {
-    toast(`Switched profile to "${activeWorldProfile}". Connect game folder to sync files.`);
+    toast(`Switched builder to game world "${activeWorldProfile}".`);
   }
 
   updateWorldMgrBtn();
@@ -2656,23 +2779,17 @@ async function switchWorldProfile(newProfile) {
 async function createNewWorldProfile(name) {
   name = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
   if (!name) {
-    toast('Please enter a valid profile name');
+    toast('Please enter a valid layout name');
     return;
   }
-  if (!worldProfiles.includes(name)) {
-    worldProfiles.push(name);
-    saveWorldProfilesList();
-  }
+  registerGameWorld(name, `${name}.sav`, 'Player');
 
-  // Auto-save current build to current profile before creating new one
   if (dir && records.size > 0) {
     const curText = placedText();
-    const curProfFile = activeWorldProfile === 'default' ? 'placed_default.txt' : `placed_${activeWorldProfile}.txt`;
-    await writeText(curProfFile, curText);
+    await writeText(`placed_${activeWorldProfile}.txt`, curText);
   }
 
-  // Ask user if they want to clone current build or start blank
-  const startBlank = confirm(`Create profile "${name}":\n\nClick OK to start with a BLANK canvas for this world.\nClick Cancel to CLONE your current build into this new profile.`);
+  const startBlank = confirm(`Create layout "${name}":\n\nClick OK for a BLANK canvas.\nClick Cancel to CLONE your current build.`);
   if (startBlank) {
     records.clear();
     otherLines = [];
@@ -2694,37 +2811,70 @@ async function createNewWorldProfile(name) {
   refreshList();
   updateWorldMgrBtn();
   renderWorldProfiles();
-  toast(`Created and switched to world profile "${name}"!`);
+  toast(`Switched to layout "${name}"!`);
 }
 
 function deleteWorldProfile(name) {
-  if (name === 'default') {
-    alert('Cannot delete the default profile.');
+  if (name.toLowerCase() === 'wilds') {
+    alert('Cannot delete the primary Wilds world.');
     return;
   }
-  if (!confirm(`Are you sure you want to remove profile "${name}" from the list?`)) return;
+  if (!confirm(`Are you sure you want to remove world "${name}" from the list?`)) return;
 
-  worldProfiles = worldProfiles.filter(p => p !== name);
-  saveWorldProfilesList();
+  gameWorlds = gameWorlds.filter(w => w.name.toLowerCase() !== name.toLowerCase());
+  saveGameWorldsList();
 
   if (activeWorldProfile === name) {
-    switchWorldProfile('default');
+    switchWorldProfile('Wilds');
   } else {
     renderWorldProfiles();
   }
-  toast(`Removed profile "${name}"`);
+  toast(`Removed world "${name}"`);
 }
 
 $('worldMgrBtn')?.addEventListener('click', openWorldModal);
 $('wmCloseBtn')?.addEventListener('click', closeWorldModal);
 $('wmDoneBtn')?.addEventListener('click', closeWorldModal);
+
+$('wmSelectSaveBtn')?.addEventListener('click', async () => {
+  try {
+    let file;
+    if (window.showOpenFilePicker) {
+      const [h] = await window.showOpenFilePicker({
+        id: 'wildssave',
+        types: [{ description: 'Dragonwilds Save (.sav)', accept: { 'application/octet-stream': ['.sav', '.backup'] } }]
+      });
+      file = await h.getFile();
+    } else {
+      file = await new Promise(res => {
+        const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.sav,.backup';
+        inp.onchange = () => res(inp.files[0]); inp.click();
+      });
+    }
+    if (!file) return;
+
+    await openSave(file);
+    renderWorldProfiles();
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('Could not load save: ' + e.message);
+  }
+});
+
+$('wmToggleCustomBtn')?.addEventListener('click', () => {
+  const box = $('wmCustomLayoutBox');
+  if (box) box.style.display = box.style.display === 'none' ? 'flex' : 'none';
+});
+
 $('wmCreateProfileBtn')?.addEventListener('click', () => {
   const inp = $('wmNewProfileName');
   if (inp && inp.value.trim()) {
     createNewWorldProfile(inp.value.trim());
     inp.value = '';
+    const box = $('wmCustomLayoutBox');
+    if (box) box.style.display = 'none';
   }
 });
+
 $('wmNewProfileName')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();

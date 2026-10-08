@@ -14,23 +14,33 @@ import { pipeline } from 'node:stream/promises';
 
 const SITE_NAME = process.env.SITE_NAME || 'Ashenfallen';
 const PASSWORD = process.env.SITE_PASSWORD || '';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'baoluobendan';
 const UPLOAD_TOKEN = process.env.UPLOAD_TOKEN || '';
 const CLOSED = !!process.env.SITE_CLOSED;
 const DATA = normalize(process.env.DATA_DIR || '/data');
 const APP = dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const COOKIE = 'atlas';
+const ADMIN_COOKIE = 'ashen_admin';
 const TYPES = { '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.glb': 'model/gltf-binary',
   '.webp': 'image/webp', '.png': 'image/png', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 
 const same = (a, b) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 // The cookie is signed with the password, so changing SITE_PASSWORD logs everyone out.
 const sign = v => createHmac('sha256', 'atlas:' + PASSWORD).update(v).digest('base64url');
+const signAdmin = v => createHmac('sha256', 'admin:' + ADMIN_PASSWORD).update(v).digest('base64url');
 function authed(req) {
   if (!PASSWORD) return true;   // public site
   const c = (req.headers.cookie || '').split(/;\s*/).find(s => s.startsWith(COOKIE + '='));
   if (!c || !PASSWORD) return false;
   const [exp, mac] = c.slice(COOKIE.length + 1).split('.');
   return !!mac && same(mac, sign(exp)) && Number(exp) > Date.now();
+}
+function authedAdmin(req) {
+  if (!ADMIN_PASSWORD) return true;
+  const c = (req.headers.cookie || '').split(/;\s*/).find(s => s.startsWith(ADMIN_COOKIE + '='));
+  if (!c) return false;
+  const [exp, mac] = c.slice(ADMIN_COOKIE.length + 1).split('.');
+  return !!mac && same(mac, signAdmin(exp)) && Number(exp) > Date.now();
 }
 const bearer = req => !!UPLOAD_TOKEN && same(req.headers.authorization || '', 'Bearer ' + UPLOAD_TOKEN);
 
@@ -107,6 +117,26 @@ ${error ? `<div class="err">${esc(error)}</div>` : ''}
 <input type="password" name="password" placeholder="Password" autofocus required autocomplete="current-password">
 <label><input type="checkbox" name="remember" checked> Remember me on this device</label>
 <button>Enter</button></form></body></html>`;
+}
+
+function adminLoginPage(error) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Login | ${esc(SITE_NAME)}</title><style>
+:root{color-scheme:dark;--bg:#0f1115;--panel:#181b21;--line:#2a2f38;--text:#e6e8ec;--muted:#9aa3b2;--accent:#7c3aed}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% 20%,#1e142e,var(--bg));color:var(--text);font:15px/1.5 system-ui,sans-serif;padding:16px}
+form{width:100%;max-width:340px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px;box-shadow:0 10px 40px rgba(124,58,237,0.15)}
+h1{margin:0 0 4px;font-size:22px;letter-spacing:.5px}h1 span{color:var(--accent)}p{margin:0 0 20px;color:var(--muted);font-size:13px}
+input[type=password]{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:#0f1115;color:var(--text);font-size:15px}
+input[type=password]:focus{outline:2px solid var(--accent);border-color:transparent}
+label{display:flex;gap:8px;align-items:center;margin:14px 0 18px;color:var(--muted);font-size:13px}
+button{width:100%;padding:11px;border:0;border-radius:8px;background:var(--accent);color:#ffffff;font-weight:600;font-size:15px;cursor:pointer}
+button:hover{background:#9061f9}
+.err{color:#ff8a80;margin:-8px 0 14px;font-size:13px}</style></head><body>
+<form method="post" action="/admin/login"><h1>&#9670; <span>Admin Access</span></h1><p>Private Architect &amp; Advanced Tools.</p>
+${error ? `<div class="err">${esc(error)}</div>` : ''}
+<input type="password" name="password" placeholder="Admin Password" autofocus required autocomplete="current-password">
+<label><input type="checkbox" name="remember" checked> Remember me on this device</label>
+<button>Unlock Architect</button></form></body></html>`;
 }
 
 // ---------- search engines: per-model pages, sitemap, crawlable list ----------
@@ -282,6 +312,96 @@ createServer(async (req, res) => {
       }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end(loginPage());
+    }
+
+    // Admin authentication routes for private architect & tools
+    if (path === '/admin/login') {
+      if (req.method === 'POST') {
+        let body = '';
+        for await (const chunk of req) { body += chunk; if (body.length > 4096) break; }
+        const form = new URLSearchParams(body);
+        if (!same(form.get('password') || '', ADMIN_PASSWORD)) {
+          await new Promise(r => setTimeout(r, 800));   // slow down guessing
+          res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
+          return res.end(adminLoginPage('Incorrect admin password.'));
+        }
+        const remember = form.get('remember') === 'on';
+        const exp = String(Date.now() + (remember ? 90 : 1) * 86400e3);
+        const cookie = `${ADMIN_COOKIE}=${exp}.${signAdmin(exp)}; Path=/; HttpOnly; Secure; SameSite=Lax` + (remember ? `; Max-Age=${90 * 86400}` : '');
+        res.writeHead(303, { Location: '/admin', 'Set-Cookie': cookie });
+        return res.end();
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(adminLoginPage());
+    }
+
+    if (path === '/admin/logout') {
+      res.writeHead(303, { Location: '/admin/login', 'Set-Cookie': `${ADMIN_COOKIE}=; Path=/; Max-Age=0` });
+      return res.end();
+    }
+
+    if (path === '/admin' || path === '/admin/basebuilder') {
+      if (!authedAdmin(req)) {
+        res.writeHead(303, { Location: '/admin/login' });
+        return res.end();
+      }
+      // Inject auto-loading of private architect for authenticated admin
+      let html = await readFile(join(APP, 'basebuilder.html'), 'utf8');
+      const adminScript = `
+<script type="module">
+  try {
+    const mod = await import('/private-architect.js');
+    if (mod && mod.initArchitect) {
+      const tryInit = () => {
+        if (window.__BASEBUILDER_INITIALIZED && window.records && window.rebuildAll) {
+          mod.initArchitect({
+            THREE: window.THREE,
+            scene: window.scene,
+            camera: window.camera,
+            orbit: window.orbit,
+            records: window.records,
+            spawn: window.spawn,
+            refreshList: window.refreshList,
+            changed: window.changed || (() => {}),
+            toScene: window.toScene,
+            toGame: window.toGame,
+            placedGroup: window.placedGroup,
+            models: window.models,
+            byGamePath: window.byGamePath,
+            anchor: window.anchor,
+            playerAvatar: window.playerAvatar,
+            toast: window.toast || console.log,
+            rebuildAll: window.rebuildAll,
+            select: window.select
+          });
+        } else {
+          setTimeout(tryInit, 80);
+        }
+      };
+      tryInit();
+    }
+  } catch (err) {
+    console.warn('[Admin] Private architect module not present or error loading:', err);
+  }
+</script>
+`;
+      html = html.replace('</body>', `${adminScript}</body>`);
+      const body = gzipSync(html);
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Encoding': 'gzip',
+        'Content-Length': body.length,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Vary: 'Accept-Encoding'
+      });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+
+    if (path === '/private-architect.js') {
+      if (!authedAdmin(req)) {
+        return send(res, 403, 'Forbidden');
+      }
+      return sendFile(req, res, join(APP, 'private-architect.js'), 'private, no-cache');
     }
 
     if (!authed(req)) {

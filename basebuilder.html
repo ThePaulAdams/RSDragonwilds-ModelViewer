@@ -48,9 +48,14 @@
     grid-auto-rows: max-content; gap: 8px; align-content: start; }
   #grid.compact { grid-template-columns: repeat(3, 1fr); gap: 6px; }
   #grid.compact .card .name { font-size: 10px; padding: 3px 5px; }
-  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; cursor: grab; overflow: hidden; }
+  .card { position: relative; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; cursor: grab; overflow: hidden; }
   .card:hover { border-color: var(--accent); }
   .card.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .pill-btn { border: 1px solid var(--line); background: var(--panel2); color: var(--muted); border-radius: 4px; padding: 3px 8px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; }
+  .pill-btn:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.25); }
+  .pill-btn.active { background: var(--accent) !important; color: #14161a !important; border-color: var(--accent) !important; box-shadow: 0 0 8px rgba(224, 182, 74, 0.35); }
+  #filterGbBtn.active, #placedFilterGb.active { background: #0284c7 !important; color: #ffffff !important; border-color: #38bdf8 !important; box-shadow: 0 0 10px rgba(56, 189, 248, 0.45); }
+  .gb-card-tag { position: absolute; top: 3px; right: 3px; background: rgba(2, 132, 199, 0.9); color: #ffffff; font-size: 9.5px; font-weight: 600; padding: 1px 4px; border-radius: 3px; border: 1px solid rgba(56, 189, 248, 0.7); pointer-events: none; line-height: 12px; backdrop-filter: blur(2px); z-index: 2; }
   .card img { width: 100%; aspect-ratio: 1; display: block; background: #101216; object-fit: cover; }
   .card .thumb-ph { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: #14171d; font-size: 26px; }
   .card .name { padding: 4px 6px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
@@ -485,6 +490,10 @@
     <div class="top">
       <input id="search" type="search" placeholder="Search models...">
       <select id="folder"></select>
+      <div class="filter-pills" style="display: flex; gap: 4px; margin: 5px 0 3px;">
+        <button id="filterAllBtn" class="pill-btn active" style="flex: 1;" title="Show all models in the game library">All Library</button>
+        <button id="filterGbBtn" class="pill-btn" style="flex: 1.6;" title="Filter to 830+ native items supported by GlobalBuildingManager (saved into game saves and visible to ALL players without mods!)">🌐 Visible to All</button>
+      </div>
       <div id="recent" class="recent-row" hidden></div>
       <div class="row" style="align-items: center; justify-content: space-between; margin: 0;">
         <div id="count"></div>
@@ -546,6 +555,10 @@
       </div>
     </div>
     <h2>Placed <span id="placedCount" class="muted"></span></h2>
+    <div class="row" style="margin: 2px 0 6px; gap: 4px;">
+      <button id="placedFilterAll" class="pill-btn active" style="flex:1; padding:2px 6px; font-size:10.5px;" title="Show all placed objects">All Placed</button>
+      <button id="placedFilterGb" class="pill-btn" style="flex:1.5; padding:2px 6px; font-size:10.5px; color:#38bdf8;" title="Show only placed pieces visible to players without mods (GlobalBuildingManager)">🌐 Visible to All</button>
+    </div>
     <div id="list"></div>
     <h2>Base</h2>
     <div class="muted" id="baseInfo">Open your save to see your base, or connect the game folder.</div>
@@ -1215,6 +1228,17 @@ const pretty = n => n
 
 let models = [];
 const byGamePath = new Map();
+const globalBuildMeshSet = new Set();
+function isGlobalBuildMesh(meshPath) {
+  if (!meshPath) return false;
+  const p = meshPath.toLowerCase().replace(/\\/g, '/');
+  const name = p.split('/').pop().split('.')[0];
+  if (globalBuildMeshSet.has(p) || globalBuildMeshSet.has(name)) return true;
+  if (p.includes('/base_building/') || p.includes('/basebuilding/') || p.includes('/buildingkit/')) return true;
+  return false;
+}
+window.isGlobalBuildMesh = isGlobalBuildMesh;
+window.globalBuildMeshSet = globalBuildMeshSet;
 {
   let data = null;
   try {
@@ -1228,6 +1252,30 @@ const byGamePath = new Map();
     } catch {}
   }
   if (!data) data = { Models: [] };
+
+  // Load pieces.json to populate GlobalBuildingManager native set
+  try {
+    let pData = null;
+    const pRes = await fetch(DATA_BASE + 'pieces.json', { cache: 'no-store' });
+    if (pRes.ok) pData = await pRes.json();
+    if (!pData) {
+      const pRes2 = await fetch('https://ashenfallen.com/assets/pieces.json');
+      if (pRes2.ok) pData = await pRes2.json();
+    }
+    if (Array.isArray(pData)) {
+      for (const p of pData) {
+        for (const m of (p.meshes || [])) {
+          if (m.mesh) {
+            const clean = m.mesh.toLowerCase().replace(/\\/g, '/');
+            globalBuildMeshSet.add(clean);
+            globalBuildMeshSet.add(clean.split('/').pop().split('.')[0]);
+            if (clean.startsWith('/game/')) globalBuildMeshSet.add(clean.replace('/game/', ''));
+          }
+        }
+      }
+    }
+  } catch {}
+
   for (const e of data.Models || []) {
     const file = e.File.replace(/\\/g, '/');
     const path = gamePath(e.ObjectPath);
@@ -1242,8 +1290,9 @@ const byGamePath = new Map();
     const materials = (e.Materials || []).map(x => ({
       name: x.Name || '', diffuse: x.BaseColor ? DATA_BASE + enc(x.BaseColor.replace(/\\/g, '/')) : null,
       normal: x.Normal ? DATA_BASE + enc(x.Normal.replace(/\\/g, '/')) : null, color: x.Color || null, masked: !!x.Masked }));
+    const isGb = isGlobalBuildMesh(path);
     const m = { path, name, title: pretty(name), folder, url: DATA_BASE + enc(file),
-      thumb: DATA_BASE + thumbBase + '/' + enc(file.replace(/\.glb$/i, '.webp')), materials, search: (path + ' ' + pretty(name)).toLowerCase() };
+      thumb: DATA_BASE + thumbBase + '/' + enc(file.replace(/\.glb$/i, '.webp')), materials, search: (path + ' ' + pretty(name)).toLowerCase(), isGlobalBuild: isGb };
     if (name === 'SK_M_MED_MoonGarou_01_Outfit_03') {
       m.title = 'Domri - The Merchant';
       m.folder = 'NPCs & Creatures / Traders & Merchants';
@@ -1877,14 +1926,18 @@ function commitGizmo() {
   showSelection();
 }
 const collapsedGroups = new Set();
+let placedGbOnly = false;
 function refreshList() {
   const list = $('list'); list.textContent = '';
-  $('placedCount').textContent = `(${records.size})`;
+  const totalCount = records.size;
+  let visibleCount = 0;
 
   const groups = new Map();
   const standalone = [];
 
   for (const [id, r] of records) {
+    if (placedGbOnly && !isGlobalBuildMesh(r.Mesh)) continue;
+    visibleCount++;
     if (r.Group) {
       if (!groups.has(r.Group)) groups.set(r.Group, []);
       groups.get(r.Group).push([id, r]);
@@ -1892,6 +1945,8 @@ function refreshList() {
       standalone.push([id, r]);
     }
   }
+
+  $('placedCount').textContent = placedGbOnly ? `(${visibleCount} of ${totalCount} visible to all)` : `(${totalCount})`;
 
   // Render Groups
   for (const [grpId, items] of groups) {
@@ -1906,14 +1961,17 @@ function refreshList() {
       groupTitle = nameParts.length ? nameParts.join(' ') : 'Architect Building';
     }
 
+    const gbCount = items.filter(([_, r]) => isGlobalBuildMesh(r.Mesh)).length;
+    const gbLabel = gbCount === items.length ? ' • 🌐 All Visible' : (gbCount === 0 ? ' • 📦 Mod Only' : ` • 🌐 ${gbCount}/${items.length} Visible`);
+
     const header = document.createElement('div');
     header.className = 'placed-grp-header' + (allSel ? ' sel' : (someSel ? ' partial' : ''));
     header.style.cssText = `display:flex; align-items:center; justify-content:space-between; background:${allSel ? 'var(--accent)' : '#1e1b2e'}; color:${allSel ? '#14161a' : '#c4b5fd'}; border:1px solid ${allSel ? 'var(--accent)' : '#4c1d95'}; border-radius:4px; font-weight:600; padding:0 8px; margin-bottom:2px;`;
-    header.title = `Building: ${groupTitle} (${items.length} pieces). Click to select & move entire building.`;
+    header.title = `Building: ${groupTitle} (${items.length} pieces, ${gbCount} visible to unmodded players). Click to select & move entire building.`;
 
     const titleSpan = document.createElement('span');
     titleSpan.style.cssText = 'flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:6px; cursor:pointer;';
-    titleSpan.innerHTML = `<span>🏛️</span><span style="font-weight:700;">${groupTitle}</span><span style="font-size:10px; opacity:0.85; font-weight:normal;">(${items.length} pcs)</span>`;
+    titleSpan.innerHTML = `<span>🏛️</span><span style="font-weight:700;">${groupTitle}</span><span style="font-size:10px; opacity:0.85; font-weight:normal;">(${items.length} pcs${gbLabel})</span>`;
     titleSpan.onclick = (e) => {
       select(items[0][0], e.shiftKey);
       focusSelected();
@@ -1940,10 +1998,15 @@ function refreshList() {
         const d = document.createElement('div');
         const title = m ? m.title : r.Mesh.split('/').pop().replace(/\.\w+$/, '');
         const isSel = selection.has(id);
+        const isGb = isGlobalBuildMesh(r.Mesh);
+        const gbIcon = isGb
+          ? '<span style="color:#38bdf8; font-size:11px; margin-right:4px;" title="Visible to ALL players without mods (GlobalBuildingManager)">🌐</span>'
+          : '<span style="color:#64748b; font-size:11px; margin-right:4px;" title="Mod-only prop (requires CustomBuilds mod)">📦</span>';
+
         d.style.cssText = 'padding-left:18px; font-size:11.5px; opacity:0.9;';
-        d.innerHTML = `<span style="opacity:0.5; margin-right:4px;">└</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span>`;
+        d.innerHTML = `<span style="opacity:0.5; margin-right:4px;">└</span>${gbIcon}<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span>`;
         if (isSel) d.className = 'sel';
-        d.title = `${title} (${r.Mesh}) [${groupTitle}]`;
+        d.title = `${title} (${r.Mesh}) [${groupTitle}] - ${isGb ? 'Visible to all players' : 'Mod-only asset'}`;
         d.onclick = (e) => {
           select(id, e.shiftKey, e.altKey);
           focusSelected();
@@ -1958,20 +2021,37 @@ function refreshList() {
     const m = byGamePath.get(r.Mesh.toLowerCase());
     const d = document.createElement('div');
     const title = m ? m.title : r.Mesh.split('/').pop().replace(/\.\w+$/, '');
+    const isGb = isGlobalBuildMesh(r.Mesh);
+    const gbIcon = isGb
+      ? '<span style="color:#38bdf8; font-size:11px; margin-right:4px;" title="Visible to ALL players without mods (GlobalBuildingManager)">🌐</span>'
+      : '<span style="color:#64748b; font-size:11px; margin-right:4px;" title="Mod-only prop (requires CustomBuilds mod)">📦</span>';
+
     if (r.Portal) {
       const isSel = selection.has(id);
       const badgeBg = isSel ? 'rgba(0,0,0,0.25)' : '#1e3a5f';
       const badgeColor = isSel ? '#14161a' : '#93c5fd';
-      d.innerHTML = `<span style="margin-right:6px; flex-shrink:0;">🌀</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span><span style="font-size:10px; background:${badgeBg}; color:${badgeColor}; padding:1px 5px; border-radius:4px; font-weight:600; flex-shrink:0; margin-left:4px;">${r.Portal}</span>`;
+      d.innerHTML = `${gbIcon}<span style="margin-right:4px; flex-shrink:0;">🌀</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span><span style="font-size:10px; background:${badgeBg}; color:${badgeColor}; padding:1px 5px; border-radius:4px; font-weight:600; flex-shrink:0; margin-left:4px;">${r.Portal}</span>`;
     } else {
-      d.textContent = title;
+      d.innerHTML = `${gbIcon}<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span>`;
     }
     if (selection.has(id)) d.className = 'sel';
-    d.title = `${title} (${r.Mesh})`;
+    d.title = `${title} (${r.Mesh}) - ${isGb ? 'Visible to all players' : 'Mod-only asset'}`;
     d.onclick = (e) => { select(id, e.shiftKey, e.altKey); focusSelected(); };
     list.append(d);
   }
 }
+$('placedFilterAll')?.addEventListener('click', () => {
+  placedGbOnly = false;
+  $('placedFilterAll').classList.add('active');
+  $('placedFilterGb').classList.remove('active');
+  refreshList();
+});
+$('placedFilterGb')?.addEventListener('click', () => {
+  placedGbOnly = true;
+  $('placedFilterGb').classList.add('active');
+  $('placedFilterAll').classList.remove('active');
+  refreshList();
+});
 async function focusSelected() {
   if (!selection.size) return;
   const box = new THREE.Box3();
@@ -2520,10 +2600,16 @@ renderer.domElement.addEventListener('pointerup', e => {
 const folders = [...new Set(models.map(m => m.folder))].sort();
 $('folder').innerHTML = '<option value="">All folders</option>' + folders.map(f => `<option>${f.replace(/</g, '&lt;')}</option>`).join('');
 let filtered = [], shown = 0;
+let globalBuildOnly = false;
 function applyFilter() {
   const q = $('search').value.trim().toLowerCase(), f = $('folder').value;
-  filtered = models.filter(m => (!f || m.folder === f) && (!q || q.split(/\s+/).every(w => m.search.includes(w))));
-  $('count').textContent = `${filtered.length.toLocaleString()} models`;
+  filtered = models.filter(m => {
+    if (globalBuildOnly && !m.isGlobalBuild) return false;
+    if (f && m.folder !== f) return false;
+    if (q && !q.split(/\s+/).every(w => m.search.includes(w))) return false;
+    return true;
+  });
+  $('count').textContent = `${filtered.length.toLocaleString()} models${globalBuildOnly ? ' (Visible to All)' : ''}`;
   $('grid').textContent = ''; shown = 0; renderMore();
 }
 const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { io.unobserve(e.target); renderMore(); } }, { root: $('grid') });
@@ -2531,8 +2617,15 @@ function renderMore() {
   $('more')?.remove();
   for (const m of filtered.slice(shown, shown + 90)) {
     const c = document.createElement('div');
-    c.className = 'card' + (picked === m ? ' sel' : ''); c.dataset.path = m.path; c.title = m.title + '\n' + m.path;
+    c.className = 'card' + (picked === m ? ' sel' : ''); c.dataset.path = m.path; c.title = m.title + '\n' + m.path + (m.isGlobalBuild ? '\n🌐 Visible to All (GlobalBuildingManager)' : '\n📦 Mod-only asset');
     c.innerHTML = `<img loading="lazy" alt=""><div class="name"></div>`;
+    if (m.isGlobalBuild) {
+      const gbTag = document.createElement('span');
+      gbTag.className = 'gb-card-tag';
+      gbTag.textContent = '🌐';
+      gbTag.title = 'Saved by GlobalBuildingManager: visible to players without mods';
+      c.appendChild(gbTag);
+    }
     const img = c.querySelector('img');
     img.src = m.thumb;
     img.onerror = () => {
@@ -2553,6 +2646,18 @@ function renderMore() {
 }
 $('search').addEventListener('input', applyFilter);
 $('folder').addEventListener('change', applyFilter);
+$('filterAllBtn')?.addEventListener('click', () => {
+  globalBuildOnly = false;
+  $('filterAllBtn').classList.add('active');
+  $('filterGbBtn').classList.remove('active');
+  applyFilter();
+});
+$('filterGbBtn')?.addEventListener('click', () => {
+  globalBuildOnly = true;
+  $('filterGbBtn').classList.add('active');
+  $('filterAllBtn').classList.remove('active');
+  applyFilter();
+});
 applyFilter();
 
 const gridEl = $('grid');

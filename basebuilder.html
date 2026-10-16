@@ -1745,13 +1745,49 @@ function readObject(obj, r) {
   r.Pitch = Math.round(rot.pitch * 100) / 100; r.Yaw = Math.round(rot.yaw * 100) / 100; r.Roll = Math.round(rot.roll * 100) / 100;
   r.Scale = Math.round(obj.scale.x * 1e4) / 1e4;
 }
+const NPC_MESH_FIX = {
+  'vannaka': '/Game/Art/Skeleton/NPC/Humanoid/Vannaka_01/SK_Vannaka_01.SK_Vannaka_01',
+  'zilyana': '/ScornedWilderness/Art/Skeleton/NPC/Humanoid/Zilyana_01/SK_Zilyana_01.SK_Zilyana_01',
+  'kothaarbouncer': '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_KotHaar_Ket_01/SK_M_MED_KotHaar_Ket_01.SK_M_MED_KotHaar_Ket_01',
+  'kothaar_ket': '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_KotHaar_Ket_01/SK_M_MED_KotHaar_Ket_01.SK_M_MED_KotHaar_Ket_01',
+  'elder_garou': '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_01.SK_M_MED_MoonGarou_01_Outfit_01',
+  'moongarou_01_outfit_05': '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_05.SK_M_MED_MoonGarou_01_Outfit_05',
+  'trader_hunter': '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_05.SK_M_MED_MoonGarou_01_Outfit_05',
+  'moongarou_01_outfit_03': '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_03.SK_M_MED_MoonGarou_01_Outfit_03',
+  'trader_hawker': '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_03.SK_M_MED_MoonGarou_01_Outfit_03',
+  'moongarou_01_outfit_04': '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_04.SK_M_MED_MoonGarou_01_Outfit_04',
+  'trader_smith': '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_04.SK_M_MED_MoonGarou_01_Outfit_04',
+  'doric': '/Game/Art/Skeleton/NPC/Humanoid/Doric_01/SK_Doric_01.SK_Doric_01',
+  'wiseoldman': '/Game/Art/Skeleton/NPC/Humanoid/WiseOldMan_01/SK_WiseOldMan_01.SK_WiseOldMan_01',
+  'zanik': '/Game/Art/Skeleton/NPC/Humanoid/Zanik_01/SK_Zanik_01.SK_Zanik_01',
+  'postie': '/Game/Art/Skeleton/NPC/Hybrid/Postie_Pete_01/SK_Postie_Pete_01.SK_Postie_Pete_01',
+  'bp_npc_cook': '/Game/Art/Skeleton/NPC/Humanoid/M_MED_Goblin_Ranged_01/SK_M_MED_Goblin_Ranged_01.SK_M_MED_Goblin_Ranged_01',
+  'bp_npc_death': '/Game/Art/Skeleton/NPC/Humanoid/Death_01/SK_Death_01.SK_Death_01',
+  'pet_chinchompa': '/Game/Art/Skeleton/NPC/Creatures/Chinchompa_01/SK_Chinchompa_01.SK_Chinchompa_01'
+};
+function resolveModelForRecord(r) {
+  if (!r || !r.Mesh) return null;
+  let m = byGamePath.get(r.Mesh.toLowerCase());
+  if (m) return m;
+  const low = r.Mesh.toLowerCase();
+  for (const [key, fixedPath] of Object.entries(NPC_MESH_FIX)) {
+    if (low.includes(key)) {
+      const found = byGamePath.get(fixedPath.toLowerCase());
+      if (found) {
+        r.Mesh = fixedPath;
+        return found;
+      }
+    }
+  }
+  return modelFor(r.Mesh);
+}
 function spawn(id, r) {
   const obj = new THREE.Group();
   obj.userData.id = id;
   applyRecord(obj, r);
   placedGroup.add(obj);
   objects.set(id, obj);
-  const m = r.Mesh ? byGamePath.get(r.Mesh.toLowerCase()) : null;
+  const m = resolveModelForRecord(r);
   if (!m) { obj.add(placeholder()); return obj; }
   loadMesh(m).then(root => { if (objects.get(id) === obj) obj.add(root.clone(true)); }).catch(() => obj.add(placeholder()));
   return obj;
@@ -5171,20 +5207,20 @@ $('addPortalBtn')?.addEventListener('click', () => {
 
 // Top bar "🛡️ +NPC / Garrison" Roster Modal
 const GARRISON_ROSTER = [
-  { name: 'Vannaka', mesh: '/Game/Characters/Player/Male/Medium/SK_M_MED_Vannaka_01.SK_M_MED_Vannaka_01', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Master Combat Instructor — patrols base & intercepts hostile raiders' },
-  { name: 'Commander Zilyana', mesh: '/ScornedWilderness/Characters/Zilyana/SK_SW_Zilyana_01.SK_SW_Zilyana_01', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Saradomin General — fierce perimeter defender against invading enemies' },
-  { name: 'Kot-Haar Guard / Bouncer', mesh: '/Game/Gameplay/NPCs/BP_NPC_KotHaarBouncer.BP_NPC_KotHaarBouncer_C', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Heavy Gate Guard — stands watch and rallies on RaidWarning alerts' },
-  { name: 'Elder Garou', mesh: '/Game/Gameplay/NPCs/BP_NPC_Elder_Garou.BP_NPC_Elder_Garou_C', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Fierce Garou Warrior — guards your camp perimeter' },
-  { name: 'Lagra - The Hunter', mesh: '/Game/Characters/Crowd/SK_M_MED_MoonGarou_01_Outfit_05.SK_M_MED_MoonGarou_01_Outfit_05', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Wilderness Ranger — scouts & defends against encroaching beasts' },
-  { name: 'Doric', mesh: '/Game/Characters/Doric/SK_Doric_01.SK_Doric_01', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Master Dwarf Smith — automatically sweeps loose ground drops within 25m to you' },
-  { name: 'Postie Pete', mesh: '/Game/Gameplay/NPCs/BP_NPC_PostiePete.BP_NPC_PostiePete_C', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Parcel Courier — collects dropped resources around your base' },
-  { name: 'Cook', mesh: '/Game/Gameplay/NPCs/CooksAssistant_NPCs/BP_NPC_Cook.BP_NPC_Cook_C', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Lumbridge Chef — tends the camp & gathers nearby loose items' },
-  { name: 'Zanik', mesh: '/Game/Gameplay/NPCs/BP_NPC_Zanik_Fellhollow.BP_NPC_Zanik_Fellhollow_C', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Dorgeshuun Adventurer — sweeps drops & supports custom quests' },
-  { name: 'Wise Old Man', mesh: '/Game/Characters/WiseOldMan/SK_WiseOldMan_01.SK_WiseOldMan_01', defaultRole: 'banker', badge: '🏦 Banker', desc: 'Draynor Sage — press E in-game to restore full health & vitality' },
-  { name: 'Domri - The Merchant', mesh: '/Game/Characters/Crowd/SK_M_MED_MoonGarou_01_Outfit_03.SK_M_MED_MoonGarou_01_Outfit_03', defaultRole: 'banker', badge: '🏦 Banker', desc: 'Camp Quartermaster — restores vitality & secures base coffers' },
-  { name: 'Valas - The Blacksmith', mesh: '/Game/Characters/Crowd/SK_M_MED_MoonGarou_01_Outfit_04.SK_M_MED_MoonGarou_01_Outfit_04', defaultRole: 'banker', badge: '🏦 Banker', desc: 'Master Armorer — restores vitality & tends the forge' },
-  { name: 'Death', mesh: '/Game/Gameplay/NPCs/BP_NPC_Death.BP_NPC_Death_C', defaultRole: 'companion', badge: '💬 Companion', desc: 'Grim Reaper — atmospheric NPC for custom quests & dialogue' },
-  { name: 'Chinchompa Pet', mesh: '/ScornedWilderness/Gameplay/BaseBuilding/Blueprints/BP_BaseBuilding_Decoration_DeluxeEdition_Pet_Chinchompa.BP_BaseBuilding_Decoration_DeluxeEdition_Pet_Chinchompa_C', defaultRole: 'companion', badge: '🐾 Pet', desc: 'Loyal base critter companion' }
+  { name: 'Vannaka', mesh: '/Game/Art/Skeleton/NPC/Humanoid/Vannaka_01/SK_Vannaka_01.SK_Vannaka_01', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Master Combat Instructor — patrols base & intercepts hostile raiders' },
+  { name: 'Commander Zilyana', mesh: '/ScornedWilderness/Art/Skeleton/NPC/Humanoid/Zilyana_01/SK_Zilyana_01.SK_Zilyana_01', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Saradomin General — fierce perimeter defender against invading enemies' },
+  { name: 'Kot-Haar Guard / Bouncer', mesh: '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_KotHaar_Ket_01/SK_M_MED_KotHaar_Ket_01.SK_M_MED_KotHaar_Ket_01', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Heavy Gate Guard — stands watch and rallies on RaidWarning alerts' },
+  { name: 'Elder Garou', mesh: '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_01.SK_M_MED_MoonGarou_01_Outfit_01', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Fierce Garou Warrior — guards your camp perimeter' },
+  { name: 'Lagra - The Hunter', mesh: '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_05.SK_M_MED_MoonGarou_01_Outfit_05', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Wilderness Ranger — scouts & defends against encroaching beasts' },
+  { name: 'Doric', mesh: '/Game/Art/Skeleton/NPC/Humanoid/Doric_01/SK_Doric_01.SK_Doric_01', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Master Dwarf Smith — automatically sweeps loose ground drops within 25m to you' },
+  { name: 'Postie Pete', mesh: '/Game/Art/Skeleton/NPC/Hybrid/Postie_Pete_01/SK_Postie_Pete_01.SK_Postie_Pete_01', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Parcel Courier — collects dropped resources around your base' },
+  { name: 'Cook', mesh: '/Game/Art/Skeleton/NPC/Humanoid/M_MED_Goblin_Ranged_01/SK_M_MED_Goblin_Ranged_01.SK_M_MED_Goblin_Ranged_01', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Lumbridge Chef — tends the camp & gathers nearby loose items' },
+  { name: 'Zanik', mesh: '/Game/Art/Skeleton/NPC/Humanoid/Zanik_01/SK_Zanik_01.SK_Zanik_01', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Dorgeshuun Adventurer — sweeps drops & supports custom quests' },
+  { name: 'Wise Old Man', mesh: '/Game/Art/Skeleton/NPC/Humanoid/WiseOldMan_01/SK_WiseOldMan_01.SK_WiseOldMan_01', defaultRole: 'banker', badge: '🏦 Banker', desc: 'Draynor Sage — press E in-game to restore full health & vitality' },
+  { name: 'Domri - The Merchant', mesh: '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_03.SK_M_MED_MoonGarou_01_Outfit_03', defaultRole: 'banker', badge: '🏦 Banker', desc: 'Camp Quartermaster — restores vitality & secures base coffers' },
+  { name: 'Valas - The Blacksmith', mesh: '/UmbralSands/Art/Skeleton/NPC/Humanoid/M_MED_MoonGarou_01/SK_M_MED_MoonGarou_01_Outfit_04.SK_M_MED_MoonGarou_01_Outfit_04', defaultRole: 'banker', badge: '🏦 Banker', desc: 'Master Armorer — restores vitality & tends the forge' },
+  { name: 'Death', mesh: '/Game/Art/Skeleton/NPC/Humanoid/Death_01/SK_Death_01.SK_Death_01', defaultRole: 'companion', badge: '💬 Companion', desc: 'Grim Reaper — atmospheric NPC for custom quests & dialogue' },
+  { name: 'Chinchompa Pet', mesh: '/Game/Art/Skeleton/NPC/Creatures/Chinchompa_01/SK_Chinchompa_01.SK_Chinchompa_01', defaultRole: 'companion', badge: '🐾 Pet', desc: 'Loyal base critter companion' }
 ];
 
 function openGarrisonModal() {
@@ -5194,13 +5230,13 @@ function openGarrisonModal() {
     modal.id = 'garrisonModal';
     modal.style.cssText = 'position:fixed; inset:0; background:rgba(5,7,10,0.85); display:flex; align-items:center; justify-content:center; z-index:160; backdrop-filter:blur(6px); padding:16px;';
     modal.innerHTML = `
-      <div style="background:var(--panel); border:1px solid var(--line); border-radius:12px; width:780px; max-width:96vw; max-height:86vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85);">
+      <div style="background:var(--panel); border:1px solid var(--line); border-radius:12px; width:820px; max-width:96vw; max-height:86vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85);">
         <div style="padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel2); display:flex; align-items:center; justify-content:space-between;">
           <h3 style="margin:0; font-size:16px; color:#fda4af; display:flex; align-items:center; gap:8px;">🛡️ Base Garrison &amp; Settler NPCs</h3>
           <button id="garrisonCloseBtn" class="small" style="padding:2px 8px; font-size:14px;">✕</button>
         </div>
         <div style="padding:12px 20px; background:rgba(244,63,94,0.08); border-bottom:1px solid var(--line); font-size:12px; color:var(--muted); line-height:1.45;">
-          <b style="color:#fff;">Any NPC can be assigned any role!</b> Pick a role below (or leave on <b>Auto</b> to use their specialty), then click <b>➕ Place in Base</b>. You can also change any placed NPC's role anytime by clicking them in 3D and using the <b>Role</b> dropdown on the right!
+          <b style="color:#fff;">Any NPC can be assigned any role!</b> Pick a role below (or leave on <b>Auto</b> to use their specialty), then click <b>➕ Place</b>. Their full 3D model will spawn right on your floor and in-game!
           <div style="margin-top:8px; display:flex; align-items:center; gap:10px;">
             <span style="color:#fda4af; font-weight:600;">Spawn Role Override:</span>
             <select id="garrisonRoleOverride" style="background:#14161a; color:#fff; border:1px solid #475569; border-radius:4px; padding:4px 8px; font-size:12px;">
@@ -5212,7 +5248,7 @@ function openGarrisonModal() {
             </select>
           </div>
         </div>
-        <div id="garrisonList" style="padding:16px 20px; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr)); gap:10px;"></div>
+        <div id="garrisonList" style="padding:16px 20px; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(350px, 1fr)); gap:10px;"></div>
       </div>
     `;
     document.body.appendChild(modal);
@@ -5221,10 +5257,13 @@ function openGarrisonModal() {
 
     const listEl = $('garrisonList');
     for (const npc of GARRISON_ROSTER) {
+      const mInfo = byGamePath.get(npc.mesh.toLowerCase());
+      const thumbUrl = mInfo ? mInfo.thumb : '';
       const card = document.createElement('div');
       card.style.cssText = 'background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;';
       const badgeColor = npc.defaultRole === 'guard' ? '#fda4af' : (npc.defaultRole === 'caretaker' ? '#86efac' : (npc.defaultRole === 'banker' ? '#fde047' : '#93c5fd'));
       card.innerHTML = `
+        ${thumbUrl ? `<img src="${thumbUrl}" style="width:48px; height:48px; object-fit:contain; background:#14161a; border-radius:6px; border:1px solid #2b3240; flex-shrink:0;" onerror="this.style.display='none'">` : ''}
         <div style="min-width:0; flex:1;">
           <div style="display:flex; align-items:center; gap:6px;">
             <strong style="color:#fff; font-size:13px;">${npc.name}</strong>
@@ -5234,13 +5273,16 @@ function openGarrisonModal() {
         </div>
         <button class="small" style="background:#881337; border-color:#f43f5e; color:#fff; font-weight:600; padding:6px 10px; white-space:nowrap; cursor:pointer;">➕ Place</button>
       `;
-      card.querySelector('button').onclick = () => {
+      card.querySelector('button').onclick = async () => {
         pushUndo();
         const roleOverride = $('garrisonRoleOverride').value;
         const chosenRole = roleOverride || npc.defaultRole;
         const id = newId();
-        const center = orbit.target.clone();
-        const gPos = toGame(center);
+        ndc.set(0, 0);
+        ray.setFromCamera(ndc, camera);
+        const hit = hitSurface();
+        const spawnPt = hit ? hit.point : orbit.target.clone();
+        const gPos = toGame(spawnPt);
         const rec = {
           X: gPos.X, Y: gPos.Y, Z: gPos.Z,
           Yaw: 0, Pitch: 0, Roll: 0, Scale: 1,
@@ -5254,6 +5296,7 @@ function openGarrisonModal() {
         select(id);
         setMode('translate');
         modal.style.display = 'none';
+        await focusSelected();
         toast(`Spawned ${npc.name} as ${chosenRole.toUpperCase()}! Drag gizmo to position them in your base.`);
       };
       listEl.appendChild(card);

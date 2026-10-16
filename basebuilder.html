@@ -478,6 +478,9 @@
     <div class="group">
       <button id="importBtn" title="Load a placed.txt file">Import</button>
       <button id="exportBtn" title="Download placed.txt">Export</button>
+      <button id="commitNativeBtn" style="background:#143829; border-color:#10b981; color:#6ee7b7; font-weight:600;" title="Commit 🌐 Visible-to-All pieces natively to the Server .sav via BuildModeComponent:Server_SpawnBuilding (cb commit)">🌐 Commit Native</button>
+      <button id="batchHismBtn" style="background:#2d2342; border-color:#a855f7; color:#d8b4fe; font-weight:600;" title="Batch repeated architectural static meshes into Native HISM instances for maximum FPS (cb batch)">⚡ HISM Batch</button>
+      <button id="addWaypointBtn" style="background:#17323b; border-color:#06b6d4; color:#67e8f9; font-weight:600;" title="Save selected spot or anchor as a HomeRecall Teleport Nexus Waypoint (Shift+F7 / Ctrl+F7 in-game)">🧭 +Waypoint</button>
       <button id="addPortalBtn" style="background:#1b2a47; border-color:#3b82f6; color:#93c5fd; font-weight:600;" title="Create a linked Teleporter / Portal pair (Portal 1 &amp; Portal 2)">🌀 Add Portal</button>
       <button id="questsBtn" title="Quest Creation & Storyboard Editor" style="background:#22381e; border-color:#4a8235; color:#aef595; font-weight:600;">📜 Quests</button>
       <button id="invBtn" title="Player Inventory Editor &amp; Item Spawner (I)" style="background:#3b2413; border-color:#b45309; color:#fde68a; font-weight:600;">🎒 Inventory</button>
@@ -529,8 +532,18 @@
       <div class="field"><span>Size</span><input id="fScale" type="number" step="0.01" min="0.01"></div>
       <div id="npcQuestBox" style="margin-top: 8px; padding: 8px 10px; background: rgba(35, 58, 30, 0.4); border: 1px solid #4d8239; border-radius: 6px;" hidden>
         <div style="font-size: 11px; font-weight: 600; color: #a3e687; display:flex; align-items:center; justify-content:space-between; margin-bottom: 5px;">
-          <span>NPC / COMPANION</span>
+          <span>NPC / GARRISON</span>
           <span id="npcQuestBadge" style="font-size:10px; background:#1c2d18; padding:1px 6px; border-radius:10px; color:#d4f7c2;">No Quest</span>
+        </div>
+        <div class="field" style="margin-bottom: 6px;">
+          <span>Role</span>
+          <select id="npcRoleSel" title="Assign Active Base Garrison role for this NPC">
+            <option value="">Auto (Default by NPC)</option>
+            <option value="guard">⚔️ Guard (Patrol &amp; Raid Defense)</option>
+            <option value="caretaker">🧹 Caretaker (Sweep Drops)</option>
+            <option value="banker">🏦 Banker (Heal &amp; Coffer)</option>
+            <option value="companion">💬 Companion (Chat Only)</option>
+          </select>
         </div>
         <button id="npcQuestBtn" class="small" style="width: 100%; background: #2d5a22; color: #fff; font-weight: 600; padding: 5px 8px; cursor: pointer; border: 1px solid #5c9e45; border-radius: 4px;">📜 Storyboard for this NPC</button>
       </div>
@@ -1364,7 +1377,7 @@ function parsePlaced(text) {
       if (k === 'pitch') r.Pitch = +v || 0; else if (k === 'roll') r.Roll = +v || 0;
       else if (k === 'scale') r.Scale = +v || 1; else if (k === 'base') r.Base = v || '';
       else if (k === 'portal') r.Portal = v || ''; else if (k === 'target') r.Target = v || '';
-      else if (k === 'group') r.Group = v || '';
+      else if (k === 'group') r.Group = v || ''; else if (k === 'role') r.Role = v || '';
     } else r.Base = extra;
     // Remember the mod's own line so untouched records are written back byte-for-byte
     // (otherwise rounding differences would make the game respawn them).
@@ -1384,6 +1397,7 @@ function buildLine(id, r) {
   if (r.Portal) line += `;portal=${r.Portal}`;
   if (r.Target) line += `;target=${r.Target}`;
   if (r.Group) line += `;group=${r.Group}`;
+  if (r.Role) line += `;role=${r.Role}`;
   return line;
 }
 function placedText() {
@@ -1827,6 +1841,16 @@ function showSelection() {
           $('npcQuestBtn').onclick = () => {
             openQuestModal(q ? q.id : null, r);
           };
+          const roleSel = $('npcRoleSel');
+          if (roleSel) {
+            roleSel.value = r.Role || '';
+            roleSel.onchange = () => {
+              pushUndo();
+              r.Role = roleSel.value || '';
+              changed();
+              toast(`Set ${npcName} garrison role to: ${r.Role ? r.Role.toUpperCase() : 'AUTO'}`);
+            };
+          }
         }
       }
     }
@@ -2051,6 +2075,58 @@ $('placedFilterGb')?.addEventListener('click', () => {
   $('placedFilterGb').classList.add('active');
   $('placedFilterAll').classList.remove('active');
   refreshList();
+});
+
+$('commitNativeBtn')?.addEventListener('click', async () => {
+  const gbRecords = [...records.values()].filter(r => r && isGlobalBuildMesh(r.Mesh) && !r.Portal);
+  if (!gbRecords.length) {
+    toast('No 🌐 Visible-to-All pieces currently in Placed list to commit.');
+    return;
+  }
+  if (!dir) {
+    alert(`Connect your game folder first ("Connect game folder" button) so CustomBuilds can commit ${gbRecords.length} piece(s) directly to the running game's Server GlobalBuildingManager (.sav).\n\nAlternatively, type "cb commit" in the F10 console in-game!`);
+    return;
+  }
+  if (!confirm(`Commit ${gbRecords.length} 🌐 Visible-to-All piece(s) into the native Server Save (.sav)?\n\nThis spawns them via BuildModeComponent:Server_SpawnBuilding so unmodded multiplayer guests see them and they save permanently into Wilds.sav.`)) return;
+  await writeText('commit_native.txt', 'ALL\n');
+  toast(`Sent Native Commit request for ${gbRecords.length} piece(s) to game!`);
+});
+
+let hismBatched = false;
+$('batchHismBtn')?.addEventListener('click', async () => {
+  if (!dir) {
+    toast('Connect game folder first, or type "cb batch" in the in-game F10 console!');
+    return;
+  }
+  hismBatched = !hismBatched;
+  await writeText('batch_request.txt', hismBatched ? '3\n' : 'unbatch\n');
+  $('batchHismBtn').textContent = hismBatched ? '⚡ HISM: ON' : '⚡ HISM Batch';
+  toast(hismBatched ? 'Triggered Native HISM Batching in-game!' : 'Unbatched HISM instances in-game.');
+});
+
+$('addWaypointBtn')?.addEventListener('click', async () => {
+  let wpPos = { X: anchor.X, Y: anchor.Y, Z: anchor.Z + 120, Yaw: anchor.Yaw || 0 };
+  let defaultName = 'Camp Waypoint';
+  if (selected && records.has(selected)) {
+    const r = records.get(selected);
+    wpPos = { X: r.X, Y: r.Y, Z: r.Z + 130, Yaw: r.Yaw || 0 };
+    defaultName = r.Portal || r.Mesh.split('/').pop().replace(/\.\w+$/, '');
+  } else if (livePlayer) {
+    wpPos = { X: livePlayer.X, Y: livePlayer.Y, Z: livePlayer.Z, Yaw: livePlayer.Yaw || 0 };
+    defaultName = 'Player Spot';
+  }
+  const name = prompt('Enter a name for this HomeRecall Teleport Nexus Waypoint (Shift+F7 / Ctrl+F7 in-game):', defaultName);
+  if (!name || !name.trim()) return;
+  const cleanName = name.trim().replace(/\|/g, '-');
+  if (!dir) {
+    toast(`Connect game folder first to sync "${cleanName}" to waypoints.txt (or press Alt+F7 in-game)!`);
+    return;
+  }
+  let existing = (await readText('waypoints.txt')) || '# Ashenfallen Shared Waypoints: Name|X|Y|Z|Yaw\n';
+  const lines = existing.split(/\r?\n/).filter(l => l.trim() && !l.startsWith(cleanName + '|'));
+  lines.push(`${cleanName}|${f2(wpPos.X)}|${f2(wpPos.Y)}|${f2(wpPos.Z)}|${f2(wpPos.Yaw)}`);
+  await writeText('waypoints.txt', lines.join('\n') + '\n');
+  toast(`🧭 Waypoint "${cleanName}" saved! Press Shift+F7 / Ctrl+F7 in-game to warp.`);
 });
 async function focusSelected() {
   if (!selection.size) return;

@@ -482,6 +482,7 @@
       <button id="batchHismBtn" style="background:#2d2342; border-color:#a855f7; color:#d8b4fe; font-weight:600;" title="Batch repeated architectural static meshes into Native HISM instances for maximum FPS (cb batch)">⚡ HISM Batch</button>
       <button id="addWaypointBtn" style="background:#17323b; border-color:#06b6d4; color:#67e8f9; font-weight:600;" title="Save selected spot or anchor as a HomeRecall Teleport Nexus Waypoint (Shift+F7 / Ctrl+F7 in-game)">🧭 +Waypoint</button>
       <button id="addPortalBtn" style="background:#1b2a47; border-color:#3b82f6; color:#93c5fd; font-weight:600;" title="Create a linked Teleporter / Portal pair (Portal 1 &amp; Portal 2)">🌀 Add Portal</button>
+      <button id="addNpcBtn" style="background:#3a1d28; border-color:#f43f5e; color:#fda4af; font-weight:600;" title="Spawn Guards, Caretakers, Bankers &amp; Companion NPCs into your base">🛡️ +NPC / Garrison</button>
       <button id="questsBtn" title="Quest Creation & Storyboard Editor" style="background:#22381e; border-color:#4a8235; color:#aef595; font-weight:600;">📜 Quests</button>
       <button id="invBtn" title="Player Inventory Editor &amp; Item Spawner (I)" style="background:#3b2413; border-color:#b45309; color:#fde68a; font-weight:600;">🎒 Inventory</button>
       <button id="installGuideBtn" style="background:#1e3a5f; border-color:#38bdf8; color:#38bdf8; font-weight:600;" title="Install Guide: CurseForge Modpack &amp; Base Builder">📦 Install &amp; Modpack</button>
@@ -5160,6 +5161,100 @@ $('addPortalBtn')?.addEventListener('click', () => {
 
   toast(`Spawned Portal 1 (Blue) & Portal 2 (Orange)! Touching either portal in-game teleports you to the other.`);
 });
+
+// Top bar "🛡️ +NPC / Garrison" Roster Modal
+const GARRISON_ROSTER = [
+  { name: 'Vannaka', mesh: '/Game/Characters/Player/Male/Medium/SK_M_MED_Vannaka_01.SK_M_MED_Vannaka_01', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Master Combat Instructor — patrols base & intercepts hostile raiders' },
+  { name: 'Commander Zilyana', mesh: '/ScornedWilderness/Characters/Zilyana/SK_SW_Zilyana_01.SK_SW_Zilyana_01', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Saradomin General — fierce perimeter defender against invading enemies' },
+  { name: 'Kot-Haar Guard / Bouncer', mesh: '/Game/Gameplay/NPCs/BP_NPC_KotHaarBouncer.BP_NPC_KotHaarBouncer_C', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Heavy Gate Guard — stands watch and rallies on RaidWarning alerts' },
+  { name: 'Elder Garou', mesh: '/Game/Gameplay/NPCs/BP_NPC_Elder_Garou.BP_NPC_Elder_Garou_C', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Fierce Garou Warrior — guards your camp perimeter' },
+  { name: 'Lagra - The Hunter', mesh: '/Game/Characters/Crowd/SK_M_MED_MoonGarou_01_Outfit_05.SK_M_MED_MoonGarou_01_Outfit_05', defaultRole: 'guard', badge: '⚔️ Guard', desc: 'Wilderness Ranger — scouts & defends against encroaching beasts' },
+  { name: 'Doric', mesh: '/Game/Characters/Doric/SK_Doric_01.SK_Doric_01', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Master Dwarf Smith — automatically sweeps loose ground drops within 25m to you' },
+  { name: 'Postie Pete', mesh: '/Game/Gameplay/NPCs/BP_NPC_PostiePete.BP_NPC_PostiePete_C', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Parcel Courier — collects dropped resources around your base' },
+  { name: 'Cook', mesh: '/Game/Gameplay/NPCs/CooksAssistant_NPCs/BP_NPC_Cook.BP_NPC_Cook_C', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Lumbridge Chef — tends the camp & gathers nearby loose items' },
+  { name: 'Zanik', mesh: '/Game/Gameplay/NPCs/BP_NPC_Zanik_Fellhollow.BP_NPC_Zanik_Fellhollow_C', defaultRole: 'caretaker', badge: '🧹 Caretaker', desc: 'Dorgeshuun Adventurer — sweeps drops & supports custom quests' },
+  { name: 'Wise Old Man', mesh: '/Game/Characters/WiseOldMan/SK_WiseOldMan_01.SK_WiseOldMan_01', defaultRole: 'banker', badge: '🏦 Banker', desc: 'Draynor Sage — press E in-game to restore full health & vitality' },
+  { name: 'Domri - The Merchant', mesh: '/Game/Characters/Crowd/SK_M_MED_MoonGarou_01_Outfit_03.SK_M_MED_MoonGarou_01_Outfit_03', defaultRole: 'banker', badge: '🏦 Banker', desc: 'Camp Quartermaster — restores vitality & secures base coffers' },
+  { name: 'Valas - The Blacksmith', mesh: '/Game/Characters/Crowd/SK_M_MED_MoonGarou_01_Outfit_04.SK_M_MED_MoonGarou_01_Outfit_04', defaultRole: 'banker', badge: '🏦 Banker', desc: 'Master Armorer — restores vitality & tends the forge' },
+  { name: 'Death', mesh: '/Game/Gameplay/NPCs/BP_NPC_Death.BP_NPC_Death_C', defaultRole: 'companion', badge: '💬 Companion', desc: 'Grim Reaper — atmospheric NPC for custom quests & dialogue' },
+  { name: 'Chinchompa Pet', mesh: '/ScornedWilderness/Gameplay/BaseBuilding/Blueprints/BP_BaseBuilding_Decoration_DeluxeEdition_Pet_Chinchompa.BP_BaseBuilding_Decoration_DeluxeEdition_Pet_Chinchompa_C', defaultRole: 'companion', badge: '🐾 Pet', desc: 'Loyal base critter companion' }
+];
+
+function openGarrisonModal() {
+  let modal = $('garrisonModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'garrisonModal';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(5,7,10,0.85); display:flex; align-items:center; justify-content:center; z-index:160; backdrop-filter:blur(6px); padding:16px;';
+    modal.innerHTML = `
+      <div style="background:var(--panel); border:1px solid var(--line); border-radius:12px; width:780px; max-width:96vw; max-height:86vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85);">
+        <div style="padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel2); display:flex; align-items:center; justify-content:space-between;">
+          <h3 style="margin:0; font-size:16px; color:#fda4af; display:flex; align-items:center; gap:8px;">🛡️ Base Garrison &amp; Settler NPCs</h3>
+          <button id="garrisonCloseBtn" class="small" style="padding:2px 8px; font-size:14px;">✕</button>
+        </div>
+        <div style="padding:12px 20px; background:rgba(244,63,94,0.08); border-bottom:1px solid var(--line); font-size:12px; color:var(--muted); line-height:1.45;">
+          <b style="color:#fff;">Any NPC can be assigned any role!</b> Pick a role below (or leave on <b>Auto</b> to use their specialty), then click <b>➕ Place in Base</b>. You can also change any placed NPC's role anytime by clicking them in 3D and using the <b>Role</b> dropdown on the right!
+          <div style="margin-top:8px; display:flex; align-items:center; gap:10px;">
+            <span style="color:#fda4af; font-weight:600;">Spawn Role Override:</span>
+            <select id="garrisonRoleOverride" style="background:#14161a; color:#fff; border:1px solid #475569; border-radius:4px; padding:4px 8px; font-size:12px;">
+              <option value="">Auto (Use NPC's Default Specialty)</option>
+              <option value="guard">⚔️ Guard — Patrols 30m &amp; intercepts hostile raiders</option>
+              <option value="caretaker">🧹 Caretaker — Sweeps loose ground drops within 25m to you</option>
+              <option value="banker">🏦 Banker — Restores full health &amp; vitality when you press E</option>
+              <option value="companion">💬 Companion — Interactive dialogue &amp; custom quests only</option>
+            </select>
+          </div>
+        </div>
+        <div id="garrisonList" style="padding:16px 20px; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr)); gap:10px;"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    $('garrisonCloseBtn').onclick = () => { modal.style.display = 'none'; };
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+    const listEl = $('garrisonList');
+    for (const npc of GARRISON_ROSTER) {
+      const card = document.createElement('div');
+      card.style.cssText = 'background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;';
+      const badgeColor = npc.defaultRole === 'guard' ? '#fda4af' : (npc.defaultRole === 'caretaker' ? '#86efac' : (npc.defaultRole === 'banker' ? '#fde047' : '#93c5fd'));
+      card.innerHTML = `
+        <div style="min-width:0; flex:1;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <strong style="color:#fff; font-size:13px;">${npc.name}</strong>
+            <span style="font-size:10px; padding:1px 6px; border-radius:8px; background:rgba(255,255,255,0.07); color:${badgeColor}; font-weight:600;">${npc.badge}</span>
+          </div>
+          <div class="muted" style="font-size:11px; margin-top:3px; line-height:1.3;">${npc.desc}</div>
+        </div>
+        <button class="small" style="background:#881337; border-color:#f43f5e; color:#fff; font-weight:600; padding:6px 10px; white-space:nowrap; cursor:pointer;">➕ Place</button>
+      `;
+      card.querySelector('button').onclick = () => {
+        pushUndo();
+        const roleOverride = $('garrisonRoleOverride').value;
+        const chosenRole = roleOverride || npc.defaultRole;
+        const id = newId();
+        const center = orbit.target.clone();
+        const gPos = toGame(center);
+        const rec = {
+          X: gPos.X, Y: gPos.Y, Z: gPos.Z,
+          Yaw: 0, Pitch: 0, Roll: 0, Scale: 1,
+          Mesh: npc.mesh, Base: '',
+          Role: chosenRole
+        };
+        records.set(id, rec);
+        spawn(id, rec);
+        refreshList();
+        changed();
+        select(id);
+        setMode('translate');
+        modal.style.display = 'none';
+        toast(`Spawned ${npc.name} as ${chosenRole.toUpperCase()}! Drag gizmo to position them in your base.`);
+      };
+      listEl.appendChild(card);
+    }
+  }
+  modal.style.display = 'flex';
+}
+$('addNpcBtn')?.addEventListener('click', openGarrisonModal);
 
 // ---------------------------------------------------------------------------
 // Buttons and keys

@@ -2056,6 +2056,13 @@ function refreshList() {
       const badgeBg = isSel ? 'rgba(0,0,0,0.25)' : '#1e3a5f';
       const badgeColor = isSel ? '#14161a' : '#93c5fd';
       d.innerHTML = `${gbIcon}<span style="margin-right:4px; flex-shrink:0;">🌀</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span><span style="font-size:10px; background:${badgeBg}; color:${badgeColor}; padding:1px 5px; border-radius:4px; font-weight:600; flex-shrink:0; margin-left:4px;">${r.Portal}</span>`;
+    } else if (typeof isNpcRecord === 'function' && isNpcRecord(r)) {
+      const isSel = selection.has(id);
+      const role = (r.Role || '').toLowerCase() || (r.Mesh.toLowerCase().match(/vannaka|zilyana|bouncer|guard|garou|hunter|lagra/) ? 'guard' : (r.Mesh.toLowerCase().match(/doric|pete|cook|zanik/) ? 'caretaker' : (r.Mesh.toLowerCase().match(/wise|domri|hawker|merchant|valas|smith/) ? 'banker' : 'companion')));
+      const roleLabel = role === 'guard' ? '⚔️ Guard' : (role === 'caretaker' ? '🧹 Caretaker' : (role === 'banker' ? '🏦 Banker' : '💬 NPC'));
+      const badgeBg = isSel ? 'rgba(0,0,0,0.25)' : '#3a1d28';
+      const badgeColor = isSel ? '#14161a' : '#fda4af';
+      d.innerHTML = `<span style="margin-right:4px; flex-shrink:0;">🛡️</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span><span style="font-size:10px; background:${badgeBg}; color:${badgeColor}; padding:1px 5px; border-radius:4px; font-weight:600; flex-shrink:0; margin-left:4px;">${roleLabel}</span>`;
     } else {
       d.innerHTML = `${gbIcon}<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${title}</span>`;
     }

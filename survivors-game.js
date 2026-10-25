@@ -1,5 +1,5 @@
 // Dragonwilds Survivors: Main Game Controller
-import { THREE, scene, camera, renderer, $, rand, clamp, pick, bakeTemplate, templateMesh, loadCharacter, loadModel, poseBone, findBone, loadCatalog } from '/survivors/core.js';
+import { THREE, scene, camera, renderer, $, rand, clamp, pick, bakeTemplate, templateMesh, loadCharacter, loadModel, poseBone, findBone, loadCatalog } from '/survivors/core.js?v=skel';
 import { loadArena, heightAt, resolveColliders, ARENA_RADIUS } from '/survivors/world.js';
 import { HEROES, ENEMIES, BOSSES, WAVES, EVENTS, WEAPONS, PASSIVES, SHOP, xpForLevel, MAX_WEAPON, MAX_PASSIVE, SLOTS } from '/survivors/data.js';
 import { emit, updateParticles, clearParticles, transient, ringMesh, telegraph, hitsplat, updateHitsplats, clearHitsplats, sfx, unlockAudio, ambience } from '/survivors/fx.js';

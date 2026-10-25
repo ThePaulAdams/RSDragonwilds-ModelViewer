@@ -1,5 +1,5 @@
 // Dragonwilds Survivors: the real Ashenfall landscape and world objects around an arena.
-import { THREE, scene, ASSETS, modelForMesh, loadModel } from './core.js';
+import { THREE, scene, ASSETS, modelForMesh, loadModel } from './core.js?v=skel';
 
 export const ARENAS = {
   temple: { name: 'Temple Road', desc: 'An ash-wood clearing on the old cobbled temple road.', X: 129150, Y: -22050, sky: 0x9fb3c4 },

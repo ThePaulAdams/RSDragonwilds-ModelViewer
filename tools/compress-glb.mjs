@@ -24,7 +24,7 @@ async function* glbs(dir) {
   }
 }
 
-const KEEP = new Set(['POSITION', 'NORMAL', 'TEXCOORD_0']);
+const KEEP = new Set(['POSITION', 'NORMAL', 'TEXCOORD_0', 'JOINTS_0', 'WEIGHTS_0']);
 let done = 0, skipped = 0, failed = 0, before = 0, after = 0;
 for await (const file of glbs(root)) {
   try {

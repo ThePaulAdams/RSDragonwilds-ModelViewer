@@ -531,7 +531,7 @@ createServer(async (req, res) => {
       // and Cloudflare may cache them for a year (a replaced file needs a Cloudflare cache purge).
       // The world map is re-exported in place after game updates, so it may only be cached for a day.
       const world = file.startsWith(join(DATA, 'world') + sep);
-      return sendFile(req, res, file, file.endsWith('models.json') ? 'no-cache' : world ? 'public, max-age=86400' : 'public, max-age=31536000, immutable');
+      return sendFile(req, res, file, (file.endsWith('models.json') || file.includes('SK_')) ? 'no-cache' : world ? 'public, max-age=86400' : 'public, max-age=31536000, immutable');
     }
     send(res, 404, 'Not found');
   } catch (e) {

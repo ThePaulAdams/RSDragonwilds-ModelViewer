@@ -90,8 +90,9 @@ const sceneCache = new Map();
 export function loadModel(nameOrEntry) {
   const m = typeof nameOrEntry === 'string' ? byName.get(nameOrEntry.toLowerCase()) : nameOrEntry;
   if (!m) return Promise.reject(new Error('Unknown model ' + nameOrEntry));
-  if (!sceneCache.has(m.url)) sceneCache.set(m.url, (async () => {
-    const root = (await gltf.loadAsync(m.url)).scene;
+  const modelUrl = m.url + (m.url.includes('SK_') ? '?v=skin1' : '');
+  if (!sceneCache.has(modelUrl)) sceneCache.set(modelUrl, (async () => {
+    const root = (await gltf.loadAsync(modelUrl)).scene;
     const mats = [];
     root.traverse(o => { if (o.isMesh) for (const mat of [].concat(o.material)) if (mat && !mats.includes(mat)) mats.push(mat); });
     const byMat = new Map(m.materials.map(x => [x.name, x]));
@@ -108,7 +109,7 @@ export function loadModel(nameOrEntry) {
     }));
     return root;
   })());
-  return sceneCache.get(m.url);
+  return sceneCache.get(modelUrl);
 }
 
 // ---------------------------------------------------------------------------

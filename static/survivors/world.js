@@ -1,5 +1,5 @@
 // Dragonwilds Survivors: the real Ashenfall landscape and world objects around an arena.
-import { THREE, scene, ASSETS, modelForMesh, loadModel } from './core.js?v=skel';
+import { THREE, scene, ASSETS, modelForMesh, loadModel } from './core.js?v=vs_remake_1';
 
 export const ARENAS = {
   temple: { name: 'Temple Road', desc: 'An ash-wood clearing on the old cobbled temple road.', X: 129150, Y: -22050, sky: 0x9fb3c4 },
@@ -131,6 +131,7 @@ export async function loadArena(key, onProgress = () => { }) {
   );
   fallbackGround.position.y = -0.05;
   world.group.add(fallbackGround);
+  if (!scene.children.includes(world.group)) scene.add(world.group);
 
   try {
     const [tiles, meshes] = await Promise.all(['terrain.json', 'meshes.json'].map(f => fetch(ASSETS + 'world/' + f).then(r => r.json())));

@@ -1,5 +1,5 @@
 // Dragonwilds Survivors: particles, hitsplats, telegraphs and synthesised sound.
-import { THREE, scene, camera, $ } from './core.js?v=skel';
+import { THREE, scene, camera, $ } from './core.js?v=vs_remake_1';
 
 // ---------------------------------------------------------------------------
 // Particles: one additive point cloud, CPU simulated.

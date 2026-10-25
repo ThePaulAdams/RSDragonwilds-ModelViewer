@@ -1,8 +1,8 @@
 // Dragonwilds Survivors: Main Game Controller
-import { THREE, scene, camera, renderer, $, rand, clamp, pick, bakeTemplate, templateMesh, loadCharacter, loadModel, poseBone, findBone, loadCatalog } from '/survivors/core.js?v=skel';
-import { loadArena, heightAt, resolveColliders, ARENA_RADIUS } from '/survivors/world.js';
-import { HEROES, ENEMIES, BOSSES, WAVES, EVENTS, WEAPONS, PASSIVES, SHOP, xpForLevel, MAX_WEAPON, MAX_PASSIVE, SLOTS } from '/survivors/data.js';
-import { emit, updateParticles, clearParticles, transient, ringMesh, telegraph, hitsplat, updateHitsplats, clearHitsplats, sfx, unlockAudio, ambience } from '/survivors/fx.js';
+import { THREE, scene, camera, renderer, $, rand, clamp, pick, bakeTemplate, templateMesh, loadCharacter, loadModel, poseBone, findBone, loadCatalog } from '/survivors/core.js?v=vs_remake_1';
+import { loadArena, heightAt, resolveColliders, ARENA_RADIUS } from '/survivors/world.js?v=vs_remake_1';
+import { HEROES, ENEMIES, BOSSES, WAVES, EVENTS, WEAPONS, PASSIVES, SHOP, xpForLevel, MAX_WEAPON, MAX_PASSIVE, SLOTS } from '/survivors/data.js?v=vs_remake_1';
+import { emit, updateParticles, clearParticles, transient, ringMesh, telegraph, hitsplat, updateHitsplats, clearHitsplats, sfx, unlockAudio, ambience, sound } from '/survivors/fx.js?v=vs_remake_1';
 
 // Ground shadow blob helper to anchor models to 3D terrain
 function createBlobShadow(radius = 0.6) {
@@ -22,6 +22,17 @@ function createBlobShadow(radius = 0.6) {
   return mesh;
 }
 
+// Procedural skeletal arm posing helper
+const _qArm1 = new THREE.Quaternion(), _qArm2 = new THREE.Quaternion();
+const _axArmZ = new THREE.Vector3(0, 0, 1), _axArmY = new THREE.Vector3(0, 1, 0);
+
+function poseArm(bone, zAngle, yAngle) {
+  if (!bone || !bone.userData?.rest) return;
+  _qArm1.setFromAxisAngle(_axArmZ, zAngle);
+  _qArm2.setFromAxisAngle(_axArmY, yAngle);
+  bone.quaternion.copy(bone.userData.rest).multiply(_qArm1).multiply(_qArm2);
+}
+
 // Game state
 export const G = {
   active: false,
@@ -38,12 +49,14 @@ export const G = {
   weapons: {},
   passives: {},
   enemies: [],
+  chests: [],
   pickups: [],
   projectiles: [],
   keys: {},
   pointerDir: { x: 0, z: 0, active: false },
   boss: null,
-  activeEvents: []
+  activeEvents: [],
+  soundMuted: false
 };
 
 window.G = G;
@@ -106,14 +119,15 @@ class Player {
       const char = await loadCharacter(this.def.model, 2.0);
       this.mesh = char.root;
       this.charData = char;
+      this.bones = char.bones;
 
-      // Attach weapon model into hand bone if available
+      // Attach weapon model into hand bone/socket if available
       try {
-        const handR = findBone(this.charData.bones, 'hand_r');
+        const handR = findBone(this.charData.bones, 'prop_r', 'hand_r');
         if (handR && this.def.start === 'scimitar') {
           const wModel = await loadModel('SM_Scimitar_Dragon_1H_01');
           const scim = wModel.clone(true);
-          scim.scale.set(1.1, 1.1, 1.1);
+          scim.scale.set(1.35, 1.35, 1.35);
           scim.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
           scim.position.set(0, 0, 0);
           handR.add(scim);
@@ -121,7 +135,7 @@ class Player {
         } else if (handR && this.def.start === 'crossbow') {
           const wModel = await loadModel('SM_Crossbow_Dragon_1H_01');
           const xbow = wModel.clone(true);
-          xbow.scale.set(1.0, 1.0, 1.0);
+          xbow.scale.set(1.15, 1.15, 1.15);
           xbow.rotation.set(Math.PI / 2, 0, 0);
           handR.add(xbow);
           this.weaponMesh = xbow;
@@ -228,6 +242,7 @@ class Player {
       // Realistic procedural full-body locomotion & attack animation
       if (this.charData?.bones) {
         const b = this.charData.bones;
+        this.bones = b;
         const lThigh = findBone(b, 'thigh_l');
         const rThigh = findBone(b, 'thigh_r');
         const lCalf = findBone(b, 'calf_l');
@@ -255,21 +270,21 @@ class Player {
           if (lThigh) poseBone(lThigh, 'y', stride * 0.75);
           if (rThigh) poseBone(rThigh, 'y', -stride * 0.75);
 
-          // Knee flexion: calf bends backward when leg pushes back
-          if (lCalf) poseBone(lCalf, 'y', Math.max(0, -strideCos) * 0.95);
-          if (rCalf) poseBone(rCalf, 'y', Math.max(0, strideCos) * 0.95);
+          // Backward knee flexion: calf bends backward lifting foot when leg pushes back
+          if (lCalf) poseBone(lCalf, 'y', Math.max(0, stride) * 0.85);
+          if (rCalf) poseBone(rCalf, 'y', Math.max(0, -stride) * 0.85);
 
-          // Arm swinging counter to leg motion
+          // Arm swinging counter to leg motion (base -0.82 lowers arms from T-pose)
           if (this.attackTimer <= 0) {
-            if (lArm) poseBone(lArm, 'y', -stride * 0.6);
-            if (rArm) poseBone(rArm, 'y', stride * 0.6);
-            if (lForearm) poseBone(lForearm, 'y', 0.35 + Math.max(0, -stride) * 0.25);
-            if (rForearm) poseBone(rForearm, 'y', 0.35 + Math.max(0, stride) * 0.25);
+            if (lArm) poseArm(lArm, -0.82, -stride * 0.65);
+            if (rArm) poseArm(rArm, -0.82, stride * 0.65);
+            if (lForearm) poseBone(lForearm, 'y', 0.45 + Math.max(0, -stride) * 0.25);
+            if (rForearm) poseBone(rForearm, 'y', 0.45 + Math.max(0, stride) * 0.25);
           }
 
           // Torso sway and spine twisting with walking stride
-          if (spine) poseBone(spine, 'z', stride * 0.1);
-          if (head) poseBone(head, 'z', -stride * 0.08);
+          if (spine) poseBone(spine, 'z', stride * 0.08);
+          if (head) poseBone(head, 'z', -stride * 0.06);
 
           // Emit subtle running dust puffs
           if (Math.random() < 0.2) {
@@ -285,21 +300,21 @@ class Player {
           if (rCalf) poseBone(rCalf, 'y', 0);
 
           if (this.attackTimer <= 0) {
-            if (lArm) poseBone(lArm, 'y', 0.15 + breath * 0.5);
-            if (rArm) poseBone(rArm, 'y', 0.15 + breath * 0.5);
-            if (lForearm) poseBone(lForearm, 'y', 0.35);
-            if (rForearm) poseBone(rForearm, 'y', 0.35);
+            if (lArm) poseArm(lArm, -0.82, breath * 0.25);
+            if (rArm) poseArm(rArm, -0.82, breath * 0.25);
+            if (lForearm) poseBone(lForearm, 'y', 0.45);
+            if (rForearm) poseBone(rForearm, 'y', 0.45);
           }
-          if (spine) poseBone(spine, 'y', -breath * 0.4);
+          if (spine) poseBone(spine, 'y', -breath * 0.25);
         }
 
         // Weapon swing / attack posture override
         if (this.attackTimer > 0) {
           const atkProgress = 1 - (this.attackTimer / 0.28);
-          const slashAngle = Math.sin(atkProgress * Math.PI) * 1.5;
-          if (rArm) poseBone(rArm, 'y', 0.8 - slashAngle);
-          if (rForearm) poseBone(rForearm, 'y', 0.6 + slashAngle * 0.4);
-          if (spine) poseBone(spine, 'z', -slashAngle * 0.2);
+          const slashRot = Math.sin(atkProgress * Math.PI) * 1.5;
+          if (rArm) poseArm(rArm, -0.82 + atkProgress * 0.75, 0.45 - slashRot);
+          if (rForearm) poseBone(rForearm, 'y', 0.65 - Math.sin(atkProgress * Math.PI) * 0.35);
+          if (spine) poseBone(spine, 'z', -slashRot * 0.15);
         }
       }
     }
@@ -438,6 +453,9 @@ class Enemy {
 
   takeDamage(amt, isCrit = false) {
     this.hp -= amt;
+    if (this.isBoss && $('boss-fill')) {
+      $('boss-fill').style.width = Math.max(0, (this.hp / this.maxHp) * 100) + '%';
+    }
     hitsplat(new THREE.Vector3(this.x, this.y + 1.2, this.z), Math.round(amt), isCrit ? 'crit' : 'dmg');
     sfx('hit');
 
@@ -463,6 +481,17 @@ class Enemy {
     if (this.mesh) scene.remove(this.mesh);
     if (this.shadow) scene.remove(this.shadow);
     spawnDrop(this.x, this.z, this.xp);
+    if (this.isBoss) {
+      if ($('boss-bar-wrap')) $('boss-bar-wrap').style.display = 'none';
+      G.boss = null;
+      sfx('win');
+      spawnChest(this.x, this.z, 3);
+      if (this.bossDef?.final) {
+        gameOver(true);
+      }
+    } else if (this.isElite || Math.random() < 0.02) {
+      spawnChest(this.x, this.z, 1);
+    }
     G.kills++;
   }
 }
@@ -517,6 +546,174 @@ function addXp(amt) {
     sfx('level');
     openLevelUp();
   }
+}
+
+// Treasure Chests (Vampire Survivors Style)
+function spawnChest(x, z, guaranteedCount = null) {
+  const y = heightAt(x, z) + 0.28;
+  const group = new THREE.Group();
+
+  const baseGeom = new THREE.BoxGeometry(0.7, 0.42, 0.48);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.5, metalness: 0.4 });
+  const baseMesh = new THREE.Mesh(baseGeom, baseMat);
+  baseMesh.position.y = 0.21;
+
+  const lockGeom = new THREE.BoxGeometry(0.16, 0.16, 0.08);
+  const lockMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.2, metalness: 0.9 });
+  const lockMesh = new THREE.Mesh(lockGeom, lockMat);
+  lockMesh.position.set(0, 0.21, 0.25);
+
+  const lidGeom = new THREE.CylinderGeometry(0.24, 0.24, 0.7, 12, 1, false, 0, Math.PI);
+  lidGeom.rotateZ(Math.PI / 2);
+  const lidMesh = new THREE.Mesh(lidGeom, baseMat);
+  lidMesh.position.set(0, 0.42, 0);
+
+  group.add(baseMesh, lockMesh, lidMesh);
+  group.position.set(x, y, z);
+  scene.add(group);
+
+  const shadow = createBlobShadow(0.65);
+  shadow.position.set(x, y - 0.24, z);
+  scene.add(shadow);
+
+  G.chests.push({ x, y, z, mesh: group, shadow, t: 0, guaranteedCount });
+}
+
+function updateChests(dt, player) {
+  for (let i = G.chests.length - 1; i >= 0; i--) {
+    const c = G.chests[i];
+    c.t += dt;
+    c.mesh.rotation.y += dt * 1.5;
+    c.mesh.position.y = c.y + Math.sin(c.t * 3.5) * 0.08;
+
+    if (Math.random() < 0.25) {
+      emit(c.x + (Math.random() - 0.5) * 0.6, c.y + 0.2 + Math.random() * 0.4, c.z + (Math.random() - 0.5) * 0.6, {
+        n: 1, color: 0xfde047, speed: 0.5, size: 0.2
+      });
+    }
+
+    const dist = Math.hypot(player.x - c.x, player.z - c.z);
+    if (dist < 1.4) {
+      scene.remove(c.mesh);
+      scene.remove(c.shadow);
+      const guaranteed = c.guaranteedCount;
+      G.chests.splice(i, 1);
+      openChestModal(guaranteed);
+      break;
+    }
+  }
+}
+
+function openChestModal(guaranteedCount = null) {
+  G.paused = true;
+  sfx('chest');
+  const count = guaranteedCount || (Math.random() < 0.08 ? 5 : (Math.random() < 0.28 ? 3 : 1));
+  const modal = $('chest-modal');
+  if (modal) modal.style.display = 'flex';
+  const rewardsEl = $('chest-rewards');
+  if (rewardsEl) rewardsEl.innerHTML = '';
+
+  const pool = [];
+  for (const [k, lvl] of Object.entries(G.weapons)) {
+    if (lvl < MAX_WEAPON) pool.push({ type: 'weapon', key: k, lvl: lvl + 1, def: WEAPONS[k] });
+  }
+  for (const [k, lvl] of Object.entries(G.passives)) {
+    if (lvl < MAX_PASSIVE) pool.push({ type: 'passive', key: k, lvl: lvl + 1, def: PASSIVES[k] });
+  }
+
+  const rewards = [];
+  for (let r = 0; r < count; r++) {
+    if (pool.length > 0) {
+      const idx = Math.floor(Math.random() * pool.length);
+      const item = pool.splice(idx, 1)[0];
+      rewards.push(item);
+      if (item.type === 'weapon') {
+        G.weapons[item.key] = item.lvl;
+      } else {
+        G.passives[item.key] = item.lvl;
+      }
+    } else {
+      rewards.push({ type: 'gold', key: 'gold', lvl: 1, def: { name: '50 Gold Bones', icon: '💰', desc: 'A heap of gold bones from the chest.' } });
+      G.bones += 50;
+    }
+  }
+
+  if (rewardsEl) {
+    rewards.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'vs-card';
+      card.style.minWidth = '140px';
+      card.innerHTML = `
+        <div class="vs-card-badge" style="background:#f59e0b;">LVL UP</div>
+        <div class="vs-card-icon">${item.def.icon}</div>
+        <div style="font-weight:800; font-size:14px; color:#fff; margin-bottom:4px;">${item.def.name}</div>
+        <div style="font-size:11px; color:#fde047;">${item.type === 'gold' ? '+50 Bones' : 'Level ' + item.lvl}</div>
+      `;
+      rewardsEl.appendChild(card);
+    });
+  }
+
+  updateInventoryHud();
+
+  const claimBtn = $('chest-claim-btn');
+  if (claimBtn) {
+    claimBtn.onclick = () => {
+      if (modal) modal.style.display = 'none';
+      G.paused = false;
+    };
+  }
+}
+
+// Boss Timeline & Spawner
+const BOSS_TIMELINE = [
+  { t: 60, bossKey: 'ratking', spawned: false },
+  { t: 180, bossKey: 'titan', spawned: false },
+  { t: 300, bossKey: 'dragon', spawned: false }
+];
+
+function checkBossWaves(currentTime) {
+  for (const entry of BOSS_TIMELINE) {
+    if (!entry.spawned && currentTime >= entry.t && !G.boss) {
+      entry.spawned = true;
+      spawnBoss(entry.bossKey);
+    }
+  }
+}
+
+function spawnBoss(bossKey) {
+  const bDef = BOSSES[bossKey] || BOSSES.ratking;
+  sfx('boss');
+  sfx('roar');
+
+  const ang = Math.random() * Math.PI * 2;
+  const dist = 24;
+  const bx = (G.hero?.x || 0) + Math.cos(ang) * dist;
+  const bz = (G.hero?.z || 0) + Math.sin(ang) * dist;
+
+  const boss = new Enemy(bossKey, bx, bz);
+  boss.isBoss = true;
+  boss.bossDef = bDef;
+  boss.hp = bDef.hp;
+  boss.maxHp = bDef.hp;
+  boss.dmg = bDef.dmg;
+  boss.speed = bDef.speed;
+
+  if (boss.mesh) {
+    boss.mesh.scale.set(1.6, 1.6, 1.6);
+  }
+
+  G.boss = boss;
+  G.enemies.push(boss);
+
+  const bar = $('boss-bar-wrap');
+  if (bar) bar.style.display = 'flex';
+  const nameEl = $('boss-name');
+  if (nameEl) nameEl.innerText = bDef.name;
+  const fillEl = $('boss-fill');
+  if (fillEl) fillEl.style.width = '100%';
+
+  emit(bx, boss.y + 1, bz, { n: 40, color: 0xef4444, speed: 8, size: 0.6 });
+  return boss;
 }
 
 // Weapons System
@@ -924,6 +1121,7 @@ function loop(now) {
 
   if (G.active && !G.paused && G.hero) {
     G.time += dt;
+    checkBossWaves(G.time);
     G.hero.update(dt);
     updateWeapons(dt, G.hero);
     updateProjectiles(dt);
@@ -933,6 +1131,7 @@ function loop(now) {
       G.enemies[i].update(dt, G.hero);
     }
     updatePickups(dt, G.hero);
+    updateChests(dt, G.hero);
     updateHUD(G.hero);
   }
 
@@ -981,6 +1180,10 @@ export async function startRun(heroKey = 'knight', arenaKey = 'temple') {
 
   G.weapons = { [heroDef.start]: 1 };
   G.passives = {};
+  G.chests = [];
+  G.boss = null;
+  for (const b of BOSS_TIMELINE) b.spawned = false;
+  if ($('boss-bar-wrap')) $('boss-bar-wrap').style.display = 'none';
   initWeapons();
   G.active = true;
   G.paused = false;
@@ -1136,6 +1339,45 @@ export const testHooks = {
     return false;
   },
 
+  // --- Vampire Survivors Feature Hooks ---
+  spawnChest(x, z, count = 1) {
+    const cx = x !== undefined ? x : (G.hero ? G.hero.x : 0);
+    const cz = z !== undefined ? z : (G.hero ? G.hero.z : 0);
+    spawnChest(cx, cz, count);
+    return G.chests[G.chests.length - 1];
+  },
+  openChest(count = 1) {
+    openChestModal(count);
+  },
+  claimChest() {
+    const btn = $('chest-claim-btn');
+    if (btn) { btn.click(); return true; }
+    return false;
+  },
+  spawnBoss(bossKey = 'ratking') {
+    return spawnBoss(bossKey);
+  },
+  toggleAudio(on) {
+    sound.on = on !== undefined ? on : !sound.on;
+    G.soundMuted = !sound.on;
+    const btn = $('sound-btn');
+    if (btn) btn.innerText = sound.on ? '🔊 SOUND' : '🔇 MUTED';
+    localStorage.setItem('dws-sound', sound.on ? 'on' : 'off');
+    return sound.on;
+  },
+  getBossState() {
+    if (!G.boss) return null;
+    return {
+      name: G.boss.bossDef?.name,
+      hp: G.boss.hp,
+      maxHp: G.boss.maxHp,
+      x: G.boss.x,
+      z: G.boss.z,
+      isBoss: G.boss.isBoss,
+      barVisible: $('boss-bar-wrap')?.style.display !== 'none'
+    };
+  },
+
   // --- Telemetry & State Extraction ---
   getHeroState() {
     if (!G.hero) return null;
@@ -1281,6 +1523,30 @@ export const testHooks = {
       const levelPassed = modalOpen && upgraded && G.level > preLevel;
       log('Level Up Modal & Upgrade Resolution', levelPassed, { preLevel, curLevel: G.level, modalOpen, upgraded });
 
+      // 14. Treasure Chest Spawning & Claiming
+      const preChests = G.chests.length;
+      const chest = this.spawnChest(G.hero.x + 0.1, G.hero.z + 0.1, 1);
+      await new Promise(r => setTimeout(r, 150));
+      const chestModalOpen = $('chest-modal')?.style.display === 'flex';
+      const claimed = this.claimChest();
+      const chestPassed = chestModalOpen && claimed;
+      log('Treasure Chest Spawning & Slot Fanfare', chestPassed, { preChests, chestModalOpen, claimed });
+
+      // 15. Boss Wave Spawning & Health Bar Tracking
+      const boss = this.spawnBoss('ratking');
+      await new Promise(r => setTimeout(r, 100));
+      const bossState = this.getBossState();
+      const bossPassed = boss && bossState && bossState.barVisible && bossState.hp > 0;
+      log('Boss Wave Spawning & Health Bar Tracking', bossPassed, bossState);
+      this.clearEnemies();
+      if ($('boss-bar-wrap')) $('boss-bar-wrap').style.display = 'none';
+      G.boss = null;
+
+      // 16. Sound Toggle & Audio Control
+      const muted = !this.toggleAudio(false);
+      const unmuted = this.toggleAudio(true);
+      log('Sound Toggle & Mute Control', muted && unmuted, { muted, unmuted });
+
       const allPassed = results.every(r => r.passed);
       return {
         passed: allPassed,
@@ -1417,6 +1683,17 @@ async function start() {
     G.keys[e.code] = false;
     if (e.key) G.keys[e.key.toLowerCase()] = false;
   });
+
+  const soundBtn = $('sound-btn');
+  if (soundBtn) {
+    soundBtn.onclick = () => {
+      sound.on = !sound.on;
+      G.soundMuted = !sound.on;
+      soundBtn.innerText = sound.on ? '🔊 SOUND' : '🔇 MUTED';
+      localStorage.setItem('dws-sound', sound.on ? 'on' : 'off');
+      if (!sound.on) ambience(false); else if (G.active) ambience(true);
+    };
+  }
 
   $('resume-btn').onclick = () => {
     G.paused = false;

@@ -68,6 +68,10 @@
     30% { opacity: 1; transform: translate(-50%, -20px) scale(1.2); }
     100% { opacity: 0; transform: translate(-50%, -45px) scale(0.9); }
   }
+  @keyframes chestBounce {
+    0% { transform: scale(1) translateY(0); }
+    100% { transform: scale(1.15) translateY(-14px) rotate(4deg); }
+  }
 
   /* ================= VAMPIRE SURVIVORS LEVEL-UP MODAL ================= */
   .modal-overlay { position: absolute; inset: 0; background: rgba(5, 7, 12, 0.88); backdrop-filter: blur(8px); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
@@ -225,9 +229,13 @@ window.THREE = THREE;
   </div>
 
   <div id="hp-hud">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+      <button id="sound-btn" style="background:rgba(20,25,35,0.85); border:1px solid #d97706; color:#fbbf24; border-radius:4px; padding:2px 8px; font-size:11px; font-weight:800; cursor:pointer;">🔊 SOUND</button>
+      <div style="font-size:11px; font-weight:800; color:#94a3b8;"><span id="hp-cur">100</span>/<span id="hp-max">100</span> HP</div>
+    </div>
     <div class="hp-bar-outer">
       <div class="hp-bar-inner" id="hp-fill"></div>
-      <div class="hp-text"><span id="hp-cur">100</span> / <span id="hp-max">100</span> HP</div>
+      <div class="hp-text"><span id="hp-cur-bar">100</span> / <span id="hp-max-bar">100</span> HP</div>
     </div>
   </div>
 
@@ -286,6 +294,16 @@ window.THREE = THREE;
   </div>
 </div>
 
+<!-- Vampire Survivors Treasure Chest Modal -->
+<div class="modal-overlay" id="chest-modal" style="display:none;">
+  <div class="modal-card" style="max-width:650px; text-align:center;">
+    <div class="vs-title" style="color:#fde047; text-shadow:0 0 25px #eab308; margin-bottom:12px;">TREASURE FOUND!</div>
+    <div id="chest-anim-box" style="font-size:76px; margin:16px 0; animation: chestBounce 0.6s infinite alternate;">🎁</div>
+    <div id="chest-rewards" style="display:flex; justify-content:center; flex-wrap:wrap; gap:14px; margin:20px 0;"></div>
+    <button class="vs-btn" id="chest-claim-btn" style="font-size:18px; padding:12px 42px;">OPEN CHEST</button>
+  </div>
+</div>
+
 <!-- Pause / Stats Modal -->
 <div class="modal-overlay" id="pause-modal" style="display:none;">
   <div class="modal-card" style="max-width:550px;">
@@ -308,6 +326,6 @@ window.THREE = THREE;
   </div>
 </div>
 
-<script type="module" src="/survivors-game.js?v=skel"></script>
+<script type="module" src="/survivors-game.js?v=vs_remake_1"></script>
 </body>
 </html>

@@ -1438,6 +1438,7 @@ export const testHooks = {
       if (!G.active || !G.hero) {
         await this.startRun('knight', 'temple');
       }
+      G.paused = false;
 
       // 1. Idle capability
       this.stopMovement();

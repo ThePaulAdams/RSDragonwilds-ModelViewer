@@ -75,6 +75,30 @@ class Player {
     this.attackTimer = 0;
     this.weaponMesh = null;
     this.shieldMesh = null;
+    this.vx = 0;
+    this.vz = 0;
+    this.isMoving = false;
+    this.boneAngles = { stride: 0, strideCos: 0, bounce: 0, slashProgress: 0 };
+  }
+
+  dash() {
+    if (this.dashCd <= 0) {
+      this.dashCd = 2.5;
+      this.dashTimer = 0.22;
+      this.isDashing = true;
+      this.invuln = 0.35;
+      sfx('dash');
+      emit(this.x, this.y + 0.5, this.z, { n: 25, color: 0x38bdf8, speed: 6, size: 0.4 });
+      return true;
+    }
+    return false;
+  }
+
+  heal(amount) {
+    this.hp = Math.min(this.maxHp, this.hp + amount);
+    sfx('heal');
+    hitsplat(new THREE.Vector3(this.x, this.y + 1.8, this.z), '+' + Math.round(amount), 'heal');
+    emit(this.x, this.y + 1.0, this.z, { n: 12, color: 0x22c55e, speed: 3 });
   }
 
   async init() {
@@ -132,15 +156,20 @@ class Player {
     if (this.attackTimer > 0) this.attackTimer -= dt;
 
     let mx = 0, mz = 0;
-    if (G.keys['KeyW'] || G.keys['ArrowUp'] || G.keys['w'] || G.keys['W']) mz -= 1;
-    if (G.keys['KeyS'] || G.keys['ArrowDown'] || G.keys['s'] || G.keys['S']) mz += 1;
-    if (G.keys['KeyA'] || G.keys['ArrowLeft'] || G.keys['a'] || G.keys['A']) mx -= 1;
-    if (G.keys['KeyD'] || G.keys['ArrowRight'] || G.keys['d'] || G.keys['D']) mx += 1;
+    if (G.overrideMove && G.overrideMove.active) {
+      mx = G.overrideMove.mx;
+      mz = G.overrideMove.mz;
+    } else {
+      if (G.keys['KeyW'] || G.keys['ArrowUp'] || G.keys['w'] || G.keys['W']) mz -= 1;
+      if (G.keys['KeyS'] || G.keys['ArrowDown'] || G.keys['s'] || G.keys['S']) mz += 1;
+      if (G.keys['KeyA'] || G.keys['ArrowLeft'] || G.keys['a'] || G.keys['A']) mx -= 1;
+      if (G.keys['KeyD'] || G.keys['ArrowRight'] || G.keys['d'] || G.keys['D']) mx += 1;
 
-    // Pointer / touch / mouse drag movement
-    if (G.pointerDir && G.pointerDir.active) {
-      mx += G.pointerDir.x;
-      mz += G.pointerDir.z;
+      // Pointer / touch / mouse drag movement
+      if (G.pointerDir && G.pointerDir.active) {
+        mx += G.pointerDir.x;
+        mz += G.pointerDir.z;
+      }
     }
 
     const moving = mx !== 0 || mz !== 0;
@@ -150,13 +179,8 @@ class Player {
       this.yaw = Math.atan2(mx, mz);
     }
 
-    if ((G.keys['Space'] || G.keys[' ']) && this.dashCd <= 0 && moving) {
-      this.dashCd = 2.5;
-      this.dashTimer = 0.22;
-      this.isDashing = true;
-      this.invuln = 0.35;
-      sfx('dash');
-      emit(this.x, this.y + 0.5, this.z, { n: 25, color: 0x38bdf8, speed: 6, size: 0.4 });
+    if ((G.keys['Space'] || G.keys[' ']) && moving) {
+      this.dash();
     }
 
     let spd = this.speed;
@@ -165,6 +189,16 @@ class Player {
       this.dashTimer -= dt;
       if (this.dashTimer <= 0) this.isDashing = false;
     }
+
+    this.vx = moving ? mx * spd : 0;
+    this.vz = moving ? mz * spd : 0;
+    this.isMoving = moving;
+    this.boneAngles = {
+      stride: moving ? Math.sin(this.walkCycle) : 0,
+      strideCos: moving ? Math.cos(this.walkCycle) : 0,
+      bounce: moving ? Math.abs(Math.sin(this.walkCycle)) * 0.08 : (Math.sin(this.idleCycle) * 0.04),
+      slashProgress: this.attackTimer > 0 ? (1 - (this.attackTimer / 0.28)) : 0
+    };
 
     if (moving) {
       this.x += mx * spd * dt;
@@ -270,6 +304,7 @@ class Player {
   }
 
   takeDamage(amount) {
+    if (G.godMode) return;
     if (this.invuln > 0 || this.hp <= 0) return;
     const reduced = Math.max(1, amount - this.armor);
     this.hp -= reduced;
@@ -869,12 +904,20 @@ function gameOver(victory) {
   $('gameover-modal').style.display = 'flex';
 }
 
+// Test Hooks & Lifecycle Listeners
+const preUpdateHooks = new Set();
+const postUpdateHooks = new Set();
+
 // Main Game Loop
 let lastTime = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min((now - lastTime) / 1000, 0.1);
   lastTime = now;
+
+  for (const fn of preUpdateHooks) {
+    try { fn(dt, G); } catch (e) { console.error('Error in preUpdateHook:', e); }
+  }
 
   if (G.active && !G.paused && G.hero) {
     G.time += dt;
@@ -893,6 +936,10 @@ function loop(now) {
   updateParticles(dt);
   updateHitsplats(dt);
 
+  for (const fn of postUpdateHooks) {
+    try { fn(dt, G); } catch (e) { console.error('Error in postUpdateHook:', e); }
+  }
+
   // Smooth damped isometric chase camera
   if (G.hero) {
     const targetX = G.hero.x;
@@ -907,6 +954,341 @@ function loop(now) {
 
   renderer.render(scene, camera);
 }
+
+// Start a game run programmatically or via UI
+export async function startRun(heroKey = 'knight', arenaKey = 'temple') {
+  unlockAudio();
+  $('start-modal').style.display = 'none';
+  $('hud').style.display = 'block';
+  const touchStick = $('touch-stick');
+  if (touchStick && ('ontouchstart' in window || navigator.maxTouchPoints > 0)) {
+    touchStick.style.display = 'block';
+  }
+
+  const heroDef = HEROES[heroKey] || HEROES.knight;
+  G.selectedHeroKey = heroKey;
+
+  await loadArena(arenaKey);
+  G.hero = new Player(heroDef);
+  await G.hero.init();
+  camera.position.set(G.hero.x, G.hero.y + 17, G.hero.z + 17);
+  camera.lookAt(G.hero.x, G.hero.y + 1.2, G.hero.z);
+
+  preloadEnemyTemplates(); // Runs fast in parallel
+
+  G.weapons = { [heroDef.start]: 1 };
+  G.passives = {};
+  initWeapons();
+  G.active = true;
+  G.paused = false;
+  G.time = 0;
+  G.kills = 0;
+  G.bones = 0;
+  G.level = 1;
+  G.xp = 0;
+  G.nextXp = xpForLevel(1);
+  ambience(true);
+  return G.hero;
+}
+
+// Comprehensive Test & Automation Hooks Harness
+export const testHooks = {
+  // --- Lifecycle Loop Hooks ---
+  onPreUpdate(fn) { preUpdateHooks.add(fn); return () => preUpdateHooks.delete(fn); },
+  onPostUpdate(fn) { postUpdateHooks.add(fn); return () => postUpdateHooks.delete(fn); },
+
+  // --- Run Control ---
+  async startRun(heroKey = 'knight', arenaKey = 'temple') {
+    return await startRun(heroKey, arenaKey);
+  },
+  pause(val = true) {
+    G.paused = val;
+    $('pause-modal').style.display = G.paused ? 'flex' : 'none';
+  },
+  resume() {
+    G.paused = false;
+    $('pause-modal').style.display = 'none';
+  },
+  setGodMode(val = true) {
+    G.godMode = val;
+  },
+
+  // --- Movement & Locomotion Controls ---
+  setMoveInput(mx, mz) {
+    G.overrideMove = { mx, mz, active: (mx !== 0 || mz !== 0) };
+  },
+  stopMovement() {
+    G.overrideMove = { mx: 0, mz: 0, active: false };
+    G.keys = {};
+    if (G.pointerDir) G.pointerDir.active = false;
+  },
+  async moveFor(mx, mz, durationMs) {
+    if (!G.hero) return null;
+    const startPos = { x: G.hero.x, y: G.hero.y, z: G.hero.z };
+    const startCycle = G.hero.walkCycle;
+    this.setMoveInput(mx, mz);
+    await new Promise(r => setTimeout(r, durationMs));
+    this.stopMovement();
+    const endPos = { x: G.hero.x, y: G.hero.y, z: G.hero.z };
+    return {
+      startPos,
+      endPos,
+      distMoved: Math.hypot(endPos.x - startPos.x, endPos.z - startPos.z),
+      dx: endPos.x - startPos.x,
+      dz: endPos.z - startPos.z,
+      walkCycleDelta: G.hero.walkCycle - startCycle,
+      yaw: G.hero.yaw,
+      finalHeight: G.hero.y
+    };
+  },
+  dash() {
+    if (!G.hero) return false;
+    return G.hero.dash();
+  },
+  teleport(x, z) {
+    if (!G.hero) return null;
+    G.hero.x = x;
+    G.hero.z = z;
+    const pos = { x: G.hero.x, z: G.hero.z };
+    resolveColliders(pos, 0.5);
+    G.hero.x = pos.x;
+    G.hero.z = pos.z;
+    G.hero.y = heightAt(G.hero.x, G.hero.z);
+    if (G.hero.mesh) G.hero.mesh.position.set(G.hero.x, G.hero.y, G.hero.z);
+    if (G.hero.shadow) G.hero.shadow.position.set(G.hero.x, G.hero.y + 0.04, G.hero.z);
+    return { x: G.hero.x, y: G.hero.y, z: G.hero.z };
+  },
+
+  // --- Combat & Actions ---
+  triggerWeapon(wKey) {
+    if (!G.hero) return false;
+    const key = wKey || Object.keys(G.weapons)[0] || 'scimitar';
+    const rank = G.weapons[key] || 1;
+    const wDef = WEAPONS[key];
+    if (!wDef) return false;
+    fireWeapon(key, wDef.lv(rank), G.hero);
+    return true;
+  },
+  takeDamage(amount) {
+    if (!G.hero) return;
+    G.hero.takeDamage(amount);
+  },
+  heal(amount) {
+    if (!G.hero) return;
+    G.hero.heal(amount);
+  },
+
+  // --- Enemies & Horde Management ---
+  spawnEnemy(typeKey = 'rat', x, z) {
+    const ex = x !== undefined ? x : (G.hero ? G.hero.x + 8 : 8);
+    const ez = z !== undefined ? z : (G.hero ? G.hero.z + 8 : 8);
+    const e = new Enemy(typeKey, ex, ez);
+    G.enemies.push(e);
+    return e;
+  },
+  clearEnemies() {
+    for (const e of G.enemies) {
+      if (e.mesh) scene.remove(e.mesh);
+      if (e.shadow) scene.remove(e.shadow);
+    }
+    G.enemies.length = 0;
+  },
+  damageEnemy(indexOrKey, amount = 999) {
+    const e = typeof indexOrKey === 'number' ? G.enemies[indexOrKey] : G.enemies.find(x => x.key === indexOrKey);
+    if (!e) return false;
+    return e.takeDamage(amount);
+  },
+
+  // --- XP & Progression ---
+  addXp(amount) {
+    addXp(amount);
+  },
+  spawnDrop(x, z, xp = 10) {
+    spawnDrop(x, z, xp);
+  },
+  openLevelUp() {
+    openLevelUp();
+  },
+  chooseUpgrade(cardIndex = 0) {
+    const cards = document.querySelectorAll('#levelup-cards .vs-card');
+    if (cards[cardIndex]) {
+      cards[cardIndex].click();
+      return true;
+    }
+    return false;
+  },
+  rerollLevelUp() {
+    const btn = $('reroll-btn');
+    if (btn) { btn.click(); return true; }
+    return false;
+  },
+  skipLevelUp() {
+    const btn = $('skip-btn');
+    if (btn) { btn.click(); return true; }
+    return false;
+  },
+
+  // --- Telemetry & State Extraction ---
+  getHeroState() {
+    if (!G.hero) return null;
+    const h = G.hero;
+    return {
+      x: h.x,
+      y: h.y,
+      z: h.z,
+      yaw: h.yaw,
+      vx: h.vx || 0,
+      vz: h.vz || 0,
+      speed: h.speed,
+      isMoving: !!h.isMoving,
+      isDashing: !!h.isDashing,
+      dashCd: h.dashCd,
+      hp: h.hp,
+      maxHp: h.maxHp,
+      armor: h.armor,
+      might: h.might,
+      invuln: h.invuln,
+      walkCycle: h.walkCycle,
+      idleCycle: h.idleCycle,
+      attackTimer: h.attackTimer,
+      boneAngles: h.boneAngles || null,
+      meshPos: h.mesh ? [h.mesh.position.x, h.mesh.position.y, h.mesh.position.z] : null,
+      shadowPos: h.shadow ? [h.shadow.position.x, h.shadow.position.y, h.shadow.position.z] : null,
+      distFromOrigin: Math.hypot(h.x, h.z)
+    };
+  },
+  getGameState() {
+    return {
+      active: G.active,
+      paused: G.paused,
+      time: G.time,
+      kills: G.kills,
+      bones: G.bones,
+      level: G.level,
+      xp: G.xp,
+      nextXp: G.nextXp,
+      weapons: { ...G.weapons },
+      passives: { ...G.passives },
+      enemiesCount: G.enemies.length,
+      pickupsCount: G.pickups.length,
+      projectilesCount: G.projectiles.length,
+      cameraPos: [camera.position.x, camera.position.y, camera.position.z]
+    };
+  },
+
+  // --- Automated Capability Test Suite ---
+  async runSelfTest() {
+    const results = [];
+    const log = (name, passed, detail) => {
+      results.push({ name, passed, detail });
+      console.log(`[TEST] ${passed ? '✓' : '✗'} ${name}:`, detail);
+    };
+
+    try {
+      if (!G.active || !G.hero) {
+        await this.startRun('knight', 'temple');
+      }
+
+      // 1. Idle capability
+      this.stopMovement();
+      const idleStart = G.hero.idleCycle;
+      await new Promise(r => setTimeout(r, 200));
+      const idlePassed = G.hero.idleCycle > idleStart;
+      log('Idle Locomotion Cycle', idlePassed, { cycleDelta: G.hero.idleCycle - idleStart });
+
+      // 2. Movement East (+X)
+      const moveE = await this.moveFor(1, 0, 400);
+      const ePassed = moveE.dx > 0.3 && moveE.walkCycleDelta > 0;
+      log('Movement East (+X) & Stride Articulation', ePassed, moveE);
+
+      // 3. Movement North (-Z)
+      const moveN = await this.moveFor(0, -1, 400);
+      const nPassed = moveN.dz < -0.3 && moveN.walkCycleDelta > 0;
+      log('Movement North (-Z) & Stride Articulation', nPassed, moveN);
+
+      // 4. Movement West (-X)
+      const moveW = await this.moveFor(-1, 0, 400);
+      const wPassed = moveW.dx < -0.3 && moveW.walkCycleDelta > 0;
+      log('Movement West (-X) & Stride Articulation', wPassed, moveW);
+
+      // 5. Movement South (+Z)
+      const moveS = await this.moveFor(0, 1, 400);
+      const sPassed = moveS.dz > 0.3 && moveS.walkCycleDelta > 0;
+      log('Movement South (+Z) & Stride Articulation', sPassed, moveS);
+
+      // 6. Dash Capability
+      this.setMoveInput(1, 0);
+      const dashed = this.dash();
+      await new Promise(r => setTimeout(r, 100));
+      const heroState = this.getHeroState();
+      this.stopMovement();
+      const dashPassed = dashed && heroState.dashCd > 0 && heroState.invuln > 0;
+      log('Dash Action & Invulnerability Window', dashPassed, { dashed, dashCd: heroState.dashCd, invuln: heroState.invuln });
+
+      // 7. Terrain Height Resolving
+      const groundH = heightAt(G.hero.x, G.hero.z);
+      const hPassed = Math.abs(G.hero.y - groundH) < 0.05;
+      log('Terrain Height Resolving', hPassed, { heroY: G.hero.y, groundH });
+
+      // 8. Arena Boundary Resolution
+      this.teleport(ARENA_RADIUS + 50, 0);
+      const clampedDist = Math.hypot(G.hero.x, G.hero.z);
+      const bPassed = Math.abs(clampedDist - ARENA_RADIUS) < 0.5;
+      log('Arena Boundary Clamping', bPassed, { clampedDist, maxRadius: ARENA_RADIUS });
+      this.teleport(0, 0);
+
+      // 9. Weapon Attack Execution & Animation
+      const fired = this.triggerWeapon('scimitar');
+      const attackTimerActive = G.hero.attackTimer > 0;
+      log('Weapon Attack Execution & Slash Gesture', fired && attackTimerActive, { fired, attackTimer: G.hero.attackTimer });
+
+      // 10. Enemy Spawning & Flocking Separation
+      this.clearEnemies();
+      const e1 = this.spawnEnemy('rat', G.hero.x + 4, G.hero.z);
+      const e2 = this.spawnEnemy('rat', G.hero.x + 4.1, G.hero.z);
+      await new Promise(r => setTimeout(r, 300));
+      const enemyDist = Math.hypot(e1.x - e2.x, e1.z - e2.z);
+      const flockingPassed = enemyDist > 0.2;
+      log('Enemy Spawning & Horde Separation', flockingPassed, { enemyDist, e1Pos: [e1.x, e1.z], e2Pos: [e2.x, e2.z] });
+
+      // 11. Enemy Damage & Drops
+      const preKills = G.kills;
+      const preDrops = G.pickups.length;
+      e1.takeDamage(999);
+      const killPassed = G.kills > preKills && G.pickups.length > preDrops;
+      log('Enemy Damage, Hitsplats & Gem Drop', killPassed, { kills: G.kills, drops: G.pickups.length });
+
+      // 12. Drop Magnet & Pickup Collection
+      this.teleport(G.pickups[0]?.x || 0, G.pickups[0]?.z || 0);
+      await new Promise(r => setTimeout(r, 300));
+      const postDrops = G.pickups.length;
+      log('XP Gem Magnet & Absorption', postDrops === 0, { remainingDrops: postDrops });
+
+      // 13. Level Up & Upgrade Resolution
+      const preLevel = G.level;
+      this.addXp(100);
+      await new Promise(r => setTimeout(r, 100));
+      const modalOpen = $('levelup-modal')?.style.display === 'flex';
+      const upgraded = this.chooseUpgrade(0);
+      const levelPassed = modalOpen && upgraded && G.level > preLevel;
+      log('Level Up Modal & Upgrade Resolution', levelPassed, { preLevel, curLevel: G.level, modalOpen, upgraded });
+
+      const allPassed = results.every(r => r.passed);
+      return {
+        passed: allPassed,
+        total: results.length,
+        passedCount: results.filter(r => r.passed).length,
+        results
+      };
+    } catch (err) {
+      log('Test Suite Execution', false, { error: err.message, stack: err.stack });
+      return { passed: false, error: err.message, results };
+    }
+  }
+};
+
+window.DWS_TEST = testHooks;
+G.test = testHooks;
 
 // Setup & Event Listeners
 async function start() {
@@ -998,35 +1380,8 @@ async function start() {
   }
 
   $('play-btn').onclick = async () => {
-    unlockAudio();
-    $('start-modal').style.display = 'none';
-    $('hud').style.display = 'block';
-    if (touchStick && ('ontouchstart' in window || navigator.maxTouchPoints > 0)) {
-      touchStick.style.display = 'block';
-    }
-
     const heroKey = document.querySelector('.hero-select-card.selected')?.dataset.hero || 'knight';
-    const heroDef = HEROES[heroKey] || HEROES.knight;
-
-    await loadArena('temple');
-    G.hero = new Player(heroDef);
-    await G.hero.init();
-    camera.position.set(G.hero.x, G.hero.y + 17, G.hero.z + 17);
-    camera.lookAt(G.hero.x, G.hero.y + 1.2, G.hero.z);
-
-    preloadEnemyTemplates(); // Runs fast in parallel
-
-    G.weapons = { [heroDef.start]: 1 };
-    G.passives = {};
-    initWeapons();
-    G.active = true;
-    G.time = 0;
-    G.kills = 0;
-    G.bones = 0;
-    G.level = 1;
-    G.xp = 0;
-    G.nextXp = xpForLevel(1);
-    ambience(true);
+    await startRun(heroKey, 'temple');
   };
 
   document.querySelectorAll('.hero-select-card').forEach(c => {

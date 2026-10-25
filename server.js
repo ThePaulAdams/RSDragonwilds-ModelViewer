@@ -459,8 +459,8 @@ createServer(async (req, res) => {
         'Cache-Control': 'no-cache', Vary: 'Accept-Encoding' });
       return res.end(req.method === 'HEAD' ? undefined : body);
     }
-    if (path === '/survivors-game.js') return sendFile(req, res, join(APP, 'survivors-game.js'), 'public, max-age=60');
-    if (path.startsWith('/survivors/')) return sendFile(req, res, join(APP, 'static', path), 'public, max-age=60');
+    if (path === '/survivors-game.js') return sendFile(req, res, join(APP, 'survivors-game.js'), 'no-cache');
+    if (path.startsWith('/survivors/')) return sendFile(req, res, join(APP, 'static', path), 'no-cache');
     if (path === '/planner-lib.js' || path === '/site.css') return sendFile(req, res, join(APP, 'static', path.slice(1)), 'public, max-age=300');
     if (path === '/sample-gamedata.json') return sendFile(req, res, join(APP, 'data', 'sample-gamedata.json'), 'public, max-age=300');
     for (const [route, file] of [['/crafting', 'crafting.html'], ['/calculators', 'calculators.html']]) if (path === route) {

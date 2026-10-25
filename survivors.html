@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Dragonwilds Survivors — Ashenfallen</title>
+<meta name="description" content="Survive the horde in the lands of Ashenfall. A fast-paced 3D roguelite bullet-heaven game featuring RuneScape: Dragonwilds models, weapons, spells and terrain.">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  :root {
+    --bg: #0e1014; --panel: #16181f; --panel2: #1e222b; --line: #2d3340;
+    --text: #e6e6e6; --muted: #9aa3ae; --accent: #f59e0b; --accent2: #38bdf8;
+    --danger: #ef4444; --green: #22c55e; --purple: #a855f7;
+  }
+  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  canvas#game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; }
+
+  /* Top Navigation Overlay */
+  #top-nav { position: absolute; top: 0; left: 0; right: 0; height: 50px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 10; pointer-events: none; }
+  #top-nav > * { pointer-events: auto; }
+  .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #fff; font-weight: 700; font-size: 15px; }
+  .brand span { color: var(--accent); }
+  .nav-actions { display: flex; align-items: center; gap: 10px; }
+  .nav-btn { background: rgba(22, 24, 31, 0.85); border: 1px solid var(--line); color: var(--text); padding: 5px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; backdrop-filter: blur(8px); display: flex; align-items: center; gap: 6px; transition: border-color .15s, background .15s; }
+  .nav-btn:hover { border-color: var(--accent); background: var(--panel2); }
+
+  /* In-game HUD */
+  #hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; display: none; }
+  
+  /* XP Bar across top */
+  #xp-container { position: absolute; top: 46px; left: 16px; right: 16px; height: 16px; background: rgba(14, 16, 20, 0.85); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; backdrop-filter: blur(6px); }
+  #xp-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #0284c7, #38bdf8); transition: width .15s ease-out; box-shadow: 0 0 10px rgba(56, 189, 248, 0.6); }
+  #xp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000; letter-spacing: .5px; }
+
+  /* Top Stats */
+  #stats-panel { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; background: rgba(14, 16, 20, 0.75); border: 1px solid var(--line); padding: 6px 18px; border-radius: 999px; backdrop-filter: blur(8px); font-size: 14px; font-weight: 600; }
+  .stat-item { display: flex; align-items: center; gap: 6px; }
+  .stat-item b { color: var(--accent); }
+
+  /* Health & Level Badge Bottom/Left */
+  #player-hud { position: absolute; bottom: 20px; left: 20px; display: flex; flex-direction: column; gap: 8px; width: 220px; }
+  .hp-bar-bg { width: 100%; height: 22px; background: rgba(22, 24, 31, 0.9); border: 1px solid #7f1d1d; border-radius: 6px; overflow: hidden; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+  .hp-bar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #dc2626, #ef4444); transition: width .12s; }
+  .hp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000; }
+
+  .dash-bar-bg { width: 100%; height: 8px; background: rgba(22, 24, 31, 0.8); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .dash-bar-fill { height: 100%; width: 100%; background: var(--accent); transition: width .05s linear; }
+
+  /* Equipment Slots HUD */
+  #arsenal-hud { position: absolute; top: 70px; left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  .arsenal-row { display: flex; gap: 6px; }
+  .slot-box { width: 40px; height: 40px; background: rgba(22, 24, 31, 0.85); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; font-size: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+  .slot-box.passive { border-color: #3b82f6; }
+  .slot-level { position: absolute; bottom: 1px; right: 3px; font-size: 9px; font-weight: 800; color: var(--accent); }
+
+  /* Floating Hitsplats */
+  .hitsplat { position: absolute; transform: translate(-50%, -50%); pointer-events: none; font-weight: 900; font-size: 15px; text-shadow: 0 1px 2px #000, 0 0 4px #000; animation: floatUp 0.8s ease-out forwards; z-index: 20; }
+  .hitsplat.dmg { color: #fca5a5; background: radial-gradient(circle, #b91c1c 40%, rgba(185,28,28,0) 80%); padding: 6px 10px; border-radius: 50%; }
+  .hitsplat.crit { color: #fef08a; font-size: 20px; background: radial-gradient(circle, #ca8a04 40%, rgba(202,138,4,0) 80%); padding: 8px 14px; border-radius: 50%; }
+  .hitsplat.miss { color: #93c5fd; font-size: 12px; }
+  .hitsplat.heal { color: #86efac; font-size: 13px; }
+
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translate(-50%, 0) scale(0.8); }
+    30% { transform: translate(-50%, -15px) scale(1.15); }
+    100% { opacity: 0; transform: translate(-50%, -35px) scale(0.9); }
+  }
+
+  /* Modals (Start Screen, Level Up, Pause, Game Over) */
+  .modal-overlay { position: absolute; inset: 0; background: rgba(10, 12, 16, 0.88); backdrop-filter: blur(10px); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+  .modal-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 28px; max-width: 650px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center; }
+  .modal-title { font-size: 28px; font-weight: 800; margin: 0 0 8px; color: #fff; }
+  .modal-title span { color: var(--accent); }
+  .modal-subtitle { color: var(--muted); font-size: 14px; margin: 0 0 24px; line-height: 1.5; }
+
+  /* Hero Selection Grid */
+  .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; text-align: left; }
+  .hero-card { background: var(--panel2); border: 2px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; transition: all .15s; }
+  .hero-card:hover, .hero-card.selected { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(245, 158, 11, 0.2); }
+  .hero-card.selected { background: #242936; }
+  .hero-icon { font-size: 32px; margin-bottom: 8px; }
+  .hero-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: #fff; }
+  .hero-weapon { font-size: 12px; color: var(--accent); font-weight: 600; margin-bottom: 6px; }
+  .hero-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+  .btn-primary { background: linear-gradient(180deg, #f59e0b, #d97706); color: #111; font-weight: 800; font-size: 16px; padding: 12px 32px; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 14px rgba(217, 119, 6, 0.4); transition: transform .12s, filter .12s; }
+  .btn-primary:hover { filter: brightness(1.1); transform: scale(1.02); }
+
+  /* Level Up Card Draft */
+  #levelup-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; width: 100%; max-width: 800px; margin-bottom: 20px; }
+  .upgrade-card { background: var(--panel2); border: 2px solid var(--line); border-radius: 12px; padding: 18px 14px; text-align: center; cursor: pointer; transition: all .15s; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+  .upgrade-card:hover { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,0.5); }
+  .upgrade-rarity { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--accent); }
+  .upgrade-icon { font-size: 40px; margin: 12px 0 8px; }
+  .upgrade-name { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .upgrade-tier { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px; text-transform: uppercase; }
+  .upgrade-desc { font-size: 12px; color: var(--muted); line-height: 1.4; flex: 1; }
+
+  /* Virtual Joystick for Mobile */
+  #joystick-zone { position: absolute; bottom: 30px; right: 30px; width: 120px; height: 120px; z-index: 10; display: none; }
+  #touch-dash-btn { position: absolute; bottom: 40px; left: 30px; width: 68px; height: 68px; border-radius: 50%; background: rgba(245, 158, 11, 0.25); border: 2px solid var(--accent); color: #fff; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; z-index: 10; pointer-events: auto; }
+
+  /* Boss Warning */
+  #boss-warning { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); background: rgba(220, 38, 38, 0.9); color: #fff; padding: 10px 28px; border-radius: 999px; font-size: 18px; font-weight: 900; letter-spacing: 1px; border: 2px solid #fecaca; box-shadow: 0 0 30px rgba(239, 68, 68, 0.8); display: none; animation: pulse 0.8s infinite alternate; z-index: 50; }
+  @keyframes pulse { 0% { transform: translateX(-50%) scale(1); } 100% { transform: translateX(-50%) scale(1.08); } }
+
+  @media (max-width: 768px) {
+    .hero-grid, #levelup-cards { grid-template-columns: 1fr; }
+    #stats-panel { font-size: 12px; padding: 4px 12px; gap: 10px; }
+  }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="game-canvas"></canvas>
+
+<!-- Top Nav -->
+<header id="top-nav">
+  <a class="brand" href="/">
+    <span>&#9670;</span> <b>Ashenfallen</b> &middot; Survivors
+  </a>
+  <div class="nav-actions">
+    <button class="nav-btn" id="sound-btn" title="Toggle Sound">🔊 Sound: On</button>
+    <button class="nav-btn" id="pause-btn" title="Pause (P)">⏸ Pause</button>
+    <a class="nav-btn" href="/base-builder" style="text-decoration:none;">🏰 Base Builder</a>
+  </div>
+</header>
+
+<!-- In-Game HUD -->
+<div id="hud">
+  <div id="xp-container">
+    <div id="xp-bar"></div>
+    <div id="xp-text">LEVEL <span id="hud-level">1</span> &middot; <span id="hud-xp-ratio">0 / 10</span></div>
+  </div>
+
+  <div id="stats-panel">
+    <div class="stat-item">⏱ <span id="hud-time">00:00</span></div>
+    <div class="stat-item">⚔ <span id="hud-kills">0</span></div>
+    <div class="stat-item">🦴 <span id="hud-bones">0</span></div>
+  </div>
+
+  <div id="arsenal-hud">
+    <div class="arsenal-row" id="weapon-slots"></div>
+    <div class="arsenal-row" id="passive-slots"></div>
+  </div>
+
+  <div id="player-hud">
+    <div class="hp-bar-bg">
+      <div class="hp-bar-fill" id="hp-fill"></div>
+      <div class="hp-text"><span id="hp-cur">100</span> / <span id="hp-max">100</span> HP</div>
+    </div>
+    <div class="dash-bar-bg">
+      <div class="dash-bar-fill" id="dash-fill"></div>
+    </div>
+  </div>
+</div>
+
+<div id="boss-warning">⚠️ WARNING: LESSER BLUE DRAGON AWAKENS! ⚠️</div>
+
+<!-- Hitsplats Container -->
+<div id="hitsplats"></div>
+
+<!-- Start Character Selection Modal -->
+<div class="modal-overlay" id="start-modal">
+  <div class="modal-card">
+    <h1 class="modal-title">Dragonwilds <span>Survivors</span></h1>
+    <p class="modal-subtitle">Choose your hero and survive endless hordes across the authentic 3D terrain of Ashenfall!</p>
+
+    <div class="hero-grid">
+      <div class="hero-card selected" data-hero="knight">
+        <div class="hero-icon">⚔️</div>
+        <div class="hero-name">Dragon Knight</div>
+        <div class="hero-weapon">Dragon Scimitar</div>
+        <div class="hero-desc">+25% Max HP, +2 Base Armor. Frontal cleave slashes that tear through swarms.</div>
+      </div>
+      <div class="hero-card" data-hero="mage">
+        <div class="hero-icon">❄️</div>
+        <div class="hero-name">Ancient Mage</div>
+        <div class="hero-weapon">Ice Barrage</div>
+        <div class="hero-desc">+20% Spell Area, -15% Cooldowns. Freezes enemies solid in 3D ice cubes.</div>
+      </div>
+      <div class="hero-card" data-hero="ranger">
+        <div class="hero-icon">🏹</div>
+        <div class="hero-name">Wilds Ranger</div>
+        <div class="hero-weapon">Dragon Crossbow</div>
+        <div class="hero-desc">+20% Move Speed, +1 Projectile. Rapid piercing bolts that strike from afar.</div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="play-btn">START SURVIVAL RUN</button>
+    <div style="margin-top:14px; font-size:12px; color:var(--muted);">Controls: <b>WASD / Arrow Keys</b> to move &middot; <b>SPACE</b> to Dash &middot; <b>P / ESC</b> to Pause</div>
+  </div>
+</div>
+
+<!-- Level Up Modal -->
+<div class="modal-overlay" id="levelup-modal" style="display:none;">
+  <div class="modal-card" style="max-width:850px;">
+    <h1 class="modal-title" style="color:var(--accent);">LEVEL UP!</h1>
+    <p class="modal-subtitle">Choose a blessing to reinforce your arsenal:</p>
+    <div id="levelup-cards"></div>
+    <div style="display:flex; justify-content:center; gap:12px;">
+      <button class="nav-btn" id="reroll-btn">🎲 Reroll (<span id="reroll-count">1</span>)</button>
+      <button class="nav-btn" id="skip-btn">⏩ Skip (+20 Max HP)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pause / Stats Modal -->
+<div class="modal-overlay" id="pause-modal" style="display:none;">
+  <div class="modal-card">
+    <h1 class="modal-title">GAME PAUSED</h1>
+    <div id="pause-stats" style="text-align:left; background:var(--panel2); padding:16px; border-radius:10px; margin:16px 0; font-size:13px; line-height:1.6;"></div>
+    <div style="display:flex; justify-content:center; gap:12px;">
+      <button class="btn-primary" id="resume-btn">RESUME</button>
+      <button class="nav-btn" id="restart-btn">RESTART RUN</button>
+    </div>
+  </div>
+</div>
+
+<!-- Game Over / Victory Modal -->
+<div class="modal-overlay" id="gameover-modal" style="display:none;">
+  <div class="modal-card">
+    <h1 class="modal-title" id="gameover-title">YOU DIED</h1>
+    <p class="modal-subtitle" id="gameover-subtitle">You were slain by the horrors of Ashenfall.</p>
+    <div id="gameover-stats" style="background:var(--panel2); padding:16px; border-radius:10px; margin-bottom:20px; font-size:14px; text-align:left;"></div>
+    <button class="btn-primary" id="retry-btn">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script type="module" src="/survivors-game.js"></script>
+</body>
+</html>

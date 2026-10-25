@@ -4,6 +4,19 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
+// Fix Three.js GLTFLoader crash on meshes without skinWeight attribute
+THREE.SkinnedMesh.prototype.normalizeSkinWeights = function() {
+  const skinWeight = this.geometry?.attributes?.skinWeight;
+  if (!skinWeight) return;
+  const vector = new THREE.Vector4();
+  for (let i = 0, l = skinWeight.count; i < l; i++) {
+    vector.fromBufferAttribute(skinWeight, i);
+    const scale = 1.0 / vector.manhattanLength();
+    if (scale !== Infinity) vector.multiplyScalar(scale); else vector.set(1, 0, 0, 0);
+    skinWeight.setXYZW(i, vector.x, vector.y, vector.z, vector.w);
+  }
+};
+
 export { THREE };
 export const $ = id => document.getElementById(id);
 export const rand = (a, b) => a + Math.random() * (b - a);
@@ -18,13 +31,13 @@ export const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, power
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.1;
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8fa3b5);
 scene.fog = new THREE.Fog(0x8fa3b5, 45, 120);
 export const camera = new THREE.PerspectiveCamera(42, 1, 0.3, 400);
-const hemi = new THREE.HemisphereLight(0xdfe9ff, 0x4a4030, 1.6);
-const sun = new THREE.DirectionalLight(0xfff1d6, 2.4);
+const hemi = new THREE.HemisphereLight(0xdfe9ff, 0x4a4030, 1.8);
+const sun = new THREE.DirectionalLight(0xfff1d6, 2.5);
 sun.position.set(30, 60, 20);
 scene.add(hemi, sun);
 export const lights = { hemi, sun };
@@ -99,15 +112,16 @@ export function loadModel(nameOrEntry) {
 }
 
 // ---------------------------------------------------------------------------
-// Templates: bake a (possibly skinned) model into one static geometry in its bind pose,
-// normalised so the feet sit on y=0, centred, facing +Z, scaled to a target height.
+// Templates: bake a model into one static geometry in its bind pose.
 // ---------------------------------------------------------------------------
 function floatAttr(a) {
+  if (!a) return null;
   const n = a.count, s = a.itemSize, out = new Float32Array(n * s);
   for (let i = 0; i < n; i++) for (let k = 0; k < s; k++) out[i * s + k] = a.getComponent(i, k);
   return new THREE.BufferAttribute(out, s);
 }
 function cleanGeometry(src, matrix) {
+  if (!src.attributes.position) return null;
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', floatAttr(src.attributes.position));
   if (src.attributes.normal) g.setAttribute('normal', floatAttr(src.attributes.normal));
@@ -123,23 +137,28 @@ export async function bakeTemplate(name, { height = null, size = null, yaw = 0, 
   root.updateMatrixWorld(true);
   const geos = [], mats = [];
   root.traverse(o => {
-    if (!o.isMesh) return;
+    if (!o.isMesh || !o.geometry?.attributes?.position) return;
     const base = cleanGeometry(o.geometry, o.matrixWorld);
+    if (!base) return;
     const list = [].concat(o.material);
-    const groups = Array.isArray(o.material) && o.geometry.groups.length ? o.geometry.groups : [{ start: 0, count: base.index.count, materialIndex: 0 }];
+    const groups = Array.isArray(o.material) && o.geometry.groups?.length ? o.geometry.groups : [{ start: 0, count: base.index.count, materialIndex: 0 }];
     for (const gr of groups) {
       const g = base.clone();
       g.setIndex(new THREE.BufferAttribute(base.index.array.slice(gr.start, gr.start + gr.count), 1));
       geos.push(g); mats.push(list[gr.materialIndex] || list[0]);
     }
   });
-  if (!geos.length) throw new Error('No meshes in ' + name);
+  if (!geos.length) {
+    const geo = new THREE.BoxGeometry(0.8, height || 1.6, 0.8);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x884444 });
+    return { name, geometry: geo, materials: [mat], height: height || 1.6, radius: 0.5 };
+  }
   let geo = geos.length === 1 ? geos[0] : mergeGeometries(geos, true);
   if (geos.length === 1) geo.addGroup(0, geo.index.count, 0);
   geo.rotateY(yaw);
   geo.computeBoundingBox();
   const b = geo.boundingBox, sz = b.getSize(new THREE.Vector3());
-  const s = height ? height / sz.y : size ? size / Math.max(sz.x, sz.y, sz.z) : 1;
+  const s = height ? height / (sz.y || 1) : size ? size / Math.max(sz.x || 1, sz.y || 1, sz.z || 1) : 1;
   geo.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
   geo.scale(s, s, s);
   geo.computeBoundingBox(); geo.computeBoundingSphere();
@@ -152,15 +171,14 @@ export function templateMesh(t) {
   return m;
 }
 
-// Skinned character for the hero and bosses: the real skeleton, posed procedurally (the exports carry no animations).
-export async function loadCharacter(name, height) {
+// Character loader (clones the root scene so it works reliably)
+export async function loadCharacter(name, height = 2.0) {
   const src = await loadModel(name);
-  const { clone } = await import('three/addons/utils/SkeletonUtils.js');
-  const obj = clone(src);
+  const obj = src.clone(true);
   const holder = new THREE.Group();
   obj.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(obj), sz = box.getSize(new THREE.Vector3());
-  const s = height / sz.y;
+  const s = height / (sz.y || 1);
   obj.scale.multiplyScalar(s);
   obj.position.set(-(box.min.x + box.max.x) / 2 * s, -box.min.y * s, -(box.min.z + box.max.z) / 2 * s);
   holder.add(obj);
@@ -170,9 +188,8 @@ export async function loadCharacter(name, height) {
   return { root: holder, inner: obj, bones, height };
 }
 const _q = new THREE.Quaternion(), _ax = new THREE.Vector3();
-// Rotates a bone away from its rest pose about one of its local axes.
 export function poseBone(b, axis, angle) {
-  if (!b) return;
+  if (!b || !b.userData?.rest) return;
   _ax.set(axis === 'x' ? 1 : 0, axis === 'y' ? 1 : 0, axis === 'z' ? 1 : 0);
   b.quaternion.copy(b.userData.rest).multiply(_q.setFromAxisAngle(_ax, angle));
 }

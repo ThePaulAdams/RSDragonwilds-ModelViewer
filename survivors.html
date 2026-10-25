@@ -10,106 +10,156 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
   :root {
-    --bg: #0e1014; --panel: #16181f; --panel2: #1e222b; --line: #2d3340;
-    --text: #e6e6e6; --muted: #9aa3ae; --accent: #f59e0b; --accent2: #38bdf8;
-    --danger: #ef4444; --green: #22c55e; --purple: #a855f7;
+    --vs-blue: #0284c7;
+    --vs-cyan: #38bdf8;
+    --vs-gold: #fbbf24;
+    --vs-gold-dark: #b45309;
+    --vs-red: #ef4444;
+    --vs-green: #22c55e;
+    --vs-card-bg: #1e1b2e;
+    --vs-card-border: #d97706;
   }
-  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0b0e; color: #f3f4f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
   canvas#game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; }
 
-  /* Top Navigation Overlay */
-  #top-nav { position: absolute; top: 0; left: 0; right: 0; height: 50px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 10; pointer-events: none; }
-  #top-nav > * { pointer-events: auto; }
-  .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #fff; font-weight: 700; font-size: 15px; }
-  .brand span { color: var(--accent); }
-  .nav-actions { display: flex; align-items: center; gap: 10px; }
-  .nav-btn { background: rgba(22, 24, 31, 0.85); border: 1px solid var(--line); color: var(--text); padding: 5px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; backdrop-filter: blur(8px); display: flex; align-items: center; gap: 6px; transition: border-color .15s, background .15s; }
-  .nav-btn:hover { border-color: var(--accent); background: var(--panel2); }
+  /* ================= VAMPIRE SURVIVORS TOP HUD ================= */
+  #hud { position: absolute; inset: 0; pointer-events: none; z-index: 10; display: none; }
 
-  /* In-game HUD */
-  #hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; display: none; }
-  
-  /* XP Bar across top */
-  #xp-container { position: absolute; top: 46px; left: 16px; right: 16px; height: 16px; background: rgba(14, 16, 20, 0.85); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; backdrop-filter: blur(6px); }
-  #xp-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #0284c7, #38bdf8); transition: width .15s ease-out; box-shadow: 0 0 10px rgba(56, 189, 248, 0.6); }
-  #xp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000; letter-spacing: .5px; }
+  /* Giant XP Bar across top */
+  #xp-bar-container { position: absolute; top: 0; left: 0; right: 0; height: 20px; background: rgba(10, 15, 25, 0.9); border-bottom: 2px solid #0369a1; }
+  #xp-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #0284c7 0%, #38bdf8 80%, #bae6fd 100%); transition: width .1s ease-out; box-shadow: 0 0 12px #38bdf8; }
+  #xp-level-badge { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 900; letter-spacing: 1px; color: #fff; text-shadow: 0 1px 3px #000, 0 0 6px #0284c7; }
 
-  /* Top Stats */
-  #stats-panel { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; background: rgba(14, 16, 20, 0.75); border: 1px solid var(--line); padding: 6px 18px; border-radius: 999px; backdrop-filter: blur(8px); font-size: 14px; font-weight: 600; }
-  .stat-item { display: flex; align-items: center; gap: 6px; }
-  .stat-item b { color: var(--accent); }
+  /* Center Top: Digital Timer & Kills / Coins */
+  #top-center-stats { position: absolute; top: 26px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 24px; background: rgba(15, 18, 26, 0.92); border: 2px solid #374151; border-top: none; padding: 6px 24px; border-radius: 0 0 16px 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); }
+  #hud-time { font-family: 'Courier New', monospace; font-size: 26px; font-weight: 900; color: var(--vs-gold); text-shadow: 0 0 10px rgba(251, 191, 36, 0.5); }
+  .hud-stat { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 800; }
+  .hud-stat span { color: #fff; text-shadow: 0 1px 2px #000; }
 
-  /* Health & Level Badge Bottom/Left */
-  #player-hud { position: absolute; bottom: 20px; left: 20px; display: flex; flex-direction: column; gap: 8px; width: 220px; }
-  .hp-bar-bg { width: 100%; height: 22px; background: rgba(22, 24, 31, 0.9); border: 1px solid #7f1d1d; border-radius: 6px; overflow: hidden; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-  .hp-bar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #dc2626, #ef4444); transition: width .12s; }
-  .hp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000; }
+  /* Top Left: 6 Weapon Slots + 6 Passive Slots */
+  #inventory-hud { position: absolute; top: 28px; left: 16px; display: flex; flex-direction: column; gap: 6px; }
+  .inv-row { display: flex; gap: 4px; }
+  .inv-slot { width: 38px; height: 38px; background: rgba(18, 22, 32, 0.9); border: 2px solid #4b5563; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; font-size: 20px; box-shadow: inset 0 0 8px rgba(0,0,0,0.8); }
+  .inv-slot.active { border-color: var(--vs-gold); background: rgba(30, 36, 50, 0.95); }
+  .inv-slot.passive { border-color: #38bdf8; }
+  .inv-pips { position: absolute; bottom: 2px; display: flex; gap: 2px; }
+  .inv-pip { width: 4px; height: 4px; background: #6b7280; border-radius: 1px; }
+  .inv-pip.filled { background: var(--vs-gold); box-shadow: 0 0 4px var(--vs-gold); }
 
-  .dash-bar-bg { width: 100%; height: 8px; background: rgba(22, 24, 31, 0.8); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-  .dash-bar-fill { height: 100%; width: 100%; background: var(--accent); transition: width .05s linear; }
+  /* Top Right: Player HP Bar */
+  #hp-hud { position: absolute; top: 28px; right: 16px; width: 180px; display: flex; flex-direction: column; gap: 4px; }
+  .hp-bar-outer { width: 100%; height: 22px; background: rgba(18, 22, 32, 0.9); border: 2px solid #7f1d1d; border-radius: 6px; overflow: hidden; position: relative; }
+  .hp-bar-inner { width: 100%; height: 100%; background: linear-gradient(90deg, #dc2626, #22c55e); transition: width .12s; }
+  .hp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px #000; }
 
-  /* Equipment Slots HUD */
-  #arsenal-hud { position: absolute; top: 70px; left: 20px; display: flex; flex-direction: column; gap: 6px; }
-  .arsenal-row { display: flex; gap: 6px; }
-  .slot-box { width: 40px; height: 40px; background: rgba(22, 24, 31, 0.85); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; font-size: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
-  .slot-box.passive { border-color: #3b82f6; }
-  .slot-level { position: absolute; bottom: 1px; right: 3px; font-size: 9px; font-weight: 800; color: var(--accent); }
+  /* Boss Bar across top */
+  #boss-bar-wrap { position: absolute; top: 82px; left: 50%; transform: translateX(-50%); width: 480px; max-width: 90%; display: none; flex-direction: column; align-items: center; }
+  #boss-name { font-size: 14px; font-weight: 900; letter-spacing: 1px; color: #f87171; text-shadow: 0 0 8px #ef4444; margin-bottom: 4px; text-transform: uppercase; }
+  .boss-bar-outer { width: 100%; height: 14px; background: rgba(20, 20, 25, 0.9); border: 2px solid #ef4444; border-radius: 4px; overflow: hidden; }
+  .boss-bar-inner { width: 100%; height: 100%; background: linear-gradient(90deg, #991b1b, #ef4444); transition: width .1s; }
 
-  /* Floating Hitsplats */
-  .hitsplat { position: absolute; transform: translate(-50%, -50%); pointer-events: none; font-weight: 900; font-size: 15px; text-shadow: 0 1px 2px #000, 0 0 4px #000; animation: floatUp 0.8s ease-out forwards; z-index: 20; }
-  .hitsplat.dmg { color: #fca5a5; background: radial-gradient(circle, #b91c1c 40%, rgba(185,28,28,0) 80%); padding: 6px 10px; border-radius: 50%; }
-  .hitsplat.crit { color: #fef08a; font-size: 20px; background: radial-gradient(circle, #ca8a04 40%, rgba(202,138,4,0) 80%); padding: 8px 14px; border-radius: 50%; }
-  .hitsplat.miss { color: #93c5fd; font-size: 12px; }
-  .hitsplat.heal { color: #86efac; font-size: 13px; }
-
-  @keyframes floatUp {
-    0% { opacity: 1; transform: translate(-50%, 0) scale(0.8); }
-    30% { transform: translate(-50%, -15px) scale(1.15); }
-    100% { opacity: 0; transform: translate(-50%, -35px) scale(0.9); }
+  /* Hitsplats */
+  .hitsplat { position: absolute; transform: translate(-50%, -50%); pointer-events: none; font-weight: 900; font-size: 18px; text-shadow: 0 1px 3px #000, 0 0 6px #000; animation: vsSplat 0.75s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards; z-index: 50; }
+  .hitsplat.dmg { color: #fff; background: radial-gradient(circle, #dc2626 40%, rgba(220,38,38,0) 80%); padding: 6px 12px; border-radius: 50%; }
+  .hitsplat.crit { color: #fef08a; font-size: 24px; background: radial-gradient(circle, #ca8a04 40%, rgba(202,138,4,0) 80%); padding: 8px 16px; border-radius: 50%; }
+  @keyframes vsSplat {
+    0% { opacity: 0; transform: translate(-50%, 0) scale(0.5); }
+    30% { opacity: 1; transform: translate(-50%, -20px) scale(1.2); }
+    100% { opacity: 0; transform: translate(-50%, -45px) scale(0.9); }
   }
 
-  /* Modals (Start Screen, Level Up, Pause, Game Over) */
-  .modal-overlay { position: absolute; inset: 0; background: rgba(10, 12, 16, 0.88); backdrop-filter: blur(10px); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-  .modal-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 28px; max-width: 650px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center; }
-  .modal-title { font-size: 28px; font-weight: 800; margin: 0 0 8px; color: #fff; }
-  .modal-title span { color: var(--accent); }
-  .modal-subtitle { color: var(--muted); font-size: 14px; margin: 0 0 24px; line-height: 1.5; }
+  /* ================= VAMPIRE SURVIVORS LEVEL-UP MODAL ================= */
+  .modal-overlay { position: absolute; inset: 0; background: rgba(5, 7, 12, 0.88); backdrop-filter: blur(8px); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
 
-  /* Hero Selection Grid */
-  .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; text-align: left; }
-  .hero-card { background: var(--panel2); border: 2px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; transition: all .15s; }
-  .hero-card:hover, .hero-card.selected { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(245, 158, 11, 0.2); }
-  .hero-card.selected { background: #242936; }
-  .hero-icon { font-size: 32px; margin-bottom: 8px; }
-  .hero-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: #fff; }
-  .hero-weapon { font-size: 12px; color: var(--accent); font-weight: 600; margin-bottom: 6px; }
-  .hero-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+  #levelup-modal .modal-card {
+    background: radial-gradient(circle at center, #241b35 0%, #110d1c 100%);
+    border: 3px solid #d97706;
+    border-radius: 14px;
+    padding: 30px;
+    width: 100%;
+    max-width: 860px;
+    box-shadow: 0 0 50px rgba(217, 119, 6, 0.4), inset 0 0 30px rgba(0,0,0,0.8);
+    text-align: center;
+  }
+  .vs-title { font-size: 36px; font-weight: 900; letter-spacing: 2px; color: var(--vs-gold); text-shadow: 0 0 20px rgba(251, 191, 36, 0.8), 0 2px 4px #000; margin-bottom: 24px; text-transform: uppercase; }
 
-  .btn-primary { background: linear-gradient(180deg, #f59e0b, #d97706); color: #111; font-weight: 800; font-size: 16px; padding: 12px 32px; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 14px rgba(217, 119, 6, 0.4); transition: transform .12s, filter .12s; }
-  .btn-primary:hover { filter: brightness(1.1); transform: scale(1.02); }
+  #levelup-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .vs-card {
+    background: linear-gradient(180deg, #2d2440 0%, #181324 100%);
+    border: 3px solid #78350f;
+    border-radius: 10px;
+    padding: 20px 14px;
+    cursor: pointer;
+    transition: all .15s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  }
+  .vs-card:hover {
+    border-color: var(--vs-gold);
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 12px 30px rgba(251, 191, 36, 0.4);
+    background: linear-gradient(180deg, #3d3158 0%, #221b33 100%);
+  }
+  .vs-card-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #0284c7;
+    color: #fff;
+    text-transform: uppercase;
+  }
+  .vs-card-badge.new { background: #16a34a; }
+  .vs-card-icon { font-size: 52px; margin: 12px 0 10px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6)); }
+  .vs-card-name { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+  .vs-card-tier { font-size: 12px; font-weight: 800; color: var(--vs-gold); margin-bottom: 10px; }
+  .vs-card-desc { font-size: 13px; color: #cbd5e1; line-height: 1.4; flex: 1; }
 
-  /* Level Up Card Draft */
-  #levelup-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; width: 100%; max-width: 800px; margin-bottom: 20px; }
-  .upgrade-card { background: var(--panel2); border: 2px solid var(--line); border-radius: 12px; padding: 18px 14px; text-align: center; cursor: pointer; transition: all .15s; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
-  .upgrade-card:hover { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,0.5); }
-  .upgrade-rarity { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--accent); }
-  .upgrade-icon { font-size: 40px; margin: 12px 0 8px; }
-  .upgrade-name { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-  .upgrade-tier { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px; text-transform: uppercase; }
-  .upgrade-desc { font-size: 12px; color: var(--muted); line-height: 1.4; flex: 1; }
+  /* Buttons */
+  .vs-btn {
+    background: linear-gradient(180deg, #d97706 0%, #b45309 100%);
+    border: 2px solid #fde68a;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 800;
+    padding: 10px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    transition: all .15s;
+    text-transform: uppercase;
+  }
+  .vs-btn:hover { filter: brightness(1.15); transform: scale(1.04); }
+  .vs-btn.secondary { background: #374151; border-color: #6b7280; }
 
-  /* Virtual Joystick for Mobile */
-  #joystick-zone { position: absolute; bottom: 30px; right: 30px; width: 120px; height: 120px; z-index: 10; display: none; }
-  #touch-dash-btn { position: absolute; bottom: 40px; left: 30px; width: 68px; height: 68px; border-radius: 50%; background: rgba(245, 158, 11, 0.25); border: 2px solid var(--accent); color: #fff; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; z-index: 10; pointer-events: auto; }
-
-  /* Boss Warning */
-  #boss-warning { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); background: rgba(220, 38, 38, 0.9); color: #fff; padding: 10px 28px; border-radius: 999px; font-size: 18px; font-weight: 900; letter-spacing: 1px; border: 2px solid #fecaca; box-shadow: 0 0 30px rgba(239, 68, 68, 0.8); display: none; animation: pulse 0.8s infinite alternate; z-index: 50; }
-  @keyframes pulse { 0% { transform: translateX(-50%) scale(1); } 100% { transform: translateX(-50%) scale(1.08); } }
+  /* Hero Selection Screen */
+  .hero-select-card {
+    background: #1e1b2b;
+    border: 2px solid #4b5563;
+    border-radius: 10px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all .15s;
+    text-align: left;
+  }
+  .hero-select-card:hover, .hero-select-card.selected {
+    border-color: var(--vs-gold);
+    background: #2b2540;
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(251, 191, 36, 0.25);
+  }
 
   @media (max-width: 768px) {
-    .hero-grid, #levelup-cards { grid-template-columns: 1fr; }
-    #stats-panel { font-size: 12px; padding: 4px 12px; gap: 10px; }
+    #levelup-cards { grid-template-columns: 1fr; }
+    #top-center-stats { padding: 4px 14px; gap: 12px; }
+    #hud-time { font-size: 20px; }
   }
 </style>
 
@@ -126,116 +176,105 @@
 
 <canvas id="game-canvas"></canvas>
 
-<!-- Top Nav -->
-<header id="top-nav">
-  <a class="brand" href="/">
-    <span>&#9670;</span> <b>Ashenfallen</b> &middot; Survivors
-  </a>
-  <div class="nav-actions">
-    <button class="nav-btn" id="sound-btn" title="Toggle Sound">🔊 Sound: On</button>
-    <button class="nav-btn" id="pause-btn" title="Pause (P)">⏸ Pause</button>
-    <a class="nav-btn" href="/base-builder" style="text-decoration:none;">🏰 Base Builder</a>
-  </div>
-</header>
-
-<!-- In-Game HUD -->
+<!-- Top Vampire Survivors In-Game HUD -->
 <div id="hud">
-  <div id="xp-container">
-    <div id="xp-bar"></div>
-    <div id="xp-text">LEVEL <span id="hud-level">1</span> &middot; <span id="hud-xp-ratio">0 / 10</span></div>
+  <div id="xp-bar-container">
+    <div id="xp-bar-fill"></div>
+    <div id="xp-level-badge">LV <span id="hud-level">1</span> &middot; <span id="hud-xp-ratio">0 / 10</span></div>
   </div>
 
-  <div id="stats-panel">
-    <div class="stat-item">⏱ <span id="hud-time">00:00</span></div>
-    <div class="stat-item">⚔ <span id="hud-kills">0</span></div>
-    <div class="stat-item">🦴 <span id="hud-bones">0</span></div>
+  <div id="top-center-stats">
+    <div id="hud-time">00:00</div>
+    <div class="hud-stat">💀 <span id="hud-kills">0</span></div>
+    <div class="hud-stat">🪙 <span id="hud-bones">0</span></div>
   </div>
 
-  <div id="arsenal-hud">
-    <div class="arsenal-row" id="weapon-slots"></div>
-    <div class="arsenal-row" id="passive-slots"></div>
+  <div id="inventory-hud">
+    <div class="inv-row" id="weapon-slots"></div>
+    <div class="inv-row" id="passive-slots"></div>
   </div>
 
-  <div id="player-hud">
-    <div class="hp-bar-bg">
-      <div class="hp-bar-fill" id="hp-fill"></div>
+  <div id="hp-hud">
+    <div class="hp-bar-outer">
+      <div class="hp-bar-inner" id="hp-fill"></div>
       <div class="hp-text"><span id="hp-cur">100</span> / <span id="hp-max">100</span> HP</div>
     </div>
-    <div class="dash-bar-bg">
-      <div class="dash-bar-fill" id="dash-fill"></div>
+  </div>
+
+  <div id="boss-bar-wrap">
+    <div id="boss-name">Lesser Blue Dragon</div>
+    <div class="boss-bar-outer">
+      <div class="boss-bar-inner" id="boss-fill"></div>
     </div>
   </div>
 </div>
 
-<div id="boss-warning">⚠️ WARNING: LESSER BLUE DRAGON AWAKENS! ⚠️</div>
-
-<!-- Hitsplats Container -->
+<!-- Hitsplats -->
 <div id="hitsplats"></div>
 
-<!-- Start Character Selection Modal -->
+<!-- Character Selection Screen -->
 <div class="modal-overlay" id="start-modal">
-  <div class="modal-card">
-    <h1 class="modal-title">Dragonwilds <span>Survivors</span></h1>
-    <p class="modal-subtitle">Choose your hero and survive endless hordes across the authentic 3D terrain of Ashenfall!</p>
+  <div style="background:#13111c; border:3px solid #d97706; border-radius:14px; padding:30px; max-width:700px; width:100%; text-align:center; box-shadow:0 0 50px rgba(0,0,0,0.8);">
+    <div class="vs-title">Dragonwilds <span>Survivors</span></div>
+    <p style="color:#94a3b8; margin-bottom:24px; font-size:15px;">Select your adventurer and survive the onslaught across Ashenfall:</p>
 
-    <div class="hero-grid">
-      <div class="hero-card selected" data-hero="knight">
-        <div class="hero-icon">⚔️</div>
-        <div class="hero-name">Dragon Knight</div>
-        <div class="hero-weapon">Dragon Scimitar</div>
-        <div class="hero-desc">+25% Max HP, +2 Base Armor. Frontal cleave slashes that tear through swarms.</div>
+    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-bottom:24px;">
+      <div class="hero-select-card selected" data-hero="knight">
+        <div style="font-size:36px; margin-bottom:8px;">⚔️</div>
+        <div style="font-size:17px; font-weight:800; color:#fff;">Vannaka</div>
+        <div style="font-size:13px; color:var(--vs-gold); font-weight:700; margin-bottom:6px;">Dragon Knight</div>
+        <div style="font-size:12px; color:#94a3b8; line-height:1.4;">Weapon: Dragon Scimitar. +25% Max HP, +2 Armor. Frontal cleaves that slice through swarms.</div>
       </div>
-      <div class="hero-card" data-hero="mage">
-        <div class="hero-icon">❄️</div>
-        <div class="hero-name">Ancient Mage</div>
-        <div class="hero-weapon">Ice Barrage</div>
-        <div class="hero-desc">+20% Spell Area, -15% Cooldowns. Freezes enemies solid in 3D ice cubes.</div>
+      <div class="hero-select-card" data-hero="mage">
+        <div style="font-size:36px; margin-bottom:8px;">❄️</div>
+        <div style="font-size:17px; font-weight:800; color:#fff;">Wise Old Man</div>
+        <div style="font-size:13px; color:var(--vs-gold); font-weight:700; margin-bottom:6px;">Ancient Mage</div>
+        <div style="font-size:12px; color:#94a3b8; line-height:1.4;">Weapon: Ice Barrage. +20% Spell Area, -15% Cooldowns. Freezes enemies solid in 3D ice blocks.</div>
       </div>
-      <div class="hero-card" data-hero="ranger">
-        <div class="hero-icon">🏹</div>
-        <div class="hero-name">Wilds Ranger</div>
-        <div class="hero-weapon">Dragon Crossbow</div>
-        <div class="hero-desc">+20% Move Speed, +1 Projectile. Rapid piercing bolts that strike from afar.</div>
+      <div class="hero-select-card" data-hero="ranger">
+        <div style="font-size:36px; margin-bottom:8px;">🏹</div>
+        <div style="font-size:17px; font-weight:800; color:#fff;">Lagra</div>
+        <div style="font-size:13px; color:var(--vs-gold); font-weight:700; margin-bottom:6px;">Wilds Ranger</div>
+        <div style="font-size:12px; color:#94a3b8; line-height:1.4;">Weapon: Dragon Crossbow. +20% Speed, +1 Projectile. Rapid piercing bolts that strike from afar.</div>
       </div>
     </div>
 
-    <button class="btn-primary" id="play-btn">START SURVIVAL RUN</button>
-    <div style="margin-top:14px; font-size:12px; color:var(--muted);">Controls: <b>WASD / Arrow Keys</b> to move &middot; <b>SPACE</b> to Dash &middot; <b>P / ESC</b> to Pause</div>
+    <button class="vs-btn" id="play-btn" style="font-size:18px; padding:14px 40px;">START SURVIVAL RUN</button>
+    <div style="margin-top:16px; font-size:13px; color:#64748b;">Move: <b>WASD / Arrow Keys</b> &middot; Dash: <b>SPACE</b> &middot; Pause: <b>ESC / P</b></div>
   </div>
 </div>
 
-<!-- Level Up Modal -->
+<!-- Vampire Survivors Level-Up Modal -->
 <div class="modal-overlay" id="levelup-modal" style="display:none;">
-  <div class="modal-card" style="max-width:850px;">
-    <h1 class="modal-title" style="color:var(--accent);">LEVEL UP!</h1>
-    <p class="modal-subtitle">Choose a blessing to reinforce your arsenal:</p>
+  <div class="modal-card">
+    <div class="vs-title">LEVEL UP!</div>
     <div id="levelup-cards"></div>
-    <div style="display:flex; justify-content:center; gap:12px;">
-      <button class="nav-btn" id="reroll-btn">🎲 Reroll (<span id="reroll-count">1</span>)</button>
-      <button class="nav-btn" id="skip-btn">⏩ Skip (+20 Max HP)</button>
+    <div style="display:flex; justify-content:center; gap:16px;">
+      <button class="vs-btn secondary" id="reroll-btn">🎲 Reroll (<span id="reroll-count">1</span>)</button>
+      <button class="vs-btn secondary" id="skip-btn">⏩ Skip (+20 Max HP)</button>
     </div>
   </div>
 </div>
 
 <!-- Pause / Stats Modal -->
 <div class="modal-overlay" id="pause-modal" style="display:none;">
-  <div class="modal-card">
-    <h1 class="modal-title">GAME PAUSED</h1>
-    <div id="pause-stats" style="text-align:left; background:var(--panel2); padding:16px; border-radius:10px; margin:16px 0; font-size:13px; line-height:1.6;"></div>
-    <div style="display:flex; justify-content:center; gap:12px;">
-      <button class="btn-primary" id="resume-btn">RESUME</button>
-      <button class="nav-btn" id="restart-btn">RESTART RUN</button>
+  <div class="modal-card" style="max-width:550px;">
+    <div class="vs-title" style="font-size:28px;">GAME PAUSED</div>
+    <div id="pause-stats" style="text-align:left; background:rgba(0,0,0,0.5); padding:18px; border-radius:10px; margin:20px 0; font-size:14px; line-height:1.7;"></div>
+    <div style="display:flex; justify-content:center; gap:14px;">
+      <button class="vs-btn" id="resume-btn">RESUME</button>
+      <button class="vs-btn secondary" id="restart-btn">QUIT RUN</button>
     </div>
   </div>
 </div>
 
 <!-- Game Over / Victory Modal -->
 <div class="modal-overlay" id="gameover-modal" style="display:none;">
-  <div class="modal-card">
-    <h1 class="modal-title" id="gameover-title">YOU DIED</h1>
-    <p class="modal-subtitle" id="gameover-subtitle">You were slain by the horrors of Ashenfall.</p>
-    <div id="gameover-stats" style="background:var(--panel2); padding:16px; border-radius:10px; margin-bottom:20px; font-size:14px; text-align:left;"></div>
-    <button class="btn-primary" id="retry-btn">PLAY AGAIN</button>
+  <div class="modal-card" style="max-width:550px;">
+    <div class="vs-title" id="gameover-title" style="font-size:32px;">YOU DIED</div>
+    <p id="gameover-subtitle" style="color:#94a3b8; margin-bottom:20px;">The horde consumed your essence.</p>
+    <div id="gameover-stats" style="background:rgba(0,0,0,0.5); padding:18px; border-radius:10px; margin-bottom:24px; font-size:14px; text-align:left; line-height:1.7;"></div>
+    <button class="vs-btn" id="retry-btn">PLAY AGAIN</button>
   </div>
 </div>
 

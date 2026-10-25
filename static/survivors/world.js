@@ -82,7 +82,6 @@ function addCollider(x, z, r) {
   const k0 = Math.floor((x - r) / 4), k1 = Math.floor((x + r) / 4), m0 = Math.floor((z - r) / 4), m1 = Math.floor((z + r) / 4);
   for (let i = k0; i <= k1; i++) for (let j = m0; j <= m1; j++) { const k = i * 4096 + j; if (!world.grid.has(k)) world.grid.set(k, []); world.grid.get(k).push(c); }
 }
-// Pushes a circle (x, z, radius) out of trees, rocks and pillars. Returns the corrected position in `out`.
 export function resolveColliders(p, r) {
   const list = world.grid.get(Math.floor(p.x / 4) * 4096 + Math.floor(p.z / 4));
   if (!list) return;
@@ -96,72 +95,89 @@ const ueQuat = (x, y, z, w) => new THREE.Quaternion(-x, -z, -y, w);
 const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _b = new THREE.Box3();
 
 export async function loadArena(key, onProgress = () => { }) {
-  const A = ARENAS[key];
+  const A = ARENAS[key] || ARENAS.temple;
   world.group.clear(); world.colliders.length = 0; world.grid.clear(); world.tiles = [];
   scene.background.set(A.sky); scene.fog.color.set(A.sky);
-  const [tiles, meshes] = await Promise.all(['terrain.json', 'meshes.json'].map(f => fetch(ASSETS + 'world/' + f).then(r => r.json())));
-  const near = tiles.filter(t => {
-    const L = t.step * (t.n - 1), dx = Math.max(t.x - A.X, 0, A.X - (t.x + L)), dy = Math.max(t.y - A.Y, 0, A.Y - (t.y + L));
-    return dx * dx + dy * dy < TERRAIN_R * TERRAIN_R;
-  });
-  // The anchor's height: sample after the tiles arrive.
-  world.anchor = { X: A.X, Y: A.Y, Z: 0 };
-  let done = 0;
-  await Promise.all(near.map(async t => {
-    const buf = await (await fetch(ASSETS + 'world/terrain/' + t.f)).arrayBuffer();
-    world.tiles.push({ ...t, h: new Uint16Array(buf) });
-    onProgress('Landscape', ++done / near.length);
-  }));
-  world.anchor.Z = heightAt(0, 0) * 100;
-  for (const t of world.tiles) world.group.add(tileMesh(t, t.h));
 
-  // World objects: trees, rocks, ruins... instanced per mesh.
-  const keys = [];
-  for (let ix = Math.floor((A.X - OBJECT_R) / SQUARE); ix <= Math.floor((A.X + OBJECT_R) / SQUARE); ix++)
-    for (let iy = Math.floor((A.Y - OBJECT_R) / SQUARE); iy <= Math.floor((A.Y + OBJECT_R) / SQUARE); iy++) keys.push(ix + '_' + iy);
-  const lists = await Promise.all(keys.map(k => fetch(ASSETS + 'world/objects/' + k + '.json').then(r => r.ok ? r.json() : []).catch(() => [])));
-  const byMesh = new Map();
-  for (const list of lists) for (const r of list) {
-    const p = meshes[r[0]], dx = r[1] - A.X, dy = r[2] - A.Y, d2 = dx * dx + dy * dy;
-    if (!p || skip(p) || d2 > OBJECT_R * OBJECT_R) continue;
-    if (isPlant(p) && (d2 > 4500 * 4500 || Math.random() < 0.5)) continue;   // thin out ground cover far away
-    if (!byMesh.has(r[0])) byMesh.set(r[0], []);
-    byMesh.get(r[0]).push(r);
-  }
-  let loaded = 0, total = byMesh.size;
-  await Promise.all([...byMesh].map(async ([mi, rows]) => {
-    const path = meshes[mi], entry = modelForMesh(path);
-    try {
-      if (!entry) return;
-      const root = await loadModel(entry);
-      root.updateMatrixWorld(true);
-      _b.setFromObject(root);
-      const half = Math.min(_b.max.x - _b.min.x, _b.max.z - _b.min.z) / 2;
-      root.traverse(o => {
-        if (!o.isMesh) return;
-        const im = new THREE.InstancedMesh(o.geometry, o.material, rows.length);
-        rows.forEach((r, i) => {
-          _p.copy(toScene(r[1], r[2], r[3])); _s.set(r[8], r[10], r[9]);
-          _m.compose(_p, ueQuat(r[4], r[5], r[6], r[7]), _s).multiply(o.matrixWorld);
-          im.setMatrixAt(i, _m);
-        });
-        im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere();
-        world.group.add(im);
-      });
-      if (solid(path) && !isPlant(path)) for (const r of rows) {
-        const rr = half * Math.max(r[8], r[9]) * (/Tree/i.test(path) ? 0.25 : 0.6);
-        if (rr > 0.25 && rr < 6) { const v = toScene(r[1], r[2], r[3]); if (v.x * v.x + v.z * v.z < (ARENA_RADIUS + 12) ** 2) addCollider(v.x, v.z, rr); }
+  // Fallback ground plane so player can move instantly
+  const fallbackGround = new THREE.Mesh(
+    new THREE.PlaneGeometry(ARENA_RADIUS * 2.5, ARENA_RADIUS * 2.5, 32, 32).rotateX(-Math.PI / 2),
+    terrainMat
+  );
+  fallbackGround.position.y = 0;
+  world.group.add(fallbackGround);
+
+  try {
+    const [tiles, meshes] = await Promise.all(['terrain.json', 'meshes.json'].map(f => fetch(ASSETS + 'world/' + f).then(r => r.json())));
+    const near = tiles.filter(t => {
+      const L = t.step * (t.n - 1), dx = Math.max(t.x - A.X, 0, A.X - (t.x + L)), dy = Math.max(t.y - A.Y, 0, A.Y - (t.y + L));
+      return dx * dx + dy * dy < TERRAIN_R * TERRAIN_R;
+    });
+
+    world.anchor = { X: A.X, Y: A.Y, Z: 0 };
+    await Promise.all(near.map(async t => {
+      try {
+        const buf = await (await fetch(ASSETS + 'world/terrain/' + t.f)).arrayBuffer();
+        world.tiles.push({ ...t, h: new Uint16Array(buf) });
+      } catch {}
+    }));
+
+    world.anchor.Z = heightAt(0, 0) * 100;
+    if (world.tiles.length) {
+      world.group.remove(fallbackGround);
+      for (const t of world.tiles) world.group.add(tileMesh(t, t.h));
+    }
+
+    addBoundary();
+
+    // Stream objects in background without blocking player
+    (async () => {
+      const keys = [];
+      for (let ix = Math.floor((A.X - OBJECT_R) / SQUARE); ix <= Math.floor((A.X + OBJECT_R) / SQUARE); ix++)
+        for (let iy = Math.floor((A.Y - OBJECT_R) / SQUARE); iy <= Math.floor((A.Y + OBJECT_R) / SQUARE); iy++) keys.push(ix + '_' + iy);
+      const lists = await Promise.all(keys.map(k => fetch(ASSETS + 'world/objects/' + k + '.json').then(r => r.ok ? r.json() : []).catch(() => [])));
+      const byMesh = new Map();
+      for (const list of lists) for (const r of list) {
+        const p = meshes[r[0]], dx = r[1] - A.X, dy = r[2] - A.Y, d2 = dx * dx + dy * dy;
+        if (!p || skip(p) || d2 > OBJECT_R * OBJECT_R) continue;
+        if (isPlant(p) && (d2 > 4500 * 4500 || Math.random() < 0.6)) continue;
+        if (!byMesh.has(r[0])) byMesh.set(r[0], []);
+        byMesh.get(r[0]).push(r);
       }
-    } catch { } finally { onProgress('Trees, rocks and ruins', ++loaded / total); }
-  }));
-  // Keep the spawn point clear.
-  world.colliders = world.colliders.filter(c => c.x * c.x + c.z * c.z > 9);
-  for (const [k, list] of world.grid) world.grid.set(k, list.filter(c => c.x * c.x + c.z * c.z > 9));
-  addBoundary();
-  return { tiles: world.tiles.length, meshes: byMesh.size };
+      for (const [mi, rows] of byMesh) {
+        const path = meshes[mi], entry = modelForMesh(path);
+        try {
+          if (!entry) continue;
+          const root = await loadModel(entry);
+          root.updateMatrixWorld(true);
+          _b.setFromObject(root);
+          const half = Math.min(_b.max.x - _b.min.x, _b.max.z - _b.min.z) / 2;
+          root.traverse(o => {
+            if (!o.isMesh) return;
+            const im = new THREE.InstancedMesh(o.geometry, o.material, rows.length);
+            rows.forEach((r, i) => {
+              _p.copy(toScene(r[1], r[2], r[3])); _s.set(r[8], r[10], r[9]);
+              _m.compose(_p, ueQuat(r[4], r[5], r[6], r[7]), _s).multiply(o.matrixWorld);
+              im.setMatrixAt(i, _m);
+            });
+            im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere();
+            world.group.add(im);
+          });
+          if (solid(path) && !isPlant(path)) for (const r of rows) {
+            const rr = half * Math.max(r[8], r[9]) * (/Tree/i.test(path) ? 0.25 : 0.6);
+            if (rr > 0.25 && rr < 6) { const v = toScene(r[1], r[2], r[3]); if (v.x * v.x + v.z * v.z < (ARENA_RADIUS + 12) ** 2) addCollider(v.x, v.z, rr); }
+          }
+        } catch {}
+      }
+    })();
+  } catch (err) {
+    console.warn('Terrain stream failed, using flat ground fallback', err);
+    addBoundary();
+  }
+
+  return { tiles: world.tiles.length };
 }
 
-// A ring of ash-mist at the arena's edge.
 function addBoundary() {
   const g = new THREE.CylinderGeometry(ARENA_RADIUS + 1, ARENA_RADIUS + 1, 14, 96, 1, true);
   const m = new THREE.ShaderMaterial({

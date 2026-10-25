@@ -808,6 +808,9 @@ function loop(now) {
 
 // Setup & Event Listeners
 async function start() {
+  await loadCatalog();
+  requestAnimationFrame(loop);
+
   $('play-btn').onclick = async () => {
     unlockAudio();
     $('start-modal').style.display = 'none';
@@ -865,9 +868,6 @@ async function start() {
 
   $('restart-btn').onclick = () => location.reload();
   $('retry-btn').onclick = () => location.reload();
-
-  await loadCatalog();
-  requestAnimationFrame(loop);
 }
 
 start().catch(err => console.error('Failed to start Survivors game:', err));

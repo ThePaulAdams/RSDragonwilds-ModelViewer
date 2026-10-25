@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 // Fix Three.js GLTFLoader crash on meshes without skinWeight attribute
 THREE.SkinnedMesh.prototype.normalizeSkinWeights = function() {
@@ -122,7 +123,7 @@ export function loadModel(nameOrEntry) {
 export async function bakeTemplate(name, { height = null, size = null, yaw = 0, tint = null } = {}) {
   try {
     const src = await loadModel(name);
-    const obj = src.clone(true);
+    const obj = cloneSkeleton(src);
     obj.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(obj);
     const sz = box.getSize(new THREE.Vector3());
@@ -131,7 +132,8 @@ export async function bakeTemplate(name, { height = null, size = null, yaw = 0, 
     // Create container with normalized pivot (origin at feet / bottom center)
     const container = new THREE.Group();
     obj.scale.multiplyScalar(s);
-    obj.position.set(-(box.min.x + box.max.x) / 2 * s, -box.min.y * s, -(box.min.z + box.max.z) / 2 * s);
+    const posY = -box.min.y * s;
+    obj.position.set(-(box.min.x + box.max.x) / 2 * s, posY, -(box.min.z + box.max.z) / 2 * s);
     if (yaw) obj.rotation.y = yaw;
     if (tint) {
       const tintCol = new THREE.Color(tint);
@@ -143,7 +145,7 @@ export async function bakeTemplate(name, { height = null, size = null, yaw = 0, 
       });
     }
     container.add(obj);
-    return { name, proto: container, height: height || sz.y * s, radius: Math.max(sz.x, sz.z) * s / 2 };
+    return { name, proto: container, height: height || sz.y * s, radius: Math.max(sz.x, sz.z) * s / 2, baseInnerY: posY };
   } catch (err) {
     console.warn('Fallback template for', name, err);
     const h = height || 1.6;
@@ -153,7 +155,7 @@ export async function bakeTemplate(name, { height = null, size = null, yaw = 0, 
     fallbackMesh.position.y = h / 2;
     const container = new THREE.Group();
     container.add(fallbackMesh);
-    return { name, proto: container, height: h, radius: h * 0.3 };
+    return { name, proto: container, height: h, radius: h * 0.3, baseInnerY: h / 2 };
   }
 }
 
@@ -167,24 +169,27 @@ export function templateMesh(t) {
     g.add(m);
     return g;
   }
-  return t.proto.clone(true);
+  return cloneSkeleton(t.proto);
 }
 
-// Character loader (clones the root scene so it works reliably)
+// Character loader (clones the root scene with SkeletonUtils so skinned meshes rebind properly)
 export async function loadCharacter(name, height = 2.0) {
   const src = await loadModel(name);
-  const obj = src.clone(true);
+  const obj = cloneSkeleton(src);
   const holder = new THREE.Group();
   obj.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(obj), sz = box.getSize(new THREE.Vector3());
   const s = height / (sz.y || 1);
   obj.scale.multiplyScalar(s);
-  obj.position.set(-(box.min.x + box.max.x) / 2 * s, -box.min.y * s, -(box.min.z + box.max.z) / 2 * s);
+  const posX = -(box.min.x + box.max.x) / 2 * s;
+  const posY = -box.min.y * s;
+  const posZ = -(box.min.z + box.max.z) / 2 * s;
+  obj.position.set(posX, posY, posZ);
   holder.add(obj);
   const bones = {};
   obj.traverse(o => { if (o.isBone) bones[o.name.toLowerCase()] = o; if (o.isMesh) o.frustumCulled = false; });
   for (const b of Object.values(bones)) b.userData.rest = b.quaternion.clone();
-  return { root: holder, inner: obj, bones, height };
+  return { root: holder, inner: obj, bones, height, baseInnerY: posY };
 }
 const _q = new THREE.Quaternion(), _ax = new THREE.Vector3();
 export function poseBone(b, axis, angle) {

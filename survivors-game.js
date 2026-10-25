@@ -239,6 +239,8 @@ class Player {
         const spine = findBone(b, 'spine_01', 'spine_02');
         const head = findBone(b, 'head');
 
+        const baseY = this.charData?.baseInnerY || 0;
+
         if (moving) {
           const stride = Math.sin(this.walkCycle);
           const strideCos = Math.cos(this.walkCycle);
@@ -246,7 +248,7 @@ class Player {
 
           // Natural vertical bob and subtle spine roll
           if (this.charData.inner) {
-            this.charData.inner.position.y = -bounce;
+            this.charData.inner.position.y = baseY - bounce;
           }
 
           // Leg articulation: Y axis is forward/backward in Unreal humanoid coordinate system
@@ -254,20 +256,20 @@ class Player {
           if (rThigh) poseBone(rThigh, 'y', -stride * 0.75);
 
           // Knee flexion: calf bends backward when leg pushes back
-          if (lCalf) poseBone(lCalf, 'y', Math.max(0, -strideCos) * 0.85);
-          if (rCalf) poseBone(rCalf, 'y', Math.max(0, strideCos) * 0.85);
+          if (lCalf) poseBone(lCalf, 'y', Math.max(0, -strideCos) * 0.95);
+          if (rCalf) poseBone(rCalf, 'y', Math.max(0, strideCos) * 0.95);
 
           // Arm swinging counter to leg motion
           if (this.attackTimer <= 0) {
-            if (lArm) poseBone(lArm, 'y', -stride * 0.55);
-            if (rArm) poseBone(rArm, 'y', stride * 0.55);
-            if (lForearm) poseBone(lForearm, 'y', 0.25);
-            if (rForearm) poseBone(rForearm, 'y', 0.25);
+            if (lArm) poseBone(lArm, 'y', -stride * 0.6);
+            if (rArm) poseBone(rArm, 'y', stride * 0.6);
+            if (lForearm) poseBone(lForearm, 'y', 0.35 + Math.max(0, -stride) * 0.25);
+            if (rForearm) poseBone(rForearm, 'y', 0.35 + Math.max(0, stride) * 0.25);
           }
 
           // Torso sway and spine twisting with walking stride
-          if (spine) poseBone(spine, 'z', stride * 0.08);
-          if (head) poseBone(head, 'z', -stride * 0.06);
+          if (spine) poseBone(spine, 'z', stride * 0.1);
+          if (head) poseBone(head, 'z', -stride * 0.08);
 
           // Emit subtle running dust puffs
           if (Math.random() < 0.2) {
@@ -275,20 +277,20 @@ class Player {
           }
         } else {
           // Subtle breathing idle animation
-          const breath = Math.sin(this.idleCycle) * 0.04;
-          if (this.charData.inner) this.charData.inner.position.y = breath * 0.5;
+          const breath = Math.sin(this.idleCycle) * 0.03;
+          if (this.charData.inner) this.charData.inner.position.y = baseY + breath;
           if (lThigh) poseBone(lThigh, 'y', 0);
           if (rThigh) poseBone(rThigh, 'y', 0);
           if (lCalf) poseBone(lCalf, 'y', 0);
           if (rCalf) poseBone(rCalf, 'y', 0);
 
           if (this.attackTimer <= 0) {
-            if (lArm) poseBone(lArm, 'y', 0.15 + breath);
-            if (rArm) poseBone(rArm, 'y', 0.15 + breath);
+            if (lArm) poseBone(lArm, 'y', 0.15 + breath * 0.5);
+            if (rArm) poseBone(rArm, 'y', 0.15 + breath * 0.5);
             if (lForearm) poseBone(lForearm, 'y', 0.35);
             if (rForearm) poseBone(rForearm, 'y', 0.35);
           }
-          if (spine) poseBone(spine, 'y', -breath);
+          if (spine) poseBone(spine, 'y', -breath * 0.4);
         }
 
         // Weapon swing / attack posture override
@@ -364,6 +366,7 @@ class Enemy {
     if (tpl) {
       this.mesh = templateMesh(tpl);
       this.innerMesh = this.mesh.children[0] || this.mesh;
+      this.baseInnerY = this.innerMesh ? this.innerMesh.position.y : 0;
       this.mesh.position.set(this.x, this.y, this.z);
       scene.add(this.mesh);
     }
@@ -418,7 +421,7 @@ class Enemy {
         if (this.innerMesh) {
           const bob = Math.abs(Math.sin(this.walkCycle)) * 0.12 * (this.def.h || 1);
           const tilt = Math.sin(this.walkCycle) * 0.15;
-          this.innerMesh.position.y = bob;
+          this.innerMesh.position.y = (this.baseInnerY || 0) + bob;
           this.innerMesh.rotation.z = tilt;
           this.innerMesh.rotation.x = 0.1; // Forward lean while charging
         }

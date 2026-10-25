@@ -653,7 +653,7 @@ function openChestModal(guaranteedCount = null) {
     });
   }
 
-  updateInventoryHud();
+  if (G.hero) updateHUD(G.hero);
 
   const claimBtn = $('chest-claim-btn');
   if (claimBtn) {

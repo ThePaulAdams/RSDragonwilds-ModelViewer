@@ -1049,6 +1049,11 @@ export const testHooks = {
     if (!G.hero) return null;
     G.hero.x = x;
     G.hero.z = z;
+    const dist = Math.hypot(G.hero.x, G.hero.z);
+    if (dist > ARENA_RADIUS) {
+      G.hero.x = (G.hero.x / dist) * ARENA_RADIUS;
+      G.hero.z = (G.hero.z / dist) * ARENA_RADIUS;
+    }
     const pos = { x: G.hero.x, z: G.hero.z };
     resolveColliders(pos, 0.5);
     G.hero.x = pos.x;

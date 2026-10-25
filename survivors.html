@@ -171,6 +171,22 @@
   }
 }
 </script>
+<script type="module">
+import * as THREE from 'three';
+// Critical fix: Unreal Engine skeletal meshes exported without skinWeight buffers cause Three.js GLTFLoader to crash
+THREE.SkinnedMesh.prototype.normalizeSkinWeights = function() {
+  const skinWeight = this.geometry?.attributes?.skinWeight;
+  if (!skinWeight) return;
+  const vector = new THREE.Vector4();
+  for (let i = 0, l = skinWeight.count; i < l; i++) {
+    vector.fromBufferAttribute(skinWeight, i);
+    const scale = 1.0 / vector.manhattanLength();
+    if (scale !== Infinity) vector.multiplyScalar(scale); else vector.set(1, 0, 0, 0);
+    skinWeight.setXYZW(i, vector.x, vector.y, vector.z, vector.w);
+  }
+};
+window.THREE = THREE;
+</script>
 </head>
 <body>
 

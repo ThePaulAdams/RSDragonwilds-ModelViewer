@@ -626,10 +626,12 @@ async function start() {
     const heroKey = document.querySelector('.hero-select-card.selected')?.dataset.hero || 'knight';
     const heroDef = HEROES[heroKey] || HEROES.knight;
 
+    await loadArena('temple');
     G.hero = new Player(heroDef);
     await G.hero.init();
+    camera.position.set(G.hero.x, G.hero.y + 17, G.hero.z + 17);
+    camera.lookAt(G.hero.x, G.hero.y + 1.2, G.hero.z);
 
-    await loadArena('temple');
     preloadEnemyTemplates(); // Runs fast in parallel
 
     G.weapons = { [heroDef.start]: 1 };

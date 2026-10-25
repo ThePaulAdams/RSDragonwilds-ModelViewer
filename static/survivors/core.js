@@ -112,63 +112,57 @@ export function loadModel(nameOrEntry) {
 }
 
 // ---------------------------------------------------------------------------
-// Templates: bake a model into one static geometry in its bind pose.
+// Templates: create optimized clone instances of game models.
 // ---------------------------------------------------------------------------
-function floatAttr(a) {
-  if (!a) return null;
-  const n = a.count, s = a.itemSize, out = new Float32Array(n * s);
-  for (let i = 0; i < n; i++) for (let k = 0; k < s; k++) out[i * s + k] = a.getComponent(i, k);
-  return new THREE.BufferAttribute(out, s);
-}
-function cleanGeometry(src, matrix) {
-  if (!src.attributes.position) return null;
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', floatAttr(src.attributes.position));
-  if (src.attributes.normal) g.setAttribute('normal', floatAttr(src.attributes.normal));
-  g.setAttribute('uv', src.attributes.uv ? floatAttr(src.attributes.uv) : new THREE.BufferAttribute(new Float32Array(src.attributes.position.count * 2), 2));
-  if (src.index) g.setIndex(new THREE.BufferAttribute(Uint32Array.from(src.index.array), 1));
-  else g.setIndex([...Array(src.attributes.position.count).keys()]);
-  g.applyMatrix4(matrix);
-  if (!g.attributes.normal) g.computeVertexNormals();
-  return g;
-}
 export async function bakeTemplate(name, { height = null, size = null, yaw = 0, tint = null } = {}) {
-  const root = await loadModel(name);
-  root.updateMatrixWorld(true);
-  const geos = [], mats = [];
-  root.traverse(o => {
-    if (!o.isMesh || !o.geometry?.attributes?.position) return;
-    const base = cleanGeometry(o.geometry, o.matrixWorld);
-    if (!base) return;
-    const list = [].concat(o.material);
-    const groups = Array.isArray(o.material) && o.geometry.groups?.length ? o.geometry.groups : [{ start: 0, count: base.index.count, materialIndex: 0 }];
-    for (const gr of groups) {
-      const g = base.clone();
-      g.setIndex(new THREE.BufferAttribute(base.index.array.slice(gr.start, gr.start + gr.count), 1));
-      geos.push(g); mats.push(list[gr.materialIndex] || list[0]);
+  try {
+    const src = await loadModel(name);
+    const obj = src.clone(true);
+    obj.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(obj);
+    const sz = box.getSize(new THREE.Vector3());
+    const s = height ? height / (sz.y || 1) : size ? size / Math.max(sz.x || 1, sz.y || 1, sz.z || 1) : 1;
+    
+    // Create container with normalized pivot (origin at feet / bottom center)
+    const container = new THREE.Group();
+    obj.scale.multiplyScalar(s);
+    obj.position.set(-(box.min.x + box.max.x) / 2 * s, -box.min.y * s, -(box.min.z + box.max.z) / 2 * s);
+    if (yaw) obj.rotation.y = yaw;
+    if (tint) {
+      const tintCol = new THREE.Color(tint);
+      obj.traverse(o => {
+        if (o.isMesh && o.material) {
+          o.material = o.material.clone();
+          if (o.material.color) o.material.color.multiply(tintCol);
+        }
+      });
     }
-  });
-  if (!geos.length) {
-    const geo = new THREE.BoxGeometry(0.8, height || 1.6, 0.8);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x884444 });
-    return { name, geometry: geo, materials: [mat], height: height || 1.6, radius: 0.5 };
+    container.add(obj);
+    return { name, proto: container, height: height || sz.y * s, radius: Math.max(sz.x, sz.z) * s / 2 };
+  } catch (err) {
+    console.warn('Fallback template for', name, err);
+    const h = height || 1.6;
+    const geo = new THREE.CylinderGeometry(h * 0.25, h * 0.3, h, 8);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.6 });
+    const fallbackMesh = new THREE.Mesh(geo, mat);
+    fallbackMesh.position.y = h / 2;
+    const container = new THREE.Group();
+    container.add(fallbackMesh);
+    return { name, proto: container, height: h, radius: h * 0.3 };
   }
-  let geo = geos.length === 1 ? geos[0] : mergeGeometries(geos, true);
-  if (geos.length === 1) geo.addGroup(0, geo.index.count, 0);
-  geo.rotateY(yaw);
-  geo.computeBoundingBox();
-  const b = geo.boundingBox, sz = b.getSize(new THREE.Vector3());
-  const s = height ? height / (sz.y || 1) : size ? size / Math.max(sz.x || 1, sz.y || 1, sz.z || 1) : 1;
-  geo.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
-  geo.scale(s, s, s);
-  geo.computeBoundingBox(); geo.computeBoundingSphere();
-  const materials = mats.map(m => { const c = m.clone(); if (tint) c.color.multiply(new THREE.Color(tint)); return c; });
-  const dim = geo.boundingBox.getSize(new THREE.Vector3());
-  return { name, geometry: geo, materials, height: dim.y, radius: Math.max(dim.x, dim.z) / 2 };
 }
+
 export function templateMesh(t) {
-  const m = new THREE.Mesh(t.geometry, t.materials);
-  return m;
+  if (!t || !t.proto) {
+    const geo = new THREE.CylinderGeometry(0.3, 0.4, 1.2, 8);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = 0.6;
+    const g = new THREE.Group();
+    g.add(m);
+    return g;
+  }
+  return t.proto.clone(true);
 }
 
 // Character loader (clones the root scene so it works reliably)

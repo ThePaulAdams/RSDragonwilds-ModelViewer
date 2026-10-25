@@ -173,7 +173,7 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-// Critical fix: Unreal Engine skeletal meshes exported without skinWeight buffers cause Three.js GLTFLoader to crash
+// Critical fix: Unreal Engine skeletal meshes exported without skinWeight/skinIndex buffers
 THREE.SkinnedMesh.prototype.normalizeSkinWeights = function() {
   const skinWeight = this.geometry?.attributes?.skinWeight;
   if (!skinWeight) return;
@@ -185,6 +185,15 @@ THREE.SkinnedMesh.prototype.normalizeSkinWeights = function() {
     skinWeight.setXYZW(i, vector.x, vector.y, vector.z, vector.w);
   }
 };
+
+const origApplyBone = THREE.SkinnedMesh.prototype.applyBoneTransform;
+THREE.SkinnedMesh.prototype.applyBoneTransform = function(index, vector) {
+  if (!this.geometry?.attributes?.skinIndex || !this.geometry?.attributes?.skinWeight) {
+    return vector;
+  }
+  return origApplyBone.call(this, index, vector);
+};
+
 window.THREE = THREE;
 </script>
 </head>
@@ -294,6 +303,6 @@ window.THREE = THREE;
   </div>
 </div>
 
-<script type="module" src="/survivors-game.js"></script>
+<script type="module" src="/survivors-game.js?v=1792925688109"></script>
 </body>
 </html>

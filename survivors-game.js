@@ -52,6 +52,10 @@ class Player {
     this.isDashing = false;
     this.mesh = null;
     this.walkCycle = 0;
+    this.idleCycle = 0;
+    this.attackTimer = 0;
+    this.weaponMesh = null;
+    this.shieldMesh = null;
   }
 
   async init() {
@@ -59,6 +63,29 @@ class Player {
       const char = await loadCharacter(this.def.model, 2.0);
       this.mesh = char.root;
       this.charData = char;
+
+      // Attach weapon model into hand bone if available
+      try {
+        const handR = findBone(this.charData.bones, 'hand_r');
+        if (handR && this.def.start === 'scimitar') {
+          const wModel = await loadModel('SM_Scimitar_Dragon_1H_01');
+          const scim = wModel.clone(true);
+          scim.scale.set(1.1, 1.1, 1.1);
+          scim.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
+          scim.position.set(0, 0, 0);
+          handR.add(scim);
+          this.weaponMesh = scim;
+        } else if (handR && this.def.start === 'crossbow') {
+          const wModel = await loadModel('SM_Crossbow_Dragon_1H_01');
+          const xbow = wModel.clone(true);
+          xbow.scale.set(1.0, 1.0, 1.0);
+          xbow.rotation.set(Math.PI / 2, 0, 0);
+          handR.add(xbow);
+          this.weaponMesh = xbow;
+        }
+      } catch (e) {
+        console.warn('Could not attach weapon model to hand:', e);
+      }
     } catch (e) {
       console.warn('Fallback hero mesh', e);
       // Fallback procedural knight mesh
@@ -78,6 +105,7 @@ class Player {
   update(dt) {
     if (this.invuln > 0) this.invuln -= dt;
     if (this.dashCd > 0) this.dashCd -= dt;
+    if (this.attackTimer > 0) this.attackTimer -= dt;
 
     let mx = 0, mz = 0;
     if (G.keys['KeyW'] || G.keys['ArrowUp']) mz -= 1;
@@ -111,7 +139,9 @@ class Player {
     if (moving) {
       this.x += mx * spd * dt;
       this.z += mz * spd * dt;
-      this.walkCycle += dt * 10;
+      this.walkCycle += dt * 11;
+    } else {
+      this.idleCycle += dt * 2.2;
     }
 
     // Keep within arena radius
@@ -130,13 +160,79 @@ class Player {
       this.mesh.position.set(this.x, this.y, this.z);
       this.mesh.rotation.y = this.yaw;
 
+      // Realistic procedural full-body locomotion & attack animation
       if (this.charData?.bones) {
-        const lLeg = findBone(this.charData.bones, 'thigh_l', 'leg_l');
-        const rLeg = findBone(this.charData.bones, 'thigh_r', 'leg_r');
-        if (lLeg && rLeg) {
-          const legAngle = moving ? Math.sin(this.walkCycle) * 0.45 : 0;
-          poseBone(lLeg, 'x', legAngle);
-          poseBone(rLeg, 'x', -legAngle);
+        const b = this.charData.bones;
+        const lThigh = findBone(b, 'thigh_l');
+        const rThigh = findBone(b, 'thigh_r');
+        const lCalf = findBone(b, 'calf_l');
+        const rCalf = findBone(b, 'calf_r');
+        const lArm = findBone(b, 'upperarm_l');
+        const rArm = findBone(b, 'upperarm_r');
+        const lForearm = findBone(b, 'lowerarm_l');
+        const rForearm = findBone(b, 'lowerarm_r');
+        const spine = findBone(b, 'spine_01', 'spine_02');
+        const head = findBone(b, 'head');
+
+        if (moving) {
+          const stride = Math.sin(this.walkCycle);
+          const strideCos = Math.cos(this.walkCycle);
+          const bounce = Math.abs(Math.sin(this.walkCycle)) * 0.08;
+
+          // Natural vertical bob and subtle spine roll
+          if (this.charData.inner) {
+            this.charData.inner.position.y = -bounce;
+          }
+
+          // Leg articulation: Y axis is forward/backward in Unreal humanoid coordinate system
+          if (lThigh) poseBone(lThigh, 'y', stride * 0.75);
+          if (rThigh) poseBone(rThigh, 'y', -stride * 0.75);
+
+          // Knee flexion: calf bends backward when leg pushes back
+          if (lCalf) poseBone(lCalf, 'y', Math.max(0, -strideCos) * 0.85);
+          if (rCalf) poseBone(rCalf, 'y', Math.max(0, strideCos) * 0.85);
+
+          // Arm swinging counter to leg motion
+          if (this.attackTimer <= 0) {
+            if (lArm) poseBone(lArm, 'y', -stride * 0.55);
+            if (rArm) poseBone(rArm, 'y', stride * 0.55);
+            if (lForearm) poseBone(lForearm, 'y', 0.25);
+            if (rForearm) poseBone(rForearm, 'y', 0.25);
+          }
+
+          // Torso sway and spine twisting with walking stride
+          if (spine) poseBone(spine, 'z', stride * 0.08);
+          if (head) poseBone(head, 'z', -stride * 0.06);
+
+          // Emit subtle running dust puffs
+          if (Math.random() < 0.2) {
+            emit(this.x, this.y + 0.1, this.z, { n: 2, color: 0x94a3b8, speed: 0.8, size: 0.15 });
+          }
+        } else {
+          // Subtle breathing idle animation
+          const breath = Math.sin(this.idleCycle) * 0.04;
+          if (this.charData.inner) this.charData.inner.position.y = breath * 0.5;
+          if (lThigh) poseBone(lThigh, 'y', 0);
+          if (rThigh) poseBone(rThigh, 'y', 0);
+          if (lCalf) poseBone(lCalf, 'y', 0);
+          if (rCalf) poseBone(rCalf, 'y', 0);
+
+          if (this.attackTimer <= 0) {
+            if (lArm) poseBone(lArm, 'y', 0.15 + breath);
+            if (rArm) poseBone(rArm, 'y', 0.15 + breath);
+            if (lForearm) poseBone(lForearm, 'y', 0.35);
+            if (rForearm) poseBone(rForearm, 'y', 0.35);
+          }
+          if (spine) poseBone(spine, 'y', -breath);
+        }
+
+        // Weapon swing / attack posture override
+        if (this.attackTimer > 0) {
+          const atkProgress = 1 - (this.attackTimer / 0.28);
+          const slashAngle = Math.sin(atkProgress * Math.PI) * 1.5;
+          if (rArm) poseBone(rArm, 'y', 0.8 - slashAngle);
+          if (rForearm) poseBone(rForearm, 'y', 0.6 + slashAngle * 0.4);
+          if (spine) poseBone(spine, 'z', -slashAngle * 0.2);
         }
       }
     }
@@ -150,6 +246,13 @@ class Player {
     sfx('hurt');
     hitsplat(new THREE.Vector3(this.x, this.y + 1.8, this.z), '-' + Math.round(reduced), 'dmg');
     emit(this.x, this.y + 1.0, this.z, { n: 12, color: 0xef4444, speed: 4 });
+
+    // Flinch flash on damage
+    if (this.mesh) {
+      const origY = this.mesh.position.y;
+      this.mesh.position.y = origY + 0.15;
+      setTimeout(() => { if (this.mesh) this.mesh.position.y = origY; }, 80);
+    }
 
     if (this.hp <= 0) {
       this.hp = 0;
@@ -187,11 +290,14 @@ class Enemy {
     this.dmg = this.def.dmg;
     this.xp = this.def.xp;
     this.frozen = 0;
+    this.walkCycle = Math.random() * Math.PI * 2;
     this.mesh = null;
+    this.innerMesh = null;
 
     const tpl = enemyTemplates[typeKey];
     if (tpl) {
       this.mesh = templateMesh(tpl);
+      this.innerMesh = this.mesh.children[0] || this.mesh;
       this.mesh.position.set(this.x, this.y, this.z);
       scene.add(this.mesh);
     }
@@ -213,10 +319,20 @@ class Enemy {
       this.x += vx * dt;
       this.z += vz * dt;
       this.y = heightAt(this.x, this.z);
+      this.walkCycle += dt * 12;
 
       if (this.mesh) {
         this.mesh.position.set(this.x, this.y, this.z);
         this.mesh.rotation.y = Math.atan2(dx, dz);
+
+        // Procedural enemy run cycle (locomotion bob and roll)
+        if (this.innerMesh) {
+          const bob = Math.abs(Math.sin(this.walkCycle)) * 0.12 * (this.def.h || 1);
+          const tilt = Math.sin(this.walkCycle) * 0.15;
+          this.innerMesh.position.y = bob;
+          this.innerMesh.rotation.z = tilt;
+          this.innerMesh.rotation.x = 0.1; // Forward lean while charging
+        }
       }
 
       if (dist < 1.1) {
@@ -229,6 +345,16 @@ class Enemy {
     this.hp -= amt;
     hitsplat(new THREE.Vector3(this.x, this.y + 1.2, this.z), Math.round(amt), isCrit ? 'crit' : 'dmg');
     sfx('hit');
+
+    // Knockback flinch
+    if (this.mesh && G.hero) {
+      const kx = this.x - G.hero.x, kz = this.z - G.hero.z;
+      const kLen = Math.hypot(kx, kz) || 1;
+      this.x += (kx / kLen) * 0.35;
+      this.z += (kz / kLen) * 0.35;
+      this.y = heightAt(this.x, this.z);
+      this.mesh.position.set(this.x, this.y, this.z);
+    }
 
     if (this.hp <= 0) {
       this.die();
@@ -325,6 +451,7 @@ function fireWeapon(wKey, stats, player) {
   const dmg = stats.dmg * player.might;
 
   if (wKey === 'scimitar') {
+    player.attackTimer = 0.28; // Triggers arm slash animation
     sfx('slash');
     const arc = ringMesh(0.5, stats.range * player.area, 0xd97706, 0.9, 32, stats.arc, player.yaw - stats.arc / 2);
     arc.position.set(player.x, player.y + 0.8, player.z);
@@ -344,6 +471,7 @@ function fireWeapon(wKey, stats, player) {
       }
     }
   } else if (wKey === 'barrage') {
+    player.attackTimer = 0.25; // Casting gesture
     sfx('ice');
     let target = null, minDist = 999;
     for (const e of G.enemies) {
@@ -368,6 +496,7 @@ function fireWeapon(wKey, stats, player) {
       }
     }
   } else if (wKey === 'crossbow') {
+    player.attackTimer = 0.22; // Recoil animation
     sfx('bolt');
     const sorted = [...G.enemies].sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
     const count = Math.min(stats.count + player.projectiles, sorted.length);
@@ -393,6 +522,67 @@ function fireWeapon(wKey, stats, player) {
       const e = G.enemies[i];
       if (Math.hypot(e.x - player.x, e.z - player.z) <= stats.radius * player.area) {
         if (e.takeDamage(dmg * 0.35)) G.enemies.splice(i, 1);
+      }
+    }
+  } else if (wKey === 'breath') {
+    player.attackTimer = 0.3;
+    sfx('dragon');
+    const flame = ringMesh(0.4, stats.length, 0xef4444, 0.85, 24, stats.width, player.yaw - stats.width / 2);
+    flame.position.set(player.x, player.y + 0.8, player.z);
+    transient(flame, stats.dur || 0.6, (m, k) => { m.material.opacity = k * 0.85; });
+    for (let i = G.enemies.length - 1; i >= 0; i--) {
+      const e = G.enemies[i];
+      const dx = e.x - player.x, dz = e.z - player.z;
+      const d = Math.hypot(dx, dz);
+      if (d <= stats.length) {
+        const ang = Math.atan2(dx, dz);
+        let diff = Math.abs(ang - player.yaw);
+        if (diff > Math.PI) diff = 2 * Math.PI - diff;
+        if (diff <= stats.width / 2) {
+          emit(e.x, e.y + 0.8, e.z, { n: 8, color: 0xf97316, speed: 2 });
+          if (e.takeDamage(dmg)) G.enemies.splice(i, 1);
+        }
+      }
+    }
+  } else if (wKey === 'lightning') {
+    sfx('magic');
+    const sorted = [...G.enemies].sort(() => Math.random() - 0.5);
+    const count = Math.min(stats.count, sorted.length);
+    for (let c = 0; c < count; c++) {
+      const t = sorted[c];
+      const bolt = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.2, 12, 6),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+      );
+      bolt.position.set(t.x, t.y + 6, t.z);
+      transient(bolt, 0.25, (m, k) => { m.material.opacity = k; });
+      emit(t.x, t.y + 0.5, t.z, { n: 16, color: 0x67e8f9, speed: 4 });
+      if (t.takeDamage(dmg, true)) {
+        const idx = G.enemies.indexOf(t);
+        if (idx !== -1) G.enemies.splice(idx, 1);
+      }
+    }
+  } else if (wKey === 'chinchompa') {
+    sfx('fire');
+    let target = null, maxD = -1;
+    for (const e of G.enemies) {
+      const d = Math.hypot(e.x - player.x, e.z - player.z);
+      if (d > 4 && d < 18) { target = e; break; }
+    }
+    if (target) {
+      emit(target.x, target.y + 0.8, target.z, { n: 24, color: 0xf59e0b, speed: 5, size: 0.4 });
+      for (let i = G.enemies.length - 1; i >= 0; i--) {
+        const e = G.enemies[i];
+        if (Math.hypot(e.x - target.x, e.z - target.z) <= stats.radius) {
+          if (e.takeDamage(dmg)) G.enemies.splice(i, 1);
+        }
+      }
+    }
+  } else if (wKey === 'retribution') {
+    for (let i = G.enemies.length - 1; i >= 0; i--) {
+      const e = G.enemies[i];
+      if (Math.hypot(e.x - player.x, e.z - player.z) <= stats.radius * player.area) {
+        if (e.takeDamage(dmg * 0.2)) G.enemies.splice(i, 1);
       }
     }
   }

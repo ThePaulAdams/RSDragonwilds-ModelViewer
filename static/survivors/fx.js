@@ -100,30 +100,66 @@ export function updateHitsplats(dt) {
 export function clearHitsplats() { for (const s of splats) { s.t = 0; s.el.style.display = 'none'; } }
 
 // ---------------------------------------------------------------------------
-// Sound: tiny WebAudio synth, no files needed.
+// Sound: tiny WebAudio synth, fully safeguarded against audio/note exceptions
 // ---------------------------------------------------------------------------
 let ac = null, master = null, lastPlay = {};
 export const sound = { on: localStorage.getItem('dws-sound') !== 'off' };
 function ctx() {
-  if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.35; master.connect(ac.destination); }
-  if (ac.state === 'suspended') ac.resume();
-  return ac;
+  try {
+    if (!ac) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null;
+      ac = new AudioCtx();
+      master = ac.createGain();
+      master.gain.value = 0.35;
+      master.connect(ac.destination);
+    }
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    return ac;
+  } catch {
+    return null;
+  }
 }
 function tone(freq, dur, { type = 'square', vol = 0.2, slide = 0, delay = 0, noise = false } = {}) {
-  const a = ctx(), t = a.currentTime + delay, g = a.createGain();
-  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  let src;
-  if (noise) {
-    const b = a.createBuffer(1, a.sampleRate * dur, a.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    src = a.createBufferSource(); src.buffer = b;
-    const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; src.connect(f); f.connect(g);
-  } else {
-    src = a.createOscillator(); src.type = type; src.frequency.setValueAtTime(freq, t);
-    if (slide) src.frequency.exponentialRampToValueAtTime(Math.max(20, freq + slide), t + dur);
-    src.connect(g);
+  try {
+    const a = ctx();
+    if (!a || !master) return;
+    const safeFreq = Math.max(20, Math.min(10000, Number(freq) || 440));
+    const safeDur = Math.max(0.02, Math.min(5, Number(dur) || 0.1));
+    const safeVol = Math.max(0.001, Math.min(1, Number(vol) || 0.2));
+    const safeDelay = Math.max(0, Number(delay) || 0);
+    const t = a.currentTime + safeDelay;
+    const g = a.createGain();
+    g.gain.setValueAtTime(safeVol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + safeDur);
+    let src;
+    if (noise) {
+      const b = a.createBuffer(1, Math.floor(a.sampleRate * safeDur), a.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      src = a.createBufferSource();
+      src.buffer = b;
+      const f = a.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = safeFreq;
+      src.connect(f);
+      f.connect(g);
+    } else {
+      src = a.createOscillator();
+      src.type = type;
+      src.frequency.setValueAtTime(safeFreq, t);
+      if (slide) {
+        const targetFreq = Math.max(20, safeFreq + slide);
+        src.frequency.exponentialRampToValueAtTime(targetFreq, t + safeDur);
+      }
+      src.connect(g);
+    }
+    g.connect(master);
+    src.start(t);
+    src.stop(t + safeDur + 0.05);
+  } catch (err) {
+    // Silent catch for audio policy / device errors
   }
-  g.connect(master); src.start(t); src.stop(t + dur + 0.02);
 }
 const SFX = {
   hit: () => tone(180 + Math.random() * 60, 0.06, { type: 'square', vol: 0.05, slide: -80 }),

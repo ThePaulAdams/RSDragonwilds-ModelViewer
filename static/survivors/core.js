@@ -41,6 +41,10 @@ const sun = new THREE.DirectionalLight(0xfff1d6, 2.5);
 sun.position.set(30, 60, 20);
 scene.add(hemi, sun);
 export const lights = { hemi, sun };
+window.scene = scene;
+window.camera = camera;
+window.renderer = renderer;
+window.THREE = THREE;
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);

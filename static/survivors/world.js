@@ -26,6 +26,31 @@ function noiseTexture() {
   return t;
 }
 const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, map: noiseTexture() });
+
+function makeFallbackGroundMat() {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#445631';
+  ctx.fillRect(0, 0, 512, 512);
+  ctx.strokeStyle = 'rgba(25, 35, 18, 0.45)';
+  ctx.lineWidth = 4;
+  for (let x = 0; x < 512; x += 64) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 512); ctx.stroke();
+  }
+  for (let y = 0; y < 512; y += 64) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
+  }
+  for (let i = 0; i < 2500; i++) {
+    const gx = Math.random() * 512, gy = Math.random() * 512;
+    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(92, 120, 58, 0.6)' : 'rgba(56, 46, 32, 0.5)';
+    ctx.fillRect(gx, gy, 4, 4);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(24, 24);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, metalness: 0.05 });
+}
 const grassCol = new THREE.Color(0x5b6f38), dryCol = new THREE.Color(0x76733f), dirtCol = new THREE.Color(0x6d5f45), rockCol = new THREE.Color(0x77736b);
 
 function tileMesh(t, h) {
@@ -99,12 +124,12 @@ export async function loadArena(key, onProgress = () => { }) {
   world.group.clear(); world.colliders.length = 0; world.grid.clear(); world.tiles = [];
   scene.background.set(A.sky); scene.fog.color.set(A.sky);
 
-  // Fallback ground plane so player can move instantly
+  // Fallback ground plane with crisp cobblestone/grass tiles so player movement is immediately visible
   const fallbackGround = new THREE.Mesh(
     new THREE.PlaneGeometry(ARENA_RADIUS * 2.5, ARENA_RADIUS * 2.5, 32, 32).rotateX(-Math.PI / 2),
-    terrainMat
+    makeFallbackGroundMat()
   );
-  fallbackGround.position.y = 0;
+  fallbackGround.position.y = -0.05;
   world.group.add(fallbackGround);
 
   try {
@@ -124,7 +149,6 @@ export async function loadArena(key, onProgress = () => { }) {
 
     world.anchor.Z = heightAt(0, 0) * 100;
     if (world.tiles.length) {
-      world.group.remove(fallbackGround);
       for (const t of world.tiles) world.group.add(tileMesh(t, t.h));
     }
 

@@ -1,8 +1,26 @@
 // Dragonwilds Survivors: Main Game Controller
-import { THREE, scene, camera, renderer, $, rand, clamp, pick, bakeTemplate, templateMesh, loadCharacter, loadModel, poseBone, findBone, loadCatalog } from '/survivors/core.js?v=skin2';
+import { THREE, scene, camera, renderer, $, rand, clamp, pick, bakeTemplate, templateMesh, loadCharacter, loadModel, poseBone, findBone, loadCatalog } from '/survivors/core.js';
 import { loadArena, heightAt, resolveColliders, ARENA_RADIUS } from '/survivors/world.js';
 import { HEROES, ENEMIES, BOSSES, WAVES, EVENTS, WEAPONS, PASSIVES, SHOP, xpForLevel, MAX_WEAPON, MAX_PASSIVE, SLOTS } from '/survivors/data.js';
 import { emit, updateParticles, clearParticles, transient, ringMesh, telegraph, hitsplat, updateHitsplats, clearHitsplats, sfx, unlockAudio, ambience } from '/survivors/fx.js';
+
+// Ground shadow blob helper to anchor models to 3D terrain
+function createBlobShadow(radius = 0.6) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(0, 0, 0, 0.7)');
+  grad.addColorStop(0.65, 'rgba(0, 0, 0, 0.35)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  const geo = new THREE.PlaneGeometry(radius * 2, radius * 2).rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.85 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = 2;
+  return mesh;
+}
 
 // Game state
 export const G = {
@@ -23,6 +41,7 @@ export const G = {
   pickups: [],
   projectiles: [],
   keys: {},
+  pointerDir: { x: 0, z: 0, active: false },
   boss: null,
   activeEvents: []
 };
@@ -100,6 +119,11 @@ class Player {
     this.y = heightAt(0, 0);
     this.mesh.position.set(0, this.y, 0);
     scene.add(this.mesh);
+
+    // Ground shadow blob
+    this.shadow = createBlobShadow(0.85);
+    this.shadow.position.set(0, this.y + 0.04, 0);
+    scene.add(this.shadow);
   }
 
   update(dt) {
@@ -108,10 +132,16 @@ class Player {
     if (this.attackTimer > 0) this.attackTimer -= dt;
 
     let mx = 0, mz = 0;
-    if (G.keys['KeyW'] || G.keys['ArrowUp']) mz -= 1;
-    if (G.keys['KeyS'] || G.keys['ArrowDown']) mz += 1;
-    if (G.keys['KeyA'] || G.keys['ArrowLeft']) mx -= 1;
-    if (G.keys['KeyD'] || G.keys['ArrowRight']) mx += 1;
+    if (G.keys['KeyW'] || G.keys['ArrowUp'] || G.keys['w'] || G.keys['W']) mz -= 1;
+    if (G.keys['KeyS'] || G.keys['ArrowDown'] || G.keys['s'] || G.keys['S']) mz += 1;
+    if (G.keys['KeyA'] || G.keys['ArrowLeft'] || G.keys['a'] || G.keys['A']) mx -= 1;
+    if (G.keys['KeyD'] || G.keys['ArrowRight'] || G.keys['d'] || G.keys['D']) mx += 1;
+
+    // Pointer / touch / mouse drag movement
+    if (G.pointerDir && G.pointerDir.active) {
+      mx += G.pointerDir.x;
+      mz += G.pointerDir.z;
+    }
 
     const moving = mx !== 0 || mz !== 0;
     if (moving) {
@@ -120,7 +150,7 @@ class Player {
       this.yaw = Math.atan2(mx, mz);
     }
 
-    if (G.keys['Space'] && this.dashCd <= 0 && moving) {
+    if ((G.keys['Space'] || G.keys[' ']) && this.dashCd <= 0 && moving) {
       this.dashCd = 2.5;
       this.dashTimer = 0.22;
       this.isDashing = true;
@@ -156,6 +186,7 @@ class Player {
     this.x = pos.x; this.z = pos.z;
 
     this.y = heightAt(this.x, this.z);
+    if (this.shadow) this.shadow.position.set(this.x, this.y + 0.04, this.z);
     if (this.mesh) {
       this.mesh.position.set(this.x, this.y, this.z);
       this.mesh.rotation.y = this.yaw;
@@ -301,6 +332,10 @@ class Enemy {
       this.mesh.position.set(this.x, this.y, this.z);
       scene.add(this.mesh);
     }
+
+    this.shadow = createBlobShadow(Math.max(0.45, (this.def.h || 1) * 0.35));
+    this.shadow.position.set(this.x, this.y + 0.03, this.z);
+    scene.add(this.shadow);
   }
 
   update(dt, player) {
@@ -313,6 +348,21 @@ class Enemy {
     const dz = player.z - this.z;
     const dist = Math.hypot(dx, dz);
 
+    // Enemy-enemy flocking separation to maintain a natural, menacing horde
+    for (let j = 0; j < G.enemies.length; j++) {
+      const other = G.enemies[j];
+      if (other === this) continue;
+      const ex = this.x - other.x, ez = this.z - other.z;
+      const ed2 = ex * ex + ez * ez;
+      const minD = 0.85;
+      if (ed2 < minD * minD && ed2 > 0.0001) {
+        const d = Math.sqrt(ed2);
+        const push = (minD - d) * 0.5 * dt * 4;
+        this.x += (ex / d) * push;
+        this.z += (ez / d) * push;
+      }
+    }
+
     if (dist > 0.1) {
       const vx = (dx / dist) * this.speed;
       const vz = (dz / dist) * this.speed;
@@ -320,6 +370,10 @@ class Enemy {
       this.z += vz * dt;
       this.y = heightAt(this.x, this.z);
       this.walkCycle += dt * 12;
+
+      if (this.shadow) {
+        this.shadow.position.set(this.x, this.y + 0.03, this.z);
+      }
 
       if (this.mesh) {
         this.mesh.position.set(this.x, this.y, this.z);
@@ -337,6 +391,9 @@ class Enemy {
 
       if (dist < 1.1) {
         player.takeDamage(this.dmg);
+        // Push enemy back gently upon dealing damage
+        this.x -= (dx / dist) * 0.35;
+        this.z -= (dz / dist) * 0.35;
       }
     }
   }
@@ -366,6 +423,7 @@ class Enemy {
   die() {
     emit(this.x, this.y + 0.5, this.z, { n: 16, color: 0xfef08a, speed: 3, size: 0.3 });
     if (this.mesh) scene.remove(this.mesh);
+    if (this.shadow) scene.remove(this.shadow);
     spawnDrop(this.x, this.z, this.xp);
     G.kills++;
   }
@@ -724,6 +782,14 @@ function openLevelUp() {
   }
 
   const picks = options.sort(() => Math.random() - 0.5).slice(0, 3);
+  if (picks.length === 0) {
+    picks.push(
+      { type: 'stat', stat: 'might', name: 'Saradomin Might', icon: '⚔️', desc: '+15% Damage Might', rank: 1, isNew: false },
+      { type: 'stat', stat: 'speed', name: 'Guthix Agility', icon: '🥾', desc: '+10% Movement Speed', rank: 1, isNew: false },
+      { type: 'stat', stat: 'hp', name: 'Zamorak Vitality', icon: '❤️', desc: '+30 Max HP and Heal', rank: 1, isNew: false }
+    );
+  }
+
   for (const opt of picks) {
     const card = document.createElement('div');
     card.className = 'vs-card';
@@ -741,10 +807,42 @@ function openLevelUp() {
     };
     container.appendChild(card);
   }
+
+  // Hook up Reroll and Skip buttons
+  const rCount = $('reroll-count');
+  if (rCount) rCount.textContent = G.rerolls;
+  const rBtn = $('reroll-btn');
+  if (rBtn) {
+    rBtn.onclick = () => {
+      if (G.rerolls > 0) {
+        G.rerolls--;
+        if (rCount) rCount.textContent = G.rerolls;
+        openLevelUp();
+      }
+    };
+  }
+  const sBtn = $('skip-btn');
+  if (sBtn) {
+    sBtn.onclick = () => {
+      if (G.hero) {
+        G.hero.maxHp += 20;
+        G.hero.hp = Math.min(G.hero.maxHp, G.hero.hp + 20);
+      }
+      modal.style.display = 'none';
+      G.paused = false;
+    };
+  }
+
   modal.style.display = 'flex';
 }
 
 function applyUpgrade(opt) {
+  if (opt.type === 'stat') {
+    if (opt.stat === 'might') G.hero.might *= 1.15;
+    if (opt.stat === 'speed') G.hero.speed *= 1.10;
+    if (opt.stat === 'hp') { G.hero.maxHp += 30; G.hero.hp = Math.min(G.hero.maxHp, G.hero.hp + 30); }
+    return;
+  }
   if (opt.type === 'weapon') {
     G.weapons[opt.key] = opt.rank;
   } else {
@@ -795,12 +893,16 @@ function loop(now) {
   updateParticles(dt);
   updateHitsplats(dt);
 
-  // Isometric Top-down chase camera
+  // Smooth damped isometric chase camera
   if (G.hero) {
-    camera.position.x = G.hero.x;
-    camera.position.y = G.hero.y + 17;
-    camera.position.z = G.hero.z + 17;
-    camera.lookAt(G.hero.x, G.hero.y + 1.2, G.hero.z);
+    const targetX = G.hero.x;
+    const targetY = G.hero.y + 17;
+    const targetZ = G.hero.z + 17;
+    const f = Math.min(1, 8 * dt);
+    camera.position.x += (targetX - camera.position.x) * f;
+    camera.position.y += (targetY - camera.position.y) * f;
+    camera.position.z += (targetZ - camera.position.z) * f;
+    camera.lookAt(camera.position.x, G.hero.y + 1.2, camera.position.z - 17);
   }
 
   renderer.render(scene, camera);
@@ -811,10 +913,97 @@ async function start() {
   await loadCatalog();
   requestAnimationFrame(loop);
 
+  const canvasEl = $('game-canvas');
+  if (canvasEl) {
+    canvasEl.tabIndex = 0;
+    const handlePointer = (clientX, clientY, active) => {
+      if (!active || !G.active || G.paused || !G.hero) {
+        G.pointerDir.active = false;
+        return;
+      }
+      const rect = canvasEl.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 25) {
+        G.pointerDir.x = dx / dist;
+        G.pointerDir.z = dy / dist;
+        G.pointerDir.active = true;
+      } else {
+        G.pointerDir.active = false;
+      }
+    };
+
+    canvasEl.addEventListener('pointerdown', e => {
+      canvasEl.focus();
+      handlePointer(e.clientX, e.clientY, true);
+    });
+    window.addEventListener('pointermove', e => {
+      if (e.buttons === 1) {
+        handlePointer(e.clientX, e.clientY, true);
+      }
+    });
+    window.addEventListener('pointerup', () => {
+      G.pointerDir.active = false;
+    });
+    window.addEventListener('pointercancel', () => {
+      G.pointerDir.active = false;
+    });
+  }
+
+  // Touch analog stick
+  const touchStick = $('touch-stick');
+  const touchNub = $('touch-nub');
+  if (touchStick && touchNub) {
+    let stickActive = false;
+    let stickCenterX = 0, stickCenterY = 0;
+    const maxR = 40;
+
+    touchStick.addEventListener('pointerdown', e => {
+      stickActive = true;
+      const rect = touchStick.getBoundingClientRect();
+      stickCenterX = rect.left + rect.width / 2;
+      stickCenterY = rect.top + rect.height / 2;
+      e.stopPropagation();
+    });
+
+    window.addEventListener('pointermove', e => {
+      if (!stickActive) return;
+      const dx = e.clientX - stickCenterX;
+      const dy = e.clientY - stickCenterY;
+      const dist = Math.hypot(dx, dy);
+      const clampedDist = Math.min(dist, maxR);
+      const ang = Math.atan2(dy, dx);
+      const nx = Math.cos(ang) * clampedDist;
+      const ny = Math.sin(ang) * clampedDist;
+      touchNub.style.transform = `translate(${nx}px, ${ny}px)`;
+      if (dist > 6) {
+        G.pointerDir.x = dx / dist;
+        G.pointerDir.z = dy / dist;
+        G.pointerDir.active = true;
+      } else {
+        G.pointerDir.active = false;
+      }
+    });
+
+    const endStick = () => {
+      stickActive = false;
+      touchNub.style.transform = 'translate(0px, 0px)';
+      G.pointerDir.active = false;
+    };
+    window.addEventListener('pointerup', endStick);
+    window.addEventListener('pointercancel', endStick);
+  }
+
   $('play-btn').onclick = async () => {
     unlockAudio();
     $('start-modal').style.display = 'none';
     $('hud').style.display = 'block';
+    if (touchStick && ('ontouchstart' in window || navigator.maxTouchPoints > 0)) {
+      touchStick.style.display = 'block';
+    }
 
     const heroKey = document.querySelector('.hero-select-card.selected')?.dataset.hero || 'knight';
     const heroDef = HEROES[heroKey] || HEROES.knight;
@@ -849,7 +1038,11 @@ async function start() {
 
   window.addEventListener('keydown', e => {
     G.keys[e.code] = true;
-    if (e.code === 'KeyP' || e.code === 'Escape') {
+    if (e.key) G.keys[e.key.toLowerCase()] = true;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code) || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+      e.preventDefault();
+    }
+    if (e.code === 'KeyP' || e.code === 'Escape' || e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
       if (G.active) {
         G.paused = !G.paused;
         $('pause-modal').style.display = G.paused ? 'flex' : 'none';
@@ -859,6 +1052,7 @@ async function start() {
 
   window.addEventListener('keyup', e => {
     G.keys[e.code] = false;
+    if (e.key) G.keys[e.key.toLowerCase()] = false;
   });
 
   $('resume-btn').onclick = () => {

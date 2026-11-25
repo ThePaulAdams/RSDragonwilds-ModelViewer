@@ -1,5 +1,6 @@
 // Tiny web server for hosting the viewer (Railway). No dependencies.
 //   SITE_PASSWORD  optional: when set, the site asks for this password; when unset, the site is public
+//   ADMIN_PASSWORD optional: when set, /admin/login unlocks the private architect; when unset, admin is disabled
 //   UPLOAD_TOKEN   token deploy.ps1 uses to upload model data (required for uploads)
 //   DATA_DIR       where the model data lives (a Railway volume), default /data
 //   SITE_NAME      name shown on the login page and tab
@@ -16,7 +17,7 @@ import { buildAgentDocs } from './agent-docs.js';
 
 const SITE_NAME = process.env.SITE_NAME || 'Ashenfallen';
 const PASSWORD = process.env.SITE_PASSWORD || '';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'baoluobendan';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';   // no default: unset means admin is off
 const UPLOAD_TOKEN = process.env.UPLOAD_TOKEN || '';
 const CLOSED = !!process.env.SITE_CLOSED;
 const DATA = normalize(process.env.DATA_DIR || '/data');
@@ -38,7 +39,7 @@ function authed(req) {
   return !!mac && same(mac, sign(exp)) && Number(exp) > Date.now();
 }
 function authedAdmin(req) {
-  if (!ADMIN_PASSWORD) return true;
+  if (!ADMIN_PASSWORD) return false;   // admin disabled: nobody gets in
   const c = (req.headers.cookie || '').split(/;\s*/).find(s => s.startsWith(ADMIN_COOKIE + '='));
   if (!c) return false;
   const [exp, mac] = c.slice(ADMIN_COOKIE.length + 1).split('.');
@@ -333,6 +334,8 @@ createServer(async (req, res) => {
 
     // Admin authentication routes for private architect & tools
     if (path === '/admin/login') {
+      // Without ADMIN_PASSWORD there is nothing to log in with (an empty password must not match an empty one).
+      if (!ADMIN_PASSWORD) return send(res, 403, 'Admin login is disabled.');
       if (req.method === 'POST') {
         let body = '';
         for await (const chunk of req) { body += chunk; if (body.length > 4096) break; }

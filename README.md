@@ -88,7 +88,7 @@ original to `SaveCharacters\Ashenfallen backups\` (or downloads it) and into the
 `server.js` is a small no-dependency web server for the viewer. Railway builds it from this repo on every push, and the model data lives on a Railway volume at `/data`.
 
 - `.\deploy.ps1` publishes the data. It makes a slim copy in `web-data\` (textures as 512px WebP, meshes meshopt-compressed, about 400 MB instead of 9 GB), then uploads only the files the site doesn't have yet. Run it again after each export.
-- Variables on the Railway service: `SITE_PASSWORD` (optional: set it to require a password, leave it unset for a public site), `SITE_CLOSED` (set it to show a "coming soon" page), `SITE_NAME`, `DATA_DIR` (default `/data`) and `UPLOAD_TOKEN` (set by `deploy.ps1`).
+- Variables on the Railway service: `SITE_PASSWORD` (optional: set it to require a password, leave it unset for a public site), `ADMIN_PASSWORD` (set it to enable `/admin/login` and the private architect; leave it unset and admin stays off), `SITE_CLOSED` (set it to show a "coming soon" page), `SITE_NAME`, `DATA_DIR` (default `/data`) and `UPLOAD_TOKEN` (set by `deploy.ps1`).
 
 ## Search for agents (/.well-known/search)
 

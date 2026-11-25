@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/character-save.test.mjs"
+    "test": "node tests/character-save.test.mjs && node --test tests/agent-search.test.mjs"
   },
   "engines": {
     "node": ">=22"

@@ -89,3 +89,14 @@ original to `SaveCharacters\Ashenfallen backups\` (or downloads it) and into the
 
 - `.\deploy.ps1` publishes the data. It makes a slim copy in `web-data\` (textures as 512px WebP, meshes meshopt-compressed, about 400 MB instead of 9 GB), then uploads only the files the site doesn't have yet. Run it again after each export.
 - Variables on the Railway service: `SITE_PASSWORD` (optional: set it to require a password, leave it unset for a public site), `SITE_CLOSED` (set it to show a "coming soon" page), `SITE_NAME`, `DATA_DIR` (default `/data`) and `UPLOAD_TOKEN` (set by `deploy.ps1`).
+
+## Search for agents (/.well-known/search)
+
+AI agents can search the site instead of crawling it, using the same contract as Cloudflare's
+[Search for Agents](https://developers.cloudflare.com/ai-search/how-to/search-for-agents/), served by this app (no AI Search instance, no Cloudflare toggle).
+
+- Every page has four `<meta name="agent:*">` tags (`instructions`, `endpoint`, `method`, `documentation`) pointing at the endpoint.
+- `GET /.well-known/search?q=green+dragon drops`, or `QUERY /.well-known/search` with the query as a `text/plain` body or `{"q": "..."}` JSON.
+- The reply is Markdown: `# Search results for: "..."`, then up to 10 `## <path> (score: 0.000)` sections with the title, the link and the content.
+- It searches the tool pages, the game data (items with their recipes and drop sources, enemies, chests, quests, perks, spells) and every 3D model. `agent-docs.js` builds the documents, `agent-search.js` is the index (BM25) and the HTTP handler. Tests: `node --test tests/agent-search.test.mjs`.
+- If you turn on Cloudflare's own Search for Agents for this zone, Cloudflare answers `/.well-known/search` and adds its own tags, so remove this one first.

@@ -12,6 +12,8 @@ import { readFile, stat, mkdir, rename, readdir } from 'node:fs/promises';
 import { dirname, join, normalize, sep, extname } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
+import { createIndex, handleSearch, metaTags, withAgentMeta } from './agent-search.js';
+import { buildAgentDocs } from './agent-docs.js';
 
 const SITE_NAME = process.env.SITE_NAME || 'Ashenfallen';
 const PASSWORD = process.env.SITE_PASSWORD || '';
@@ -98,6 +100,7 @@ async function receive(req, file) {
   await rename(tmp, file);
   thumbsList = null;
   if (file.endsWith('models.json')) catalog = null;
+  agentIndex = null;
 }
 
 const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -161,6 +164,18 @@ async function models() {
   }
   return (catalog = { list, bySlug: new Map(list.map(x => [x.slug.toLowerCase(), x])) });
 }
+// Search for Agents (/.well-known/search, see agent-search.js). The index is rebuilt after a model upload, and at
+// most every 10 minutes so a game data file uploaded to DATA_DIR shows up without a restart.
+let agentIndex = null;
+function agentSearchIndex() {
+  if (agentIndex && agentIndex.until > Date.now()) return agentIndex.ready;
+  const ready = models().then(cat => buildAgentDocs({ APP, DATA, SITE_URL, models: cat.list })).then(createIndex);
+  agentIndex = { ready, until: Date.now() + 10 * 60e3 };
+  ready.catch(() => { agentIndex = null; });
+  return ready;
+}
+const readPage = async file => withAgentMeta(await readFile(join(APP, file), 'utf8'), SITE_URL);
+
 // "SM_WaterBarrel_02" -> "Water Barrel 02"
 function humanize(s) {
   return s.replace(/^(SM|SK|S|BP|M|MI)_/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/\s+/g, ' ').trim();
@@ -180,7 +195,8 @@ async function page(model) {
   const image = model ? `${SITE_URL}/${model.thumb.split('/').map(encodeURIComponent).join('/')}` : `${SITE_URL}/og.png?v=1`;
   const ld = { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE_NAME, url: SITE_URL + '/', description,
     potentialAction: { '@type': 'SearchAction', target: SITE_URL + '/viewer?q={search_term_string}', 'query-input': 'required name=search_term_string' } };
-  const head = `<title>${esc(title)}</title>
+  const head = `${metaTags(SITE_URL)}
+<title>${esc(title)}</title>
 <meta name="description" content="${attr(description)}">
 <link rel="canonical" href="${attr(canonical)}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="${attr(SITE_NAME)}">
@@ -213,7 +229,8 @@ async function home() {
   const count = list.length.toLocaleString('en');
   const title = `${SITE_NAME}: tools for RuneScape: Dragonwilds`;
   const description = `Fan-made tools for RuneScape: Dragonwilds: a 3D viewer for ${count} game models, a base builder that reads your save, a crafting planner, calculators, drops and loot finder and character save editor. Fan-made, not affiliated with Jagex.`;
-  const head = `<title>${esc(title)}</title>
+  const head = `${metaTags(SITE_URL)}
+<title>${esc(title)}</title>
 <meta name="description" content="${attr(description)}">
 <link rel="canonical" href="${attr(SITE_URL + '/')}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="${attr(SITE_NAME)}">
@@ -405,7 +422,7 @@ createServer(async (req, res) => {
         return res.end();
       }
       // Inject auto-loading of private architect for authenticated admin
-      let html = await readFile(join(APP, 'basebuilder.html'), 'utf8');
+      let html = await readPage('basebuilder.html');
       html = html.replace('</body>', `${adminScript}</body>`);
       const body = gzipSync(html);
       res.writeHead(200, {
@@ -436,6 +453,7 @@ createServer(async (req, res) => {
       return res.end();
     }
 
+    if (path === '/.well-known/search' || path === '/.well-known/search/') return handleSearch(req, res, { getIndex: agentSearchIndex });
     if (path === '/site-config.json') await previews();
     if (path === '/site-config.json') return send(res, 200, JSON.stringify({ name: SITE_NAME, login: !!PASSWORD, thumbs: thumbsDir, assets: 'assets/', hosted: true }), { 'Content-Type': 'application/json' });
     // Old viewer links: /?q=... and /index.html now go to /viewer.
@@ -457,7 +475,7 @@ createServer(async (req, res) => {
     }
     // Crafting planner and calculators: plain pages plus a shared logic module, stylesheet and the game data.
     if (path === '/survivors' || path === '/survivors.html') {
-      const body = gzipSync(await readFile(join(APP, 'survivors.html')));
+      const body = gzipSync(await readPage('survivors.html'));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
         'Cache-Control': 'no-cache', Vary: 'Accept-Encoding' });
       return res.end(req.method === 'HEAD' ? undefined : body);
@@ -467,13 +485,13 @@ createServer(async (req, res) => {
     if (path === '/planner-lib.js' || path === '/site.css') return sendFile(req, res, join(APP, 'static', path.slice(1)), 'public, max-age=300');
     if (path === '/sample-gamedata.json') return sendFile(req, res, join(APP, 'data', 'sample-gamedata.json'), 'public, max-age=300');
     for (const [route, file] of [['/crafting', 'crafting.html'], ['/calculators', 'calculators.html']]) if (path === route) {
-      const body = gzipSync(await readFile(join(APP, file)));
+      const body = gzipSync(await readPage(file));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
         'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
       return res.end(req.method === 'HEAD' ? undefined : body);
     }
     if (path === '/base-builder' || path === '/basebuilder.html') {
-      let html = await readFile(join(APP, 'basebuilder.html'), 'utf8');
+      let html = await readPage('basebuilder.html');
       if (authedAdmin(req)) {
         html = html.replace('</body>', `${adminScript}</body>`);
       }
@@ -484,7 +502,7 @@ createServer(async (req, res) => {
     }
     // Drops and loot finder. Its data is extracted from the game files (ModelExporter "gamedata") and ships with the code.
     if (path === '/drops' || path === '/drops.html') {
-      const body = gzipSync(await readFile(join(APP, 'drops.html')));
+      const body = gzipSync(await readPage('drops.html'));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
         'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
       return res.end(req.method === 'HEAD' ? undefined : body);
@@ -492,7 +510,7 @@ createServer(async (req, res) => {
     // Character save editor. The save never leaves the browser; character-save.js is its reader and writer.
     if (path === '/character' || path === '/save-editor' || path === '/character.html') {
       if (path !== '/character') { res.writeHead(301, { Location: '/character' }); return res.end(); }
-      const body = gzipSync(await readFile(join(APP, 'character.html')));
+      const body = gzipSync(await readPage('character.html'));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Encoding': 'gzip', 'Content-Length': body.length,
         'Cache-Control': 'public, max-age=300', Vary: 'Accept-Encoding' });
       return res.end(req.method === 'HEAD' ? undefined : body);
